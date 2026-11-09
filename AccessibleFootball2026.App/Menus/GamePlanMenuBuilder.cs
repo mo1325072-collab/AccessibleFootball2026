@@ -53,6 +53,12 @@ public static class GamePlanMenuBuilder
             pushMenu(formMenu);
         });
 
+        menu.AddItem("الأسلوب والتكتيك (الشرايط وطريقة الدفاع)", () =>
+        {
+            var tactMenu = CreateTacticsMenu(userTeam, screenReader, popMenu);
+            pushMenu(tactMenu);
+        });
+
         menu.AddItem("تقرير الفريق", () =>
         {
             string cap = userTeam.Captain?.Name ?? (userTeam.Players.Count > 0 ? userTeam.Players[0].Name : "غير محدد");
@@ -406,6 +412,116 @@ public static class GamePlanMenuBuilder
         return menu;
     }
 
+    public static AccessibleMenu CreateTacticsMenu(
+        Team userTeam, 
+        IScreenReader screenReader, 
+        Action popMenu)
+    {
+        var menu = new AccessibleMenu($"الأسلوب والتكتيك - {userTeam.Name}", screenReader);
+
+        // 1. شريط مستوى الضغط
+        menu.AddItem($"شريط الضغط: {userTeam.Tactics.PressingIntensity}%", () =>
+        {
+            userTeam.Tactics.PressingIntensity = userTeam.Tactics.PressingIntensity switch
+            {
+                <= 25 => 45,
+                <= 50 => 75,
+                <= 75 => 90,
+                _ => 20
+            };
+            string tier = userTeam.Tactics.PressingIntensity <= 25 ? "دفاع متراجع تحت الكرة (Low Block)"
+                : (userTeam.Tactics.PressingIntensity <= 50 ? "ضغط متوسط متوازن"
+                : (userTeam.Tactics.PressingIntensity <= 75 ? "ضغط نشط ومتقدم"
+                : "ضغط عالي خانق (Gegenpress)"));
+            screenReader.Speak($"تم ضبط شريط الضغط عند {userTeam.Tactics.PressingIntensity}%: {tier}");
+        });
+
+        // 2. شريط أسلوب التمرير والريتم
+        menu.AddItem($"شريط التمرير: {userTeam.Tactics.PassingDirectness}%", () =>
+        {
+            userTeam.Tactics.PassingDirectness = userTeam.Tactics.PassingDirectness switch
+            {
+                <= 25 => 45,
+                <= 50 => 75,
+                <= 75 => 90,
+                _ => 20
+            };
+            string tier = userTeam.Tactics.PassingDirectness <= 25 ? "بناء هجمة قصير من الـ 18"
+                : (userTeam.Tactics.PassingDirectness <= 50 ? "تمرير أرضي متوازن"
+                : (userTeam.Tactics.PassingDirectness <= 75 ? "تمرير مباشر يكسر الخطوط"
+                : "كرات طولية سريعة في ضهر الدفاع"));
+            screenReader.Speak($"تم ضبط شريط التمرير عند {userTeam.Tactics.PassingDirectness}%: {tier}");
+        });
+
+        // 3. طريقة الدفاع
+        menu.AddItem($"طريقة الدفاع: {userTeam.Tactics.Marking.ToArabicName()}", () =>
+        {
+            userTeam.Tactics.Marking = userTeam.Tactics.Marking == DefensiveMarking.Zonal
+                ? DefensiveMarking.ManToMan
+                : DefensiveMarking.Zonal;
+            string detail = userTeam.Tactics.Marking == DefensiveMarking.Zonal
+                ? "دفاع منطقة: تغطية جماعية تحمي الفريق وتغلق المساحات"
+                : "دفاع رجل لرجل: صراعات فردية لصيقة، تتطلب مدافعين أقوياء في الـ 1v1";
+            screenReader.Speak($"تم تغيير طريقة الدفاع إلى: {userTeam.Tactics.Marking.ToArabicName()}. {detail}");
+        });
+
+        // 4. شراسة العرقلة
+        menu.AddItem($"شراسة العرقلة: {userTeam.Tactics.Tackling.ToArabicName()}", () =>
+        {
+            userTeam.Tactics.Tackling = userTeam.Tactics.Tackling switch
+            {
+                TacklingAggression.Cautious => TacklingAggression.Normal,
+                TacklingAggression.Normal => TacklingAggression.Moderate,
+                TacklingAggression.Moderate => TacklingAggression.Aggressive,
+                TacklingAggression.Aggressive => TacklingAggression.Reckless,
+                _ => TacklingAggression.Cautious
+            };
+            screenReader.Speak($"تم ضبط شراسة العرقلة على: {userTeam.Tactics.Tackling.ToArabicName()}");
+        });
+
+        // 5. مصيدة التسلل
+        menu.AddItem($"مصيدة التسلل: {(userTeam.Tactics.OffsideTrap ? "مفعلة" : "معطلة")}", () =>
+        {
+            userTeam.Tactics.OffsideTrap = !userTeam.Tactics.OffsideTrap;
+            screenReader.Speak($"مصيدة التسلل الآن: {(userTeam.Tactics.OffsideTrap ? "مفعلة" : "معطلة")}");
+        });
+
+        // 6. أسلوب وبؤرة الهجوم
+        menu.AddItem($"أسلوب الهجوم: {userTeam.Tactics.Focus.ToArabicName()}", () =>
+        {
+            userTeam.Tactics.Focus = userTeam.Tactics.Focus switch
+            {
+                AttackingFocus.Balanced => AttackingFocus.Wings,
+                AttackingFocus.Wings => AttackingFocus.Central,
+                AttackingFocus.Central => AttackingFocus.LongBall,
+                AttackingFocus.LongBall => AttackingFocus.ShootOnSight,
+                AttackingFocus.ShootOnSight => AttackingFocus.CounterAttack,
+                _ => AttackingFocus.Balanced
+            };
+            screenReader.Speak($"تم تغيير أسلوب الهجوم إلى: {userTeam.Tactics.Focus.ToArabicName()}");
+        });
+
+        // 7. تقرير التناغم التكتيكي
+        menu.AddItem("تقرير التناغم والانسجام التكتيكي", () =>
+        {
+            var synergy = userTeam.Tactics.CalculateSynergy();
+            string msg = $"التناغم التكتيكي: {synergy.SynergyScore} من 100، معامل الأداء: {synergy.AdvantageMultiplier:F2}x. ";
+            if (synergy.PositiveSynergies.Count > 0)
+            {
+                msg += "نقاط القوة: " + string.Join("، ", synergy.PositiveSynergies) + ". ";
+            }
+            if (synergy.Conflicts.Count > 0)
+            {
+                msg += "تحذيرات وتناقضات: " + string.Join("، ", synergy.Conflicts) + ". ";
+            }
+            screenReader.Speak(msg);
+        });
+
+        menu.AddItem("رجوع", () => popMenu());
+
+        return menu;
+    }
+
     public static AccessibleMenu CreatePauseMenu(
         MatchEngine match, 
         IScreenReader screenReader, 
@@ -458,6 +574,12 @@ public static class GamePlanMenuBuilder
         {
             var form = CreateFormationMenu(match.HomeTeam, screenReader, popMenu);
             pushMenu(form);
+        });
+
+        menu.AddItem("الأسلوب والتكتيك (الشرايط وطريقة الدفاع)", () =>
+        {
+            var tactMenu = CreateTacticsMenu(match.HomeTeam, screenReader, popMenu);
+            pushMenu(tactMenu);
         });
 
         menu.AddItem("المستشار التكتيكي بالذكاء الاصطناعي", () =>

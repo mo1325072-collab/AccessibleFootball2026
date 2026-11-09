@@ -310,6 +310,38 @@ public class TacticalAiAdvisor
             });
         }
 
+        // 3. توصية تعديل الشرايط والأسلوب التكتيكي الذكي
+        var idealTactics = ComputeDynamicTactics(match, match.HomeTeam, match.AwayTeam);
+        bool needsAdjustment = Math.Abs(match.HomeTeam.Tactics.PressingIntensity - idealTactics.PressingIntensity) >= 15 ||
+                               Math.Abs(match.HomeTeam.Tactics.PassingDirectness - idealTactics.PassingDirectness) >= 15 ||
+                               match.HomeTeam.Tactics.Marking != idealTactics.Marking ||
+                               match.HomeTeam.Tactics.Focus != idealTactics.Focus;
+
+        if (needsAdjustment)
+        {
+            string desc = idealTactics.PressingIntensity <= 30
+                ? $"خفض الضغط لـ {idealTactics.PressingIntensity} ودفاع منطقة وتمرير مباشر لتأمين التقدم وتوفير طاقة كبار السن."
+                : (idealTactics.PressingIntensity >= 75
+                    ? $"رفع الضغط لـ {idealTactics.PressingIntensity} والكرات المباشرة لقلب النتيجة واقتناص التعادل."
+                    : $"تعديل شريط الضغط لـ {idealTactics.PressingIntensity} وشريط التمرير لـ {idealTactics.PassingDirectness} لتحقيق التوازن.");
+
+            list.Add(new TacticalRecommendation
+            {
+                Title = $"تطبيق التكتيك المقترح: ضغط ({idealTactics.PressingIntensity})، تمرير ({idealTactics.PassingDirectness})، {idealTactics.Marking.ToArabicName()}",
+                Description = desc,
+                ApplyAction = () =>
+                {
+                    match.HomeTeam.Tactics.PressingIntensity = idealTactics.PressingIntensity;
+                    match.HomeTeam.Tactics.PassingDirectness = idealTactics.PassingDirectness;
+                    match.HomeTeam.Tactics.Marking = idealTactics.Marking;
+                    match.HomeTeam.Tactics.Focus = idealTactics.Focus;
+                    match.HomeTeam.Tactics.Tackling = idealTactics.Tackling;
+                    match.HomeTeam.Tactics.OffsideTrap = idealTactics.OffsideTrap;
+                    onApplied();
+                }
+            });
+        }
+
         return list;
     }
 
@@ -367,5 +399,200 @@ public class TacticalAiAdvisor
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// حساب الخطة التكتيكية المثالية بالذكاء الاصطناعي بناءً على سير ومجريات اللعب
+    /// يحلل النتيجة، الدقيقة، فارق المهارة بين الفريقين، مستوى إجهاد كبار السن، وتكتيك الخصم
+    /// </summary>
+    public static TeamTactics ComputeDynamicTactics(MatchEngine match, Team team, Team opponent)
+    {
+        var plan = new TeamTactics();
+        float minute = match.MatchTimeMinutes;
+        int goalDiff = team.Score - opponent.Score;
+
+        float teamAvgRating = team.Players.Count > 0 
+            ? (float)team.Players.Average(p => (p.Speed + p.Defending + p.Physical + p.Dribbling + p.Passing + p.Shooting) / 6.0) 
+            : 75.0f;
+        float oppAvgRating = opponent.Players.Count > 0 
+            ? (float)opponent.Players.Average(p => (p.Speed + p.Defending + p.Physical + p.Dribbling + p.Passing + p.Shooting) / 6.0) 
+            : 75.0f;
+        bool isUnderdog = oppAvgRating > teamAvgRating + 6.0f;
+        
+        float teamAvgStamina = team.Players.Count > 0 ? (float)team.Players.Average(p => p.CurrentStamina) : 100.0f;
+        int tiredVeterans = team.Players.Count(p => p.Age >= 30 && p.CurrentStamina < 60.0f);
+        int oppPressing = opponent.Tactics.PressingIntensity;
+
+        // 1. أسلوب وطريقة الدفاع (Defensive Marking):
+        // قاعدة كروية أساسية: إذا كان الفريق أضعف من الخصم، يُمنع تماماً دفاع رجل لرجل (Man-to-Man)
+        // لأن الفوارق الفردية في الـ 1v1 بدون تغطية منطقة تتسبب في كارثة؛ لذا يُفرض دفاع المنطقة (Zonal Marking).
+        if (isUnderdog)
+        {
+            plan.Marking = DefensiveMarking.Zonal;
+        }
+        else if (goalDiff > 0 && minute >= 65)
+        {
+            // عند التقدم بالنتيجة، دفاع المنطقة يضمن تماسك الخطوط وتضييق المساحات
+            plan.Marking = DefensiveMarking.Zonal;
+        }
+        else if (teamAvgRating >= oppAvgRating + 4.0f && minute >= 55 && goalDiff <= 0)
+        {
+            // فريق قوي هجومياً ودفاعياً يبحث عن التعويض أو الفوز: الرقابة الفردية تخنق مفاتيح لعب الخصم
+            plan.Marking = DefensiveMarking.ManToMan;
+        }
+        else
+        {
+            plan.Marking = DefensiveMarking.Zonal;
+        }
+
+        // 2. شريط مستوى الضغط (Pressing Intensity: 0 - 100):
+        if (goalDiff < 0 && minute >= 75)
+        {
+            // متأخر في الدقائق الأخيرة: ضغط عالي كاسح
+            plan.PressingIntensity = teamAvgStamina > 55 ? 85 : 75;
+        }
+        else if (goalDiff < 0 && minute >= 55)
+        {
+            // متأخر في الشوط الثاني: ضغط نشط ومتقدم
+            plan.PressingIntensity = 70;
+        }
+        else if (goalDiff > 0 && minute >= 70)
+        {
+            // متقدم في أواخر اللقاء: تراجع تحت الكرة وتوفير اللياقة (Low Block)
+            plan.PressingIntensity = 25;
+        }
+        else if (tiredVeterans >= 2 || teamAvgStamina < 60)
+        {
+            // إنقاذ لياقة كبار السن من الانهيار
+            plan.PressingIntensity = 35;
+        }
+        else if (isUnderdog)
+        {
+            // الفريق الأقل إمكانيات يلعب تكتل تحت الكرة
+            plan.PressingIntensity = 25;
+        }
+        else
+        {
+            plan.PressingIntensity = 48; // متوازن
+        }
+
+        // 3. شريط أسلوب التمرير والريتم (Passing Game: 0 - 100):
+        if (oppPressing >= 75)
+        {
+            // إذا كان الخصم يضغط عالي جداً (75+): الهروب من الضغط بكرات طولية ومباشرة في المساحات الخالية (40 متر) خلف دفاعه
+            plan.PassingDirectness = 80;
+        }
+        else if (goalDiff > 0 && minute >= 65)
+        {
+            // عند التقدم بالنتيجة: تمريرات مباشرة للتحولات الخاطفة
+            plan.PassingDirectness = 70;
+        }
+        else if (goalDiff < 0 && minute >= 75)
+        {
+            // متأخر في نهاية المباراة: كرات طويلة مباشرة داخل الصندوق
+            plan.PassingDirectness = 82;
+        }
+        else
+        {
+            plan.PassingDirectness = 45;
+        }
+
+        // 4. شراسة العرقلة (Tackling Aggression):
+        if (goalDiff < 0 && minute >= 75)
+        {
+            plan.Tackling = TacklingAggression.Aggressive;
+        }
+        else if (goalDiff > 1 && minute >= 70)
+        {
+            plan.Tackling = TacklingAggression.Cautious; // تجنب الإنذارات والفاولات الخطرة
+        }
+        else
+        {
+            plan.Tackling = TacklingAggression.Normal;
+        }
+
+        // 5. مصيدة التسلل (Offside Trap):
+        plan.OffsideTrap = plan.PressingIntensity >= 75 && !isUnderdog;
+
+        // 6. بؤرة الهجوم وأسلوب اللعب (Attacking Focus):
+        if (isUnderdog || oppPressing >= 75 || (goalDiff > 0 && minute >= 60))
+        {
+            plan.Focus = AttackingFocus.CounterAttack;
+        }
+        else if (goalDiff < 0 && minute >= 75)
+        {
+            plan.Focus = AttackingFocus.ShootOnSight;
+        }
+        else if (team.CurrentFormation == FormationType.Formation433_Attack)
+        {
+            plan.Focus = AttackingFocus.Wings;
+        }
+        else
+        {
+            plan.Focus = AttackingFocus.Balanced;
+        }
+
+        return plan;
+    }
+
+    /// <summary>
+    /// تطبيق التعديل التكتيكي التلقائي الديناميكي الذكي بناءً على سير ومجريات اللعب
+    /// </summary>
+    public static bool TryPerformDynamicTacticalAdjustment(MatchEngine match, Team team, out string announcement, bool forceAi = false)
+    {
+        announcement = string.Empty;
+        bool isHome = team == match.HomeTeam;
+        var opponent = isHome ? match.AwayTeam : match.HomeTeam;
+
+        // إذا كان فريق المستخدم والخاصية غير مفعلة في الإعدادات، لا يتم التعديل التلقائي
+        if (isHome && !MatchSettings.Current.AutoTacticalAdjustmentsEnabled && !forceAi)
+        {
+            return false;
+        }
+
+        var ideal = ComputeDynamicTactics(match, team, opponent);
+        var current = team.Tactics;
+
+        // التحقق من وجود فارق تكتيكي جوهري يستدعي التدخل
+        bool pressingChanged = Math.Abs(current.PressingIntensity - ideal.PressingIntensity) >= 12;
+        bool passingChanged = Math.Abs(current.PassingDirectness - ideal.PassingDirectness) >= 12;
+        bool markingChanged = current.Marking != ideal.Marking;
+        bool focusChanged = current.Focus != ideal.Focus;
+        bool tacklingChanged = current.Tackling != ideal.Tackling;
+
+        if (!pressingChanged && !passingChanged && !markingChanged && !focusChanged && !tacklingChanged)
+        {
+            return false;
+        }
+
+        // تطبيق التكتيك الجديد
+        current.PressingIntensity = ideal.PressingIntensity;
+        current.PassingDirectness = ideal.PassingDirectness;
+        current.Marking = ideal.Marking;
+        current.Focus = ideal.Focus;
+        current.Tackling = ideal.Tackling;
+        current.OffsideTrap = ideal.OffsideTrap;
+
+        int minute = (int)match.MatchTimeMinutes;
+        string teamName = isHome ? "المدرب المساعد لفريقك" : $"مدرب {team.Name}";
+
+        if (ideal.PressingIntensity <= 30 && ideal.Focus == AttackingFocus.CounterAttack)
+        {
+            announcement = $"تعديل تكتيكي ذكي ({teamName}) في الدقيقة {minute}: التراجع لدفاع منطقة متكتل (ضغط {ideal.PressingIntensity}) والاعتماد على الهجمات المرتدة.";
+        }
+        else if (ideal.PressingIntensity >= 75)
+        {
+            announcement = $"تعديل تكتيكي ذكي ({teamName}) في الدقيقة {minute}: رفع الضغط العالي إلى {ideal.PressingIntensity} والكرات الطولية لقلب النتيجة.";
+        }
+        else if (opponent.Tactics.PressingIntensity >= 75 && ideal.PassingDirectness >= 75)
+        {
+            announcement = $"تعديل تكتيكي ذكي ({teamName}) في الدقيقة {minute}: الاعتماد على كرات طولية سريعة لضرب المساحة في ضهر دفاع الخصم المتقدم.";
+        }
+        else
+        {
+            announcement = $"تعديل تكتيكي ذكي ({teamName}) في الدقيقة {minute}: ضبط شريط الضغط عند {ideal.PressingIntensity} وأسلوب اللعب إلى {ideal.Focus.ToArabicName()}.";
+        }
+
+        return true;
     }
 }

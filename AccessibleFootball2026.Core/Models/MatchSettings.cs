@@ -94,6 +94,7 @@ public class MatchSettings
 
     // 5. ميزات الذكاء الاصطناعي التكتيكي والـ VAR (AI Tactical Advisor & AI VAR)
     public bool AutoSubstitutionsEnabled { get; set; } = false;
+    public bool AutoTacticalAdjustmentsEnabled { get; set; } = false; // التعديل التكتيكي التلقائي الذكي حسب مجريات وسير اللعب
     public bool AiVarEnabled { get; set; } = true;
 
     // حسابات مستويات الصوت الفعالة (0.0f - 1.0f)
@@ -124,6 +125,7 @@ public class MatchSettings
         ScreenReaderSpokenEventsEnabled = true;
         Language = UiLanguage.Arabic;
         AutoSubstitutionsEnabled = false;
+        AutoTacticalAdjustmentsEnabled = false;
         AiVarEnabled = true;
     }
 
@@ -168,6 +170,7 @@ public class MatchSettings
                     Current.ScreenReaderSpokenEventsEnabled = loaded.ScreenReaderSpokenEventsEnabled;
                     Current.Language = loaded.Language;
                     Current.AutoSubstitutionsEnabled = loaded.AutoSubstitutionsEnabled;
+                    Current.AutoTacticalAdjustmentsEnabled = loaded.AutoTacticalAdjustmentsEnabled;
                     Current.AiVarEnabled = loaded.AiVarEnabled;
                 }
             }
@@ -178,6 +181,12 @@ public class MatchSettings
     public void ToggleAutoSubstitutions()
     {
         AutoSubstitutionsEnabled = !AutoSubstitutionsEnabled;
+        Save();
+    }
+
+    public void ToggleAutoTacticalAdjustments()
+    {
+        AutoTacticalAdjustmentsEnabled = !AutoTacticalAdjustmentsEnabled;
         Save();
     }
 

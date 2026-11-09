@@ -46,6 +46,18 @@ public static class Milestone6AiAdvisorTests
 
         runTest("18E. AI VAR Referee: Reviews offsides, penalties, and goal-line technology with bilingual output",
             TestAiVarReferee_ReviewScenarios);
+
+        runTest("18F. AI Dynamic Tactics: Trailing late triggers Gegenpress (85%) and direct attacking push",
+            TestAiDynamicTactics_TrailingLate_PushesGegenpressAndLongBalls);
+
+        runTest("18G. AI Dynamic Tactics: Underdog against superstar team enforces Zonal Marking and Low Block",
+            TestAiDynamicTactics_UnderdogAgainstSuperstar_EnforcesZonalAndCounter);
+
+        runTest("18H. AI Dynamic Tactics: Optional settings toggle controls user team auto-adjustment strictly",
+            TestAiDynamicTactics_SettingsToggle_OptionalControl);
+
+        runTest("18I. AI Dynamic Tactics: Facing opponent 85% high press counters with long balls into space",
+            TestAiDynamicTactics_OpponentHighPressCounter_EscapesWithLongBalls);
     }
 
     private static void TestAiAdvisor_GeneratesContextualBriefings()
@@ -154,5 +166,91 @@ public static class Milestone6AiAdvisorTests
         var goalLineResult = VarAiReferee.ReviewGoalLine("مانشستر سيتي");
         Assert(!string.IsNullOrEmpty(goalLineResult.AnnouncementArabic), "Goal-line review must have Arabic text");
         Assert(goalLineResult.DecisionMarginCm > 0, "Goal-line margin must be greater than zero");
+    }
+
+    private static void TestAiDynamicTactics_TrailingLate_PushesGegenpressAndLongBalls()
+    {
+        var homeTeam = TeamDatabase.CreateAlAhly();
+        var awayTeam = TeamDatabase.CreateZamalek();
+        var match = new MatchEngine(homeTeam, awayTeam, new MatchEventBus(), new KeyboardInputHandler());
+
+        homeTeam.Score = 0;
+        awayTeam.Score = 1;
+        match.SetMatchTimeMinutes(78.0f);
+
+        var ideal = TacticalAiAdvisor.ComputeDynamicTactics(match, homeTeam, awayTeam);
+
+        Assert(ideal.PressingIntensity >= 75, $"Trailing late in match must push Pressing to >= 75. Got: {ideal.PressingIntensity}");
+        Assert(ideal.PassingDirectness >= 75, $"Trailing late in match must push Passing to >= 75. Got: {ideal.PassingDirectness}");
+        Assert(ideal.Tackling == TacklingAggression.Aggressive, "Trailing late must trigger aggressive tackling");
+    }
+
+    private static void TestAiDynamicTactics_UnderdogAgainstSuperstar_EnforcesZonalAndCounter()
+    {
+        var weakTeam = new Team("W", "فريق متواضع", TeamSide.Home);
+        for (int i = 0; i < 11; i++)
+        {
+            weakTeam.Players.Add(new Player(i + 1, $"لاعب {i + 1}", i + 1, SpecificPosition.CM, spd: 55, pas: 55, sho: 50, def: 52, phy: 55));
+        }
+
+        var eliteTeam = new Team("E", "فريق خارق", TeamSide.Away);
+        for (int i = 0; i < 11; i++)
+        {
+            eliteTeam.Players.Add(new Player(i + 1, $"نجم {i + 1}", i + 1, SpecificPosition.CM, spd: 88, pas: 85, sho: 85, def: 85, phy: 86));
+        }
+
+        var match = new MatchEngine(weakTeam, eliteTeam, new MatchEventBus(), new KeyboardInputHandler());
+        match.SetMatchTimeMinutes(25.0f);
+
+        var ideal = TacticalAiAdvisor.ComputeDynamicTactics(match, weakTeam, eliteTeam);
+
+        Assert(ideal.Marking == DefensiveMarking.Zonal, "Underdog team MUST strictly play Zonal Marking against superior team");
+        Assert(ideal.PressingIntensity <= 30, $"Underdog must play Low Block (Pressing <= 30). Got: {ideal.PressingIntensity}");
+        Assert(ideal.Focus == AttackingFocus.CounterAttack, "Underdog must focus on CounterAttack");
+    }
+
+    private static void TestAiDynamicTactics_SettingsToggle_OptionalControl()
+    {
+        var homeTeam = TeamDatabase.CreateAlAhly();
+        var awayTeam = TeamDatabase.CreateZamalek();
+        var match = new MatchEngine(homeTeam, awayTeam, new MatchEventBus(), new KeyboardInputHandler());
+
+        homeTeam.Score = 0;
+        awayTeam.Score = 2;
+        match.SetMatchTimeMinutes(80.0f);
+
+        // 1. عند تعطيل الخيار في الإعدادات: التعديل التلقائي لا يمس فريق المستخدم
+        MatchSettings.Current.AutoTacticalAdjustmentsEnabled = false;
+        int origPress = homeTeam.Tactics.PressingIntensity;
+        bool appliedDisabled = TacticalAiAdvisor.TryPerformDynamicTacticalAdjustment(match, homeTeam, out string ann1);
+
+        Assert(!appliedDisabled, "When AutoTacticalAdjustmentsEnabled is false, user team tactics must not be altered");
+        Assert(homeTeam.Tactics.PressingIntensity == origPress, "User team tactics must remain intact when disabled");
+        Assert(string.IsNullOrEmpty(ann1), "Announcement must be empty when auto-adjust is disabled");
+
+        // 2. عند تفعيل الخيار في الإعدادات: الذكاء الاصطناعي يتدخل تلقائياً ويطلق الإشعار الصوتي
+        MatchSettings.Current.AutoTacticalAdjustmentsEnabled = true;
+        bool appliedEnabled = TacticalAiAdvisor.TryPerformDynamicTacticalAdjustment(match, homeTeam, out string ann2);
+
+        Assert(appliedEnabled, "When AutoTacticalAdjustmentsEnabled is true, AI must dynamically adjust tactics");
+        Assert(homeTeam.Tactics.PressingIntensity >= 75, $"Pressing must be pushed to high block. Got: {homeTeam.Tactics.PressingIntensity}");
+        Assert(!string.IsNullOrEmpty(ann2), "Announcement must describe the dynamic tactical shift");
+        Assert(ann2.Contains("تعديل تكتيكي"), $"Announcement must mention tactical adjustment. Got: '{ann2}'");
+    }
+
+    private static void TestAiDynamicTactics_OpponentHighPressCounter_EscapesWithLongBalls()
+    {
+        var homeTeam = TeamDatabase.CreateAlAhly();
+        var awayTeam = TeamDatabase.CreateZamalek();
+        var match = new MatchEngine(homeTeam, awayTeam, new MatchEventBus(), new KeyboardInputHandler());
+
+        // الخصم يضغط عالي جداً بـ 85%
+        awayTeam.Tactics.PressingIntensity = 85;
+        match.SetMatchTimeMinutes(30.0f);
+
+        var ideal = TacticalAiAdvisor.ComputeDynamicTactics(match, homeTeam, awayTeam);
+
+        Assert(ideal.PassingDirectness >= 75, $"Facing opponent 85% high press must trigger long/direct passing (>= 75). Got: {ideal.PassingDirectness}");
+        Assert(ideal.Focus == AttackingFocus.CounterAttack, "Facing high press must trigger CounterAttack to exploit space behind");
     }
 }

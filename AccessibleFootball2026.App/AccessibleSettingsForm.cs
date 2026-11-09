@@ -32,6 +32,7 @@ public class AccessibleSettingsForm : Form
     private CheckBox _chkExtraTime = null!;
     private CheckBox _chkPenalties = null!;
     private CheckBox _chkAutoSubs = null!;
+    private CheckBox _chkAutoTactics = null!;
     private CheckBox _chkAiVar = null!;
 
     private Button _btnSave = null!;
@@ -234,7 +235,13 @@ public class AccessibleSettingsForm : Form
         mainPanel.SetColumnSpan(_chkAutoSubs, 2);
         row++;
 
-        // 14. حكم الفيديو المساعد بالذكاء الاصطناعي (AI VAR CheckBox)
+        // 14. التعديلات التكتيكية التلقائية بالذكاء الاصطناعي (Auto-Tactics CheckBox)
+        _chkAutoTactics = CreateCheckBox(isArabic ? "التعديلات التكتيكية التلقائية الذكية حسب مجريات وسير اللعب (AI Dynamic Tactics)" : "AI Dynamic Tactical Adjustments on Game Flow");
+        mainPanel.Controls.Add(_chkAutoTactics, 0, row);
+        mainPanel.SetColumnSpan(_chkAutoTactics, 2);
+        row++;
+
+        // 15. حكم الفيديو المساعد بالذكاء الاصطناعي (AI VAR CheckBox)
         _chkAiVar = CreateCheckBox(isArabic ? "تقنية حكم الفيديو المساعد بالذكاء الاصطناعي (AI VAR Referee)" : "AI VAR Referee Technology");
         mainPanel.Controls.Add(_chkAiVar, 0, row);
         mainPanel.SetColumnSpan(_chkAiVar, 2);
@@ -364,6 +371,7 @@ public class AccessibleSettingsForm : Form
             _chkExtraTime.Checked = s.ExtraTimeEnabled;
             _chkPenalties.Checked = s.PenaltyShootoutEnabled;
             _chkAutoSubs.Checked = s.AutoSubstitutionsEnabled;
+            _chkAutoTactics.Checked = s.AutoTacticalAdjustmentsEnabled;
             _chkAiVar.Checked = s.AiVarEnabled;
         }
         finally
@@ -430,6 +438,7 @@ public class AccessibleSettingsForm : Form
         s.ExtraTimeEnabled = _chkExtraTime.Checked;
         s.PenaltyShootoutEnabled = _chkPenalties.Checked;
         s.AutoSubstitutionsEnabled = _chkAutoSubs.Checked;
+        s.AutoTacticalAdjustmentsEnabled = _chkAutoTactics.Checked;
         s.AiVarEnabled = _chkAiVar.Checked;
 
         s.Save();

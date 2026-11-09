@@ -706,6 +706,15 @@ public class AccessibleFootballWindow : Form
                     _screenReader.Speak(autoSubMsg);
                 }
 
+                if (MatchSettings.Current.AutoTacticalAdjustmentsEnabled &&
+                    TacticalAiAdvisor.TryPerformDynamicTacticalAdjustment(_activeMatch, _activeMatch.HomeTeam, out string autoTacticMsg))
+                {
+                    _screenReader.Speak(autoTacticMsg);
+                }
+
+                // الذكاء الاصطناعي للخصم يقوم دائماً بالتعديل التكتيكي الذكي بين الشوطين
+                TacticalAiAdvisor.TryPerformDynamicTacticalAdjustment(_activeMatch, _activeMatch.AwayTeam, out _, forceAi: true);
+
                 var halfTimeMenu = GamePlanMenuBuilder.CreatePauseMenu(
                     _activeMatch, 
                     _screenReader, 

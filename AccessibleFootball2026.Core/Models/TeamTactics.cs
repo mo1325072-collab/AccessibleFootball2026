@@ -38,6 +38,37 @@ public enum AttackingFocus
     CounterAttack = 5 // الهجمات المرتدة الخاطفة واستغلال المساحات في ضهر الخصم
 }
 
+public static class TacticsExtensions
+{
+    public static string ToArabicName(this AttackingFocus focus) => focus switch
+    {
+        AttackingFocus.Balanced => "متوازن",
+        AttackingFocus.Wings => "أجناب وعرضيات",
+        AttackingFocus.Central => "عمق وتيكي تاكا",
+        AttackingFocus.LongBall => "كرات طويلة",
+        AttackingFocus.ShootOnSight => "تسديد عن بعد",
+        AttackingFocus.CounterAttack => "هجمات مرتدة خاطفة",
+        _ => "متوازن"
+    };
+
+    public static string ToArabicName(this DefensiveMarking marking) => marking switch
+    {
+        DefensiveMarking.Zonal => "دفاع منطقة (Zonal)",
+        DefensiveMarking.ManToMan => "دفاع رجل لرجل (Man-to-Man)",
+        _ => "دفاع منطقة"
+    };
+
+    public static string ToArabicName(this TacklingAggression tackling) => tackling switch
+    {
+        TacklingAggression.Cautious => "حذر",
+        TacklingAggression.Normal => "عادي",
+        TacklingAggression.Moderate => "متوسط",
+        TacklingAggression.Aggressive => "حماسي",
+        TacklingAggression.Reckless => "متهور",
+        _ => "عادي"
+    };
+}
+
 /// <summary>
 /// نتيجة تقييم التناغم والانسجام التكتيكي
 /// </summary>
