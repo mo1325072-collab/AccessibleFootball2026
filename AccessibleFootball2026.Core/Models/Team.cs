@@ -18,6 +18,7 @@ public class Team
     public List<Player> Bench { get; set; } = new();   // دكة البدلاء
     public int Score { get; set; } = 0;
     public FormationType CurrentFormation { get; set; } = FormationType.Formation433_Attack;
+    public TeamTactics Tactics { get; set; } = new();
 
     // قانون IFAB 3: التبديلات وفترات التوقف (5 تبديلات في 3 فترات كحد أقصى)
     public int SubstitutionsUsed { get; set; } = 0;

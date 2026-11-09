@@ -198,6 +198,7 @@ public class Player
     public int BaseDefending { get; set; } = 75;
     public int BasePhysical { get; set; } = 75;
     public int BaseStamina { get; set; } = 100;
+    public float CurrentStamina { get; set; } = 100.0f;
 
     // الطاقات الفعلية بعد حساب كفاءة المركز والحالة البدنية وتأثير الإصابات (20% جزاء للكدمات)
     public int Speed => (int)(BaseSpeed * PositionEfficiencyMultiplier * ConditionMultiplier * InjuryMultiplier);
@@ -205,7 +206,7 @@ public class Player
     public int Shooting => (int)(BaseShooting * PositionEfficiencyMultiplier * ConditionMultiplier);
     public int Defending => (int)(BaseDefending * PositionEfficiencyMultiplier * ConditionMultiplier);
     public int Physical => (int)(BasePhysical * PositionEfficiencyMultiplier * ConditionMultiplier);
-    public int Stamina => (int)(BaseStamina * InjuryMultiplier);
+    public int Stamina => (int)(Math.Clamp(CurrentStamina, 0.0f, BaseStamina) * InjuryMultiplier);
     public int Dribbling => (int)(((BasePassing + BaseSpeed) / 2.0f) * PositionEfficiencyMultiplier * ConditionMultiplier);
 
     public int BaseOverallRating => (BaseSpeed + BasePassing + BaseShooting + BaseDefending + BasePhysical) / 5;

@@ -181,6 +181,12 @@ public class MatchEngine
             player.FacingDirection = new Vector2(-player.FacingDirection.X, -player.FacingDirection.Y);
         }
 
+        // استعادة طفيفة للياقة البدنية بين الشوطين (+10 نقاط طاقة)
+        foreach (var p in HomeTeam.Players.Concat(AwayTeam.Players))
+        {
+            p.CurrentStamina = Math.Min(p.BaseStamina, p.CurrentStamina + 10.0f);
+        }
+
         // اختيار لاعب ميداني نشط غير مطرود لتنفيذ ركلة بداية الشوط الثاني
         var kicker = HomeTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch && p.Role != PlayerRole.Goalkeeper)
             ?? HomeTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch)
@@ -307,6 +313,9 @@ public class MatchEngine
         float durationMinutes = Math.Max(1, MatchSettings.Current.MatchDurationMinutes);
         float minuteScale = 90.0f / (durationMinutes * 60.0f);
         MatchTimeMinutes += deltaTime * minuteScale;
+
+        float simulatedMinutesPassed = deltaTime * minuteScale;
+        UpdateStaminaDecay(simulatedMinutesPassed);
 
         // إعلان الوقت بدل الضائع للشوط الأول عند 44:30
         if (!_stoppage1stHalfAnnounced && MatchTimeMinutes >= 44.5f && !HalfTimeReached)
@@ -629,6 +638,11 @@ public class MatchEngine
         }
 
         float passSpeed = isThroughBall ? 22.0f : 18.0f;
+
+        if (isThroughBall && CheckOffsideTrap(HomeTeam, AwayTeam, bestTarget, targetPos))
+        {
+            return;
+        }
         
         Ball.Kick(kickDirection, passSpeed, verticalSpeed: 0.15f, ActiveUserPlayer);
 
@@ -818,6 +832,10 @@ public class MatchEngine
 
     private void PerformTackleAttempt(bool isSlideTackle, float reach)
     {
+        // ميزة إضافية لمدى الاستخلاص للمدافعين المتميزين (Defending Reach Bonus)
+        float defReachBonus = Math.Max(0.0f, (ActiveUserPlayer.Defending - 65) * 0.012f);
+        reach += defReachBonus;
+
         Vector2 ball2D = new(Ball.Position.X, Ball.Position.Y);
         Player? carrier = (Ball.Owner != null && AwayTeam.Players.Contains(Ball.Owner)) ? Ball.Owner : null;
 
@@ -920,6 +938,371 @@ public class MatchEngine
             string recoverDesc = $"استحواذ: {ActiveUserPlayer.Name} ({tackleStyle})";
             EventBus.Publish(new MatchEvent(MatchEventType.UserTackleSuccessful, recoverDesc, CurrentZone, spatialPan: CalculateBallPan()));
         }
+    }
+
+    /// <summary>
+    /// نتيجة صراع استخلاص الكرة التكتيكي والبدني
+    /// </summary>
+    public record struct DuelResult(
+        bool TacklerWon,
+        bool IsFoul,
+        bool IsSevereInjuryRisk,
+        float TacklerWinProbability,
+        float TacklerSkill,
+        float CarrierSkill,
+        float TacticalModifier,
+        string TacticalReason
+    );
+
+    /// <summary>
+    /// نموذج صراع استخلاص الكرة التكتيكي والبدني (Dynamic Tactical & Attribute Duel Model)
+    /// يقضي نهائياً على العشوائية الساذجة والنسب الثابتة، ويمنح الأفضلية الكاملة لمهارات اللاعبين
+    /// وتفوقهم البدني، وتكتيكات التموضع الميداني، وحجز الكرة بالجسم، وضغط الزيادة العددية، ومستويات شراسة العرقلة.
+    /// </summary>
+    public static DuelResult EvaluateTackleDuel(
+        Player tackler,
+        Player carrier,
+        Vector2 ballPos2D,
+        Team tacklerTeam,
+        Team carrierTeam,
+        DifficultyLevel diff,
+        int? forcedRandomRoll = null,
+        int? forcedFoulRoll = null)
+    {
+        // 1. حساب الكفاءة والقدرة التقديرية للمدافع (Tackler Skill Score):
+        // الدفاع (50%) + القوة البدنية (30%) + السرعة (20%) + معامل الإرهاق
+        float tacklerStaminaFactor = Math.Clamp(tackler.Stamina / 100.0f, 0.60f, 1.0f);
+        float tacklerSkill = ((tackler.Defending * 0.50f) + (tackler.Physical * 0.30f) + (tackler.Speed * 0.20f)) * tacklerStaminaFactor;
+
+        // تطبيق معامل التناغم التكتيكي للمدافع
+        var tacklerSynergy = tacklerTeam.Tactics.CalculateSynergy();
+        tacklerSkill *= tacklerSynergy.AdvantageMultiplier;
+
+        // 2. حساب الكفاءة والقدرة التقديرية لحامل الكرة (Carrier Skill Score):
+        // المراوغة والتحكم (45%) + القوة البدنية لحجز الكرة (35%) + السرعة وخفة الحركة (20%) + معامل الإرهاق
+        float carrierStaminaFactor = Math.Clamp(carrier.Stamina / 100.0f, 0.60f, 1.0f);
+        float carrierSkill = ((carrier.Dribbling * 0.45f) + (carrier.Physical * 0.35f) + (carrier.Speed * 0.20f)) * carrierStaminaFactor;
+
+        // تطبيق معامل التناغم التكتيكي لحامل الكرة
+        var carrierSynergy = carrierTeam.Tactics.CalculateSynergy();
+        carrierSkill *= carrierSynergy.AdvantageMultiplier;
+
+        // فارق الطاقات الأساسي بين المدافع وحامل الكرة (Skill Differential)
+        float deltaSkill = tacklerSkill - carrierSkill;
+
+        // 3. التعديلات التكتيكية والموقعية (Tactical & Positional Modifiers):
+        float tacticalModifier = 0.0f;
+        List<string> reasons = new();
+
+        Vector2 relVec = carrier.Position2D - tackler.Position2D;
+        float distToCarrier = relVec.Length();
+        Vector2 dirToCarrier = distToCarrier > 0.05f 
+            ? Vector2.Normalize(relVec) 
+            : (tackler.FacingDirection.Length() > 0.1f ? Vector2.Normalize(tackler.FacingDirection) : new Vector2(1.0f, 0.0f));
+
+        Vector2 carrierFacing = carrier.FacingDirection.Length() > 0.1f 
+            ? Vector2.Normalize(carrier.FacingDirection) 
+            : new Vector2(1.0f, 0.0f);
+        Vector2 tacklerFacing = tackler.FacingDirection.Length() > 0.1f 
+            ? Vector2.Normalize(tackler.FacingDirection) 
+            : dirToCarrier;
+
+        // أ) حجز الكرة بالجسم (Body Shielding):
+        // إذا كان ظهر حامل الكرة في اتجاه المدافع، فالكرة في الأمام محمية بجسده
+        float shieldingDot = Vector2.Dot(carrierFacing, dirToCarrier);
+        bool isShielding = shieldingDot > 0.25f;
+        bool isFromBehind = shieldingDot > 0.45f || Vector2.Dot(carrierFacing, tacklerFacing) > 0.35f;
+
+        if (isShielding)
+        {
+            float shieldBonus = -18.0f - Math.Max(0.0f, (carrier.Physical - 75) * 0.30f);
+            tacticalModifier += shieldBonus;
+            reasons.Add("حجز جسدي للكرة");
+        }
+        else if (Vector2.Dot(carrierFacing, tacklerFacing) < -0.35f)
+        {
+            // مواجهة مباشرة وجهاً لوجه
+            tacticalModifier += 10.0f;
+            reasons.Add("مواجهة رأس برأس");
+        }
+        else
+        {
+            // زاوية جانبية مائلة
+            tacticalModifier -= 8.0f;
+            reasons.Add("زاوية تدخل مائلة");
+        }
+
+        // ب) القرب من الكرة (Proximity to Ball):
+        float distToBall = Vector2.Distance(tackler.Position2D, ballPos2D);
+        if (distToBall < 0.65f)
+        {
+            tacticalModifier += 12.0f;
+            reasons.Add("قرب محكم من الكرة");
+        }
+        else if (distToBall > 1.10f)
+        {
+            tacticalModifier -= 12.0f;
+            reasons.Add("محاولة تدخل بأقصى مدى");
+        }
+
+        // ج) الضغط الجماعي والزيادة العددية للمدافعين (Supporting Pressers):
+        int supportingPressers = tacklerTeam.Players.Count(p =>
+            p != tackler &&
+            !p.IsSentOff &&
+            !p.IsOffPitch &&
+            p.Role != PlayerRole.Goalkeeper &&
+            Vector2.Distance(p.Position2D, carrier.Position2D) <= 3.6f);
+
+        if (supportingPressers > 0)
+        {
+            float pressBonus = Math.Min(supportingPressers, 3) * 7.0f;
+            tacticalModifier += pressBonus;
+            reasons.Add($"ضغط جماعي ({supportingPressers} لاعب)");
+        }
+
+        // د) مساندة الزملاء لحامل الكرة لتفريغ الضغط (Carrier Outlets):
+        int supportingOutlets = carrierTeam.Players.Count(p =>
+            p != carrier &&
+            !p.IsSentOff &&
+            !p.IsOffPitch &&
+            p.Role != PlayerRole.Goalkeeper &&
+            Vector2.Distance(p.Position2D, carrier.Position2D) <= 4.0f);
+
+        if (supportingOutlets > 0)
+        {
+            float outletBonus = Math.Min(supportingOutlets, 2) * 4.0f;
+            tacticalModifier -= outletBonus;
+            reasons.Add("دعم تكتيكي قريب");
+        }
+
+        // هـ) تأثير مستويات شراسة العرقلة (Tackling Aggression):
+        float aggressionTackleBonus = 0.0f;
+        float baseFoulRisk = 12.0f;
+        bool isReckless = false;
+
+        switch (tacklerTeam.Tactics.Tackling)
+        {
+            case TacklingAggression.Cautious:
+                aggressionTackleBonus = -10.0f;
+                baseFoulRisk = 2.0f; // شبه مستحيل يرتكب فاول
+                reasons.Add("تدخل حذر");
+                break;
+            case TacklingAggression.Normal:
+                aggressionTackleBonus = 0.0f;
+                baseFoulRisk = 12.0f;
+                break;
+            case TacklingAggression.Moderate:
+                aggressionTackleBonus = +8.0f;
+                baseFoulRisk = 20.0f;
+                reasons.Add("التحام بدني قوي");
+                break;
+            case TacklingAggression.Aggressive:
+                aggressionTackleBonus = +16.0f;
+                baseFoulRisk = 35.0f;
+                reasons.Add("انزلاق حماسي شرس");
+                break;
+            case TacklingAggression.Reckless:
+                aggressionTackleBonus = +25.0f;
+                baseFoulRisk = 55.0f;
+                isReckless = true;
+                reasons.Add("اندفاع متهور");
+                break;
+        }
+        tacticalModifier += aggressionTackleBonus;
+
+        // و) تأثير شريط الضغط العالي ومصيدة التحضير القصير:
+        // إذا كان فريق المدافع يضغط عالي جداً (75+) وحامل الكرة يبني من الخلف (شريط التمرير < 35):
+        if (tacklerTeam.Tactics.PressingIntensity > 75 && carrierTeam.Tactics.PassingDirectness < 35)
+        {
+            tacticalModifier += 14.0f;
+            reasons.Add("مصيدة الضغط العالي على بناء الهجمة القصير");
+        }
+
+        // ز) تأثير أسلوب الهجمات المرتدة والون تاتش في التحولات:
+        if (carrierTeam.Tactics.Focus == AttackingFocus.CounterAttack && carrierTeam.Tactics.Tempo >= 65)
+        {
+            tacticalModifier -= 14.0f;
+            reasons.Add("سرعة التحول الهجومي والون تاتش");
+        }
+
+        // ح) تعديل مستوى الصعوبة (تعديل طفيف لليقظة دون إلغاء تأثير الطاقات):
+        float diffModifier = diff switch
+        {
+            DifficultyLevel.Easy => -8.0f,
+            DifficultyLevel.Normal => 0.0f,
+            DifficultyLevel.Hard => +6.0f,
+            DifficultyLevel.Legendary => +12.0f,
+            _ => 0.0f
+        };
+
+        // حساب نسبة النجاح النهائية:
+        // النسبة المرجعية في الصراع المتكافئ 42%
+        float winProbability = 42.0f + (deltaSkill * 0.55f) + tacticalModifier + diffModifier;
+        winProbability = Math.Clamp(winProbability, 5.0f, 92.0f);
+
+        int roll = forcedRandomRoll ?? Random.Shared.Next(100);
+        bool tacklerWon = roll < winProbability;
+
+        // فحص ارتكاب خطأ
+        bool isFoul = false;
+        bool severeInjuryRisk = false;
+
+        if (!tacklerWon)
+        {
+            float foulChance = baseFoulRisk;
+            if (isFromBehind) foulChance += 25.0f;
+            foulChance -= (tackler.Defending - 65) * 0.4f;
+            foulChance = Math.Clamp(foulChance, 2.0f, 85.0f);
+
+            int foulRoll = forcedFoulRoll ?? (forcedRandomRoll ?? Random.Shared.Next(100));
+            isFoul = foulRoll < foulChance;
+
+            if (isFoul && isReckless)
+            {
+                severeInjuryRisk = true; // خطر إصابة جسيمة بالغة عند التدخل المتهور
+            }
+        }
+        else if (isReckless)
+        {
+            // حتى لو استخلص الكرة بتهور، هناك احتمال 20% لارتكاب مخالفة عنف زائد
+            int recklessFoulRoll = forcedFoulRoll ?? (forcedRandomRoll ?? Random.Shared.Next(100));
+            if (recklessFoulRoll < 20)
+            {
+                tacklerWon = false;
+                isFoul = true;
+                severeInjuryRisk = true;
+            }
+        }
+
+        string reasonStr = reasons.Count > 0 ? string.Join("، ", reasons) : "صراع متكافئ";
+
+        return new DuelResult(
+            tacklerWon,
+            isFoul,
+            severeInjuryRisk,
+            winProbability,
+            tacklerSkill,
+            carrierSkill,
+            tacticalModifier,
+            reasonStr
+        );
+    }
+
+    /// <summary>
+    /// تحديث استنزاف اللياقة البدنية للاعبين وفق منحنى الأعمار وشرايط الضغط التكتيكية
+    /// - تحت 19 سنة: رئة لا تتعب (استنزاف 1.0x حتى عند الضغط الخانق 100%)
+    /// - 19 إلى 24 سنة: طاقة شبابية (ينهج في آخر 10 دقائق فقط)
+    /// - 24 إلى 29 سنة: قمة النضج (ينفد وقوده عند الدقيقة 60 عند الضغط العالي)
+    /// - فوق 29 سنة (30+): خبرة (يجيب جاز بنهاية الشوط الأول عند الضغط العالي)
+    /// </summary>
+    public void UpdateStaminaDecay(float simulatedMinutesPassed)
+    {
+        if (simulatedMinutesPassed <= 0.0f) return;
+
+        // معدل الاستنزاف الأساسي في الدقيقة الميدانية القياسية
+        float baseDecayPerSimMinute = 28.0f / 90.0f; // يستهلك ~28 نقطة عبر 90 دقيقة في الظروف الطبيعية
+
+        void DecayTeam(Team team)
+        {
+            // معامل الجهد البدني التكتيكي الإضافي عند الضغط العالي
+            float pressingWorkload = team.Tactics.PressingIntensity > 50
+                ? 1.0f + ((team.Tactics.PressingIntensity - 50) / 45.0f) * 1.15f
+                : 1.0f;
+
+            foreach (var player in team.Players)
+            {
+                if (player.IsSentOff || player.IsOffPitch) continue;
+
+                // حراس المرمى استهلاكهم البدني طفيف جداً
+                if (player.Role == PlayerRole.Goalkeeper)
+                {
+                    player.CurrentStamina = Math.Max(0.0f, player.CurrentStamina - (simulatedMinutesPassed * baseDecayPerSimMinute * 0.15f));
+                    continue;
+                }
+
+                // حساب معامل الاستنزاف وفق منحنى الأعمار وشريط الضغط
+                float ageMultiplier = team.Tactics.GetStaminaDecayMultiplier(player);
+
+                // اللاعبين الشباب تحت 19 سنة لديهم قدرة تعافي لحظية واستنزاف غير مجهد
+                float playerWorkload = player.Age < 19 ? 1.0f : pressingWorkload;
+
+                // إجهاد إضافي في حالة السبرنت أو الجري السريع
+                float movementSpeed = player.Velocity.Length();
+                float sprintCostMultiplier = movementSpeed > 4.5f ? 1.35f : (movementSpeed > 2.0f ? 1.10f : 1.00f);
+
+                float decay = simulatedMinutesPassed * baseDecayPerSimMinute * ageMultiplier * playerWorkload * sprintCostMultiplier;
+                player.CurrentStamina = Math.Max(0.0f, player.CurrentStamina - decay);
+            }
+        }
+
+        DecayTeam(HomeTeam);
+        DecayTeam(AwayTeam);
+    }
+
+    /// <summary>
+    /// فحص مصيدة التسلل والتسلل الميداني وفق القانون 11
+    /// عند تفعيل مصيدة التسلل:
+    /// - إذا نجحت: يرفع الحكم الراية ويعلن التسلل وتمنح ركلة حرة غير مباشرة
+    /// - إذا فشلت (تأخر مدافع أو ضعف تركيزه): ينكسر التسلل ويصبح المهاجم في انفراد صريح تماماً
+    /// </summary>
+    public bool CheckOffsideTrap(Team attackingTeam, Team defendingTeam, Player receiver, Vector2 targetPos)
+    {
+        bool attackingRight = (attackingTeam.Side == TeamSide.Home) ? UserAttackingRight : !UserAttackingRight;
+
+        // لا تسلل في نصف ملعب الفريق المهاجم
+        if (attackingRight && targetPos.X <= Pitch.HalfLength) return false;
+        if (!attackingRight && targetPos.X >= Pitch.HalfLength) return false;
+
+        // تحديد موقع خط الدفاع (المدافعون الميدانيون باستثناء حارس المرمى)
+        var backline = defendingTeam.Players
+            .Where(p => p.Role == PlayerRole.Defender && !p.IsSentOff && !p.IsOffPitch)
+            .ToList();
+
+        if (backline.Count == 0)
+        {
+            backline = defendingTeam.Players
+                .Where(p => p.Role != PlayerRole.Goalkeeper && !p.IsSentOff && !p.IsOffPitch)
+                .ToList();
+        }
+
+        if (backline.Count == 0) return false;
+
+        float offsideLineX = attackingRight
+            ? backline.Max(p => p.Position2D.X)
+            : backline.Min(p => p.Position2D.X);
+
+        bool isBehindLine = attackingRight ? (targetPos.X > offsideLineX) : (targetPos.X < offsideLineX);
+
+        if (!defendingTeam.Tactics.OffsideTrap)
+        {
+            // مصيدة التسلل غير مفعلة
+            return false;
+        }
+
+        // مصيدة التسلل مفعلة (Offside Trap ON):
+        // فحص انضباط وتناغم خط الدفاع: هل ينجح خط الدفاع بشكل جماعي أم يكسر أحدهم المصيدة؟
+        float lineCoordination = (float)backline.Average(d => d.Defending * (d.Stamina / 100.0f));
+        bool trapBroken = Random.Shared.Next(100) > (int)lineCoordination;
+
+        if (trapBroken)
+        {
+            // فشلت المصيدة! كسر التسلل وانفراد تام
+            EventBus.Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, $"كسر مصيدة التسلل! خط دفاع {defendingTeam.Name} يخطئ و{receiver.Name} ينفرد بالمرمى!"));
+            return false;
+        }
+
+        if (isBehindLine)
+        {
+            // نجاح مصيدة التسلل
+            EventBus.Publish(new MatchEvent(MatchEventType.Offside, $"مصيدة تسلل ناجحة! خط دفاع {defendingTeam.Name} يوقع {receiver.Name} في التسلل.", CurrentZone, spatialPan: CalculateBallPan()));
+
+            Ball.Velocity = Vector3.Zero;
+            Ball.State = BallState.Free;
+            _aiTackleCooldownTimer = 1.0f;
+            return true;
+        }
+
+        return false;
     }
 
     public bool CheckDogso(Player tackler, Player carrier)
@@ -1372,6 +1755,7 @@ public class MatchEngine
             {
                 Vector2 pressDir = Vector2.Normalize(ball2D - opponent.Position2D);
                 opponent.Position2D += pressDir * (opponent.Speed * speedMult) * deltaTime;
+                opponent.FacingDirection = pressDir;
 
                 if (distToBall < 1.3f && Ball.Owner != opponent && (Ball.Owner == null || !AwayTeam.Players.Contains(Ball.Owner)))
                 {
@@ -1382,31 +1766,68 @@ public class MatchEngine
                     }
                     else
                     {
-                        int aiTackleChance = diff switch
+                        var carrier = Ball.Owner;
+                        if (carrier == null)
                         {
-                            DifficultyLevel.Easy => 15,
-                            DifficultyLevel.Normal => 28,
-                            DifficultyLevel.Hard => 45,
-                            DifficultyLevel.Legendary => 65,
-                            _ => 28
-                        };
-
-                        // تهدئة محاولة الاستخلاص للذكاء الاصطناعي لمنع تكرار المحاولة كل إطار (50Hz)
-                        _aiTackleCooldownTimer = 1.6f;
-
-                        if (new Random().Next(100) < aiTackleChance)
-                        {
-                            var previousOwner = Ball.Owner;
+                            // كرة حرة يستحوذ عليها الخصم عند وصوله إليها
                             Ball.CatchOrTackle(opponent);
                             RecordBallTouch(opponent);
-                            _aiTackleCooldownTimer = 2.0f;
+                            _aiTackleCooldownTimer = 1.6f;
                             if (ActivePassTransit != null)
                             {
                                 ActivePassTransit.IsActive = false;
                                 ActivePassTransit = null;
                             }
-                            string desc = $"قطع كمبيوتر {opponent.Name} الكرة منك! الهجمة مع {AwayTeam.Name} في {CurrentZone.ToArabicAnnouncement()}.";
+                            string desc = $"استحوذ {opponent.Name} على الكرة في {CurrentZone.ToArabicAnnouncement()}.";
                             EventBus.Publish(new MatchEvent(MatchEventType.OpponentTackleSuccessful, desc, CurrentZone, spatialPan: CalculateBallPan()));
+                        }
+                        else
+                        {
+                            // صراع استخلاص الكرة التكتيكي والبدني المبني على الطاقات والتموضع وشراسة العرقلة
+                            var duel = EvaluateTackleDuel(
+                                tackler: opponent,
+                                carrier: carrier,
+                                ballPos2D: ball2D,
+                                tacklerTeam: AwayTeam,
+                                carrierTeam: HomeTeam,
+                                diff: diff
+                            );
+
+                            _aiTackleCooldownTimer = 1.5f;
+
+                            if (duel.TacklerWon)
+                            {
+                                Ball.CatchOrTackle(opponent);
+                                RecordBallTouch(opponent);
+                                _aiTackleCooldownTimer = 2.0f;
+                                if (ActivePassTransit != null)
+                                {
+                                    ActivePassTransit.IsActive = false;
+                                    ActivePassTransit = null;
+                                }
+                                string desc = $"قطع {opponent.Name} الكرة من {carrier.Name}! ({duel.TacticalReason})";
+                                EventBus.Publish(new MatchEvent(MatchEventType.OpponentTackleSuccessful, desc, CurrentZone, spatialPan: CalculateBallPan()));
+                            }
+                            else if (duel.IsFoul)
+                            {
+                                // ارتكب الخصم خطأ لصالحه أثناء محاولة التدخل غير الشرعي
+                                _aiTackleCooldownTimer = 2.5f;
+                                Ball.CatchOrTackle(carrier);
+                                Ball.Velocity = Vector3.Zero;
+                                string foulDesc = $"خطأ لصالح {carrier.Name} بعد عرقلة من {opponent.Name}!";
+                                EventBus.Publish(new MatchEvent(MatchEventType.FoulCommitted, foulDesc, CurrentZone, spatialPan: CalculateBallPan()));
+                                HandleFoulSanction(opponent, carrier, isSlideTackle: duel.IsSevereInjuryRisk, isFromBehind: true);
+
+                                if (duel.IsSevereInjuryRisk && carrier.InjuryStatus == PlayerInjuryStatus.None)
+                                {
+                                    ApplyInjury(carrier, PlayerInjuryStatus.MinorKnock);
+                                }
+                            }
+                            else
+                            {
+                                // حامل الكرة احتفظ بكرته بنجاح بفضل مهارته أو قوته البدنية أو حجز الكرة
+                                _aiTackleCooldownTimer = 1.3f;
+                            }
                         }
                     }
                 }

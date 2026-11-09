@@ -9,6 +9,7 @@ public class Pitch
 {
     public const float Length = 105.0f; // طول الملعب (متر)
     public const float Width = 68.0f;   // عرض الملعب (متر)
+    public const float HalfLength = Length / 2.0f; // منتصف الملعب (52.5 متر)
 
     public const float GoalWidth = 7.32f;
     public const float GoalHeight = 2.44f;

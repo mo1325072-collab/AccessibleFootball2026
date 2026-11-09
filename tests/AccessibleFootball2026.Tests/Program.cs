@@ -96,6 +96,8 @@ public static class Program
 
         Milestone6AiAdvisorTests.RunAllTests(RunTest);
 
+        AdversarialTacticalSlidersChallenge.RunAll(RunTest);
+
         if (args.Any(a => a.Equals("--challenge-m5", StringComparison.OrdinalIgnoreCase) || a.Equals("--challenger", StringComparison.OrdinalIgnoreCase)))
         {
             AdversarialM5AudioChallenge.RunAll(RunTest);
