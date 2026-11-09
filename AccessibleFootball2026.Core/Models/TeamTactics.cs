@@ -5,6 +5,15 @@ using System.Linq;
 namespace AccessibleFootball2026.Core.Models;
 
 /// <summary>
+/// أسلوب وطريقة الدفاع (Defensive Marking)
+/// </summary>
+public enum DefensiveMarking
+{
+    Zonal = 0,   // دفاع منطقة (Zonal Marking): انتشار متماسك وتغطية مساحات، يعوض فوارق المهارة الفردية للفرق الضعيفة
+    ManToMan = 1 // دفاع رجل لرجل (Man-to-Man Marking): صراعات ثنائية فردية بحتة، كارثي على الفرق الضعيفة أمام النجوم، وممتاز للمدافعين الأقوياء
+}
+
+/// <summary>
 /// مستوى شراسة وتدخلات العرقلة
 /// </summary>
 public enum TacklingAggression
@@ -41,54 +50,84 @@ public record struct TacticalSynergyResult(
 
 /// <summary>
 /// نموذج التكتيك التفاعلي للفريق (Team Tactics)
-/// يضم شرايط الضغط، التمرير، الريتم، عمق الدفاع، العرقلة، مصيدة التسلل، وبؤرة الهجوم
-/// مع ربط كامل بمنحنى الأعمار واستهلاك اللياقة وحساب التناغم التكتيكي.
+/// يركز على شريطي التحكم الأساسيين:
+/// 1. شريط الضغط (Pressing Intensity: 0 - 100) - يضبط تلقائياً عمق خط الدفاع تماشياً مع تقدم الفريق.
+/// 2. شريط التمرير والريتم (Passing Game / Directness: 0 - 100) - يضبط تلقائياً سرعة نقل الكرة والريتم.
+/// بالإضافة للخيارات التكتيكية المحورية: طريقة الدفاع (منطقة أو رجل لرجل)، شراسة العرقلة، مصيدة التسلل، وبؤرة الهجوم.
 /// </summary>
 public class TeamTactics
 {
-    // 1. شريط مستوى الضغط (Pressing Intensity: 0 - 100)
-    // 0-25: متراجع | 26-50: متوازن | 51-75: نشط ومتقدم | 76-100: ضغط عالي خانق (Gegenpressing)
+    private bool _defensiveLineExplicitlySet = false;
+    private bool _tempoExplicitlySet = false;
+
+    // 1. شريط مستوى الضغط الأساسي (Pressing Intensity: 0 - 100)
+    // 0-25: متراجع (Low Block) | 26-50: متوازن | 51-75: نشط ومتقدم | 76-100: ضغط عالي خانق (Gegenpressing)
     private int _pressingIntensity = 45;
     public int PressingIntensity
     {
         get => _pressingIntensity;
-        set => _pressingIntensity = Math.Clamp(value, 0, 100);
+        set
+        {
+            _pressingIntensity = Math.Clamp(value, 0, 100);
+            if (!_defensiveLineExplicitlySet)
+            {
+                // عمق الدفاع يتبع تلقائياً شدة الضغط لتفادي الحشو
+                _defensiveLineDepth = _pressingIntensity;
+            }
+        }
     }
 
-    // 2. شريط عمق خط الدفاع (Defensive Line Depth: 0 - 100)
-    // 0-25: تكتل تحت الكرة (Low Block) | 26-50: متوسط | 51-75: متقدم | 76-100: خط دفاع عالي جداً (High Line)
+    // شريط عمق خط الدفاع (مرتبط تلقائياً بشريط الضغط لتجنب تعقيد الخيارات على اللاعب)
     private int _defensiveLineDepth = 45;
     public int DefensiveLineDepth
     {
         get => _defensiveLineDepth;
-        set => _defensiveLineDepth = Math.Clamp(value, 0, 100);
+        set
+        {
+            _defensiveLineDepth = Math.Clamp(value, 0, 100);
+            _defensiveLineExplicitlySet = true;
+        }
     }
 
-    // 3. شريط أسلوب التمرير (Passing Directness: 0 - 100)
+    // 2. شريط أسلوب التمرير واللعب الأساسي (Passing Game / Directness: 0 - 100)
     // 0-25: بناء قصير من الـ 18 | 26-50: متوازن | 51-75: مباشر | 76-100: كرات طويلة للأمام
     private int _passingDirectness = 40;
     public int PassingDirectness
     {
         get => _passingDirectness;
-        set => _passingDirectness = Math.Clamp(value, 0, 100);
+        set
+        {
+            _passingDirectness = Math.Clamp(value, 0, 100);
+            if (!_tempoExplicitlySet)
+            {
+                // سرعة الريتم تتبع تلقائياً سرعة وطبيعة الباس
+                _tempo = _passingDirectness;
+            }
+        }
     }
 
-    // 4. شريط سرعة الإيقاع (Tempo / Speed of Play: 0 - 100)
-    // 0-25: بطيء وهادئ وتدوير للكرة | 26-50: متزن | 51-75: سريع | 76-100: ون تاتش وسرعة قصوى
+    // سرعة الإيقاع والريتم (مرتبطة تلقائياً بطبيعة التمرير)
     private int _tempo = 50;
     public int Tempo
     {
         get => _tempo;
-        set => _tempo = Math.Clamp(value, 0, 100);
+        set
+        {
+            _tempo = Math.Clamp(value, 0, 100);
+            _tempoExplicitlySet = true;
+        }
     }
 
-    // 5. شراسة العرقلة والتدخلات (Tackling Commitment)
+    // طريقة وأسلوب الدفاع: دفاع منطقة (Zonal) أو رجل لرجل (Man-to-Man)
+    public DefensiveMarking Marking { get; set; } = DefensiveMarking.Zonal;
+
+    // شراسة العرقلة والتدخلات (Tackling Commitment)
     public TacklingAggression Tackling { get; set; } = TacklingAggression.Normal;
 
-    // 6. مصيدة التسلل (Offside Trap)
+    // مصيدة التسلل (Offside Trap)
     public bool OffsideTrap { get; set; } = false;
 
-    // 7. بؤرة الهجوم وأسلوب اللعب (Attacking Focus)
+    // بؤرة الهجوم وأسلوب اللعب (Attacking Focus)
     public AttackingFocus Focus { get; set; } = AttackingFocus.CounterAttack;
 
     /// <summary>
@@ -209,6 +248,18 @@ public class TeamTactics
         if (DefensiveLineDepth <= 35 && Focus == AttackingFocus.CounterAttack && Tempo >= 60 && PassingDirectness >= 50)
         {
             synergies.Add("تناغم الدفاع والتحول الخاطف: تكتل دفاعي منظم وانفجار ون-تاتش في المساحات خلف المدافعين!");
+        }
+
+        // 8. تناغم دفاع المنطقة والتكتل (Zonal Harmony)
+        if (Marking == DefensiveMarking.Zonal && PressingIntensity <= 40)
+        {
+            synergies.Add("تناغم دفاع المنطقة المتكتل: تماسك جماعي يغلق المساحات البينية ويعوض فوارق المهارة الفردية!");
+        }
+
+        // 9. تناغم الضغط العالي الخانق مع الرقابة اللصيقة
+        if (Marking == DefensiveMarking.ManToMan && PressingIntensity >= 75)
+        {
+            synergies.Add("تناغم الضغط الخانق والرقابة الفردية: محاصرة كل لاعب خيار تمرير ومنع بناء الهجمة!");
         }
 
         // 8. تناغم التيكي تاكا والاستحواذ (Tiki-Taka Harmony)

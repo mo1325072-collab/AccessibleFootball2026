@@ -974,10 +974,6 @@ public class MatchEngine
         float tacklerStaminaFactor = Math.Clamp(tackler.Stamina / 100.0f, 0.60f, 1.0f);
         float tacklerSkill = ((tackler.Defending * 0.50f) + (tackler.Physical * 0.30f) + (tackler.Speed * 0.20f)) * tacklerStaminaFactor;
 
-        // تطبيق معامل التناغم التكتيكي للمدافع
-        var tacklerSynergy = tacklerTeam.Tactics.CalculateSynergy();
-        tacklerSkill *= tacklerSynergy.AdvantageMultiplier;
-
         // 2. حساب الكفاءة والقدرة التقديرية لحامل الكرة (Carrier Skill Score):
         // المراوغة والتحكم (45%) + القوة البدنية لحجز الكرة (35%) + السرعة وخفة الحركة (20%) + معامل الإرهاق
         float carrierStaminaFactor = Math.Clamp(carrier.Stamina / 100.0f, 0.60f, 1.0f);
@@ -986,6 +982,16 @@ public class MatchEngine
         // تطبيق معامل التناغم التكتيكي لحامل الكرة
         var carrierSynergy = carrierTeam.Tactics.CalculateSynergy();
         carrierSkill *= carrierSynergy.AdvantageMultiplier;
+
+        // تطبيق معامل التناغم التكتيكي للمدافع
+        var tacklerSynergy = tacklerTeam.Tactics.CalculateSynergy();
+
+        // قاعدة ذهبية: مستحيل ندي الأدفانتيدج التكتيكي للفريق الأضعف مهارياً لو بيلعب رجل لرجل (Man-to-Man)
+        // لأن الفوارق الفردية في الـ 1v1 بدون تغطية منطقة تفضح ضعف المدافع أمام المهاجم المهاري
+        float tacklerAdvantage = tacklerTeam.Tactics.Marking == DefensiveMarking.ManToMan && tacklerSkill < carrierSkill
+            ? Math.Min(tacklerSynergy.AdvantageMultiplier, 1.0f)
+            : tacklerSynergy.AdvantageMultiplier;
+        tacklerSkill *= tacklerAdvantage;
 
         // فارق الطاقات الأساسي بين المدافع وحامل الكرة (Skill Differential)
         float deltaSkill = tacklerSkill - carrierSkill;
@@ -1055,7 +1061,10 @@ public class MatchEngine
 
         if (supportingPressers > 0)
         {
-            float pressBonus = Math.Min(supportingPressers, 3) * 7.0f;
+            // في دفاع المنطقة تكون المساندة الجماعية كاملة، بينما في رقابة رجل لرجل يلتزم الزملاء بمراقبة خصومهم
+            float pressBonus = tacklerTeam.Tactics.Marking == DefensiveMarking.ManToMan
+                ? Math.Min(supportingPressers, 2) * 3.5f
+                : Math.Min(supportingPressers, 3) * 7.0f;
             tacticalModifier += pressBonus;
             reasons.Add($"ضغط جماعي ({supportingPressers} لاعب)");
         }
@@ -1118,14 +1127,41 @@ public class MatchEngine
             reasons.Add("مصيدة الضغط العالي على بناء الهجمة القصير");
         }
 
-        // ز) تأثير أسلوب الهجمات المرتدة والون تاتش في التحولات:
+        // ز) أسلوب وطريقة الدفاع (Zonal Marking vs Man-to-Man Marking):
+        if (tacklerTeam.Tactics.Marking == DefensiveMarking.ManToMan)
+        {
+            // في رقابة رجل لرجل (Man-to-Man): صراعات ثنائية فردية بحتة
+            if (deltaSkill < 0)
+            {
+                // الفارق الفردي يتضخم ضد المدافع الأضعف لغياب تغطية المنطقة
+                tacticalModifier += (deltaSkill * 0.25f);
+                reasons.Add("فشل رقابة رجل لرجل أمام تفوق المهارة الفردية للخصم");
+            }
+            else
+            {
+                // إذا كان المدافع متفوقاً أو نداً مهارياً وبدنياً، فالرقابة اللصيقة تخنق المهاجم
+                tacticalModifier += 8.0f;
+                reasons.Add("رقابة لصيقة رجل لرجل ناجحة");
+            }
+        }
+        else // Zonal Marking (دفاع منطقة)
+        {
+            // في دفاع المنطقة، التكتل وتغطية المساحات يعوضان فوارق المهارة الفردية للفرق الأقل قوة
+            if (deltaSkill < -8.0f)
+            {
+                tacticalModifier += 6.0f;
+                reasons.Add("تغطية دفاع المنطقة تعوض فارق المهارة الفردية");
+            }
+        }
+
+        // ح) تأثير أسلوب الهجمات المرتدة والون تاتش في التحولات:
         if (carrierTeam.Tactics.Focus == AttackingFocus.CounterAttack && carrierTeam.Tactics.Tempo >= 65)
         {
             tacticalModifier -= 14.0f;
             reasons.Add("سرعة التحول الهجومي والون تاتش");
         }
 
-        // ح) تعديل مستوى الصعوبة (تعديل طفيف لليقظة دون إلغاء تأثير الطاقات):
+        // ط) تعديل مستوى الصعوبة (تعديل طفيف لليقظة دون إلغاء تأثير الطاقات):
         float diffModifier = diff switch
         {
             DifficultyLevel.Easy => -8.0f,

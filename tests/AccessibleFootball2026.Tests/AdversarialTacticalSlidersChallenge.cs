@@ -28,6 +28,9 @@ public static class AdversarialTacticalSlidersChallenge
         runner("19K. Tackling Commitment: Reckless elevates foul risk to 55%+ and triggers severe injury risk", TestTacklingCommitment_RecklessVsCautious);
         runner("19L. Offside Trap: Coordinated step-up catches attacking through ball runner offside", TestOffsideTrap_SuccessfulTrapCatchesRunner);
         runner("19M. Half-Time Rest: Restores +10 stamina points for all active players across both teams", TestHalfTimeRest_RestoresStaminaPoints);
+        runner("19N. Defensive Marking (Man-to-Man): Weak defender heavily penalized against superstar in 1v1", TestDefensiveMarking_ManToMan_ExposesWeakDefenderAgainstEliteCarrier);
+        runner("19O. Defensive Marking (Zonal): Compact zone shields weak defender and enables collective cover", TestDefensiveMarking_Zonal_ShieldsWeakTeamWithSpatialCoverage);
+        runner("19P. Two Core Sliders: Auto-synchronizes Line Depth with Pressing and Tempo with Passing", TestTwoMainSliders_AutoSyncsLineDepthAndTempo);
     }
 
     private static void TestZeroDiceRoll_NoFlatProbabilityInSimulation()
@@ -336,6 +339,121 @@ public static class AdversarialTacticalSlidersChallenge
         match.TriggerHalfTime();
 
         Assert(player.CurrentStamina >= 70.0f, $"Half-time rest must replenish stamina (+10 points). Expected >= 70, got: {player.CurrentStamina:F1}");
+    }
+
+    private static void TestDefensiveMarking_ManToMan_ExposesWeakDefenderAgainstEliteCarrier()
+    {
+        var weakDefender = new Player(99, "مدافع متواضع", 4, SpecificPosition.CB, spd: 50, pas: 50, sho: 40, def: 40, phy: 45)
+        {
+            Position2D = new Vector2(20.0f, 0.0f),
+            FacingDirection = new Vector2(-1.0f, 0.0f),
+            CurrentStamina = 100.0f
+        };
+
+        var eliteCarrier = new Player(88, "مهاجم خارق", 9, SpecificPosition.ST, spd: 90, pas: 80, sho: 90, def: 40, phy: 86)
+        {
+            Position2D = new Vector2(21.0f, 0.0f),
+            FacingDirection = new Vector2(1.0f, 0.0f),
+            CurrentStamina = 100.0f
+        };
+
+        var tacklerTeam = new Team("H", "Home", TeamSide.Home);
+        tacklerTeam.Players.Add(weakDefender);
+
+        var carrierTeam = new Team("A", "Away", TeamSide.Away);
+        carrierTeam.Players.Add(eliteCarrier);
+
+        // المدرب يلعب رقابة رجل لرجل (Man-to-Man)
+        tacklerTeam.Tactics.Marking = DefensiveMarking.ManToMan;
+
+        var result = MatchEngine.EvaluateTackleDuel(
+            weakDefender,
+            eliteCarrier,
+            new Vector2(21.2f, 0.0f),
+            tacklerTeam,
+            carrierTeam,
+            DifficultyLevel.Normal,
+            forcedRandomRoll: 50);
+
+        Assert(!result.TacklerWon, "Weak defender in Man-to-Man marking must lose duel against elite carrier");
+        Assert(result.TacticalReason.Contains("رجل لرجل"), $"Duel reasons must reflect Man-to-Man marking breakdown. Got: '{result.TacticalReason}'");
+    }
+
+    private static void TestDefensiveMarking_Zonal_ShieldsWeakTeamWithSpatialCoverage()
+    {
+        var weakDefender = new Player(99, "مدافع متواضع", 4, SpecificPosition.CB, spd: 52, pas: 50, sho: 40, def: 45, phy: 50)
+        {
+            Position2D = new Vector2(20.0f, 0.0f),
+            FacingDirection = new Vector2(1.0f, 0.0f),
+            CurrentStamina = 100.0f
+        };
+
+        var coveringTeammate = new Player(98, "مدافع مغطي", 5, SpecificPosition.CB, spd: 60, pas: 55, sho: 40, def: 60, phy: 60)
+        {
+            Position2D = new Vector2(21.0f, 1.5f), // قريب في الزون
+            CurrentStamina = 100.0f
+        };
+
+        var eliteCarrier = new Player(88, "مهاجم خارق", 9, SpecificPosition.ST, spd: 85, pas: 80, sho: 90, def: 40, phy: 84)
+        {
+            Position2D = new Vector2(20.8f, 0.0f),
+            FacingDirection = new Vector2(-1.0f, 0.0f),
+            CurrentStamina = 100.0f
+        };
+
+        var tacklerTeam = new Team("H", "Home", TeamSide.Home);
+        tacklerTeam.Players.Add(weakDefender);
+        tacklerTeam.Players.Add(coveringTeammate);
+
+        var carrierTeam = new Team("A", "Away", TeamSide.Away);
+        carrierTeam.Players.Add(eliteCarrier);
+
+        // 1. دفاع منطقة (Zonal Marking)
+        tacklerTeam.Tactics.Marking = DefensiveMarking.Zonal;
+
+        var resultZonal = MatchEngine.EvaluateTackleDuel(
+            weakDefender,
+            eliteCarrier,
+            new Vector2(20.4f, 0.0f),
+            tacklerTeam,
+            carrierTeam,
+            DifficultyLevel.Normal,
+            forcedRandomRoll: 50);
+
+        // 2. نفس الحالة برجل لرجل (Man-to-Man)
+        tacklerTeam.Tactics.Marking = DefensiveMarking.ManToMan;
+        var resultManToMan = MatchEngine.EvaluateTackleDuel(
+            weakDefender,
+            eliteCarrier,
+            new Vector2(20.4f, 0.0f),
+            tacklerTeam,
+            carrierTeam,
+            DifficultyLevel.Normal,
+            forcedRandomRoll: 50);
+
+        Assert(resultZonal.TacklerWinProbability > resultManToMan.TacklerWinProbability,
+            $"Zonal marking with collective cover must yield higher tackle probability ({resultZonal.TacklerWinProbability:F1}%) than isolated Man-to-Man ({resultManToMan.TacklerWinProbability:F1}%) against superstar");
+        Assert(resultZonal.TacticalReason.Contains("دفاع المنطقة") || resultZonal.TacticalReason.Contains("جماعي"),
+            $"Zonal marking reasons must reflect zone spatial coverage or collective support. Got: '{resultZonal.TacticalReason}'");
+    }
+
+    private static void TestTwoMainSliders_AutoSyncsLineDepthAndTempo()
+    {
+        var tactics = new TeamTactics();
+
+        // 1. شريط الضغط يزامن تلقائياً عمق خط الدفاع
+        tactics.PressingIntensity = 82;
+        Assert(tactics.DefensiveLineDepth == 82, $"DefensiveLineDepth must auto-sync to PressingIntensity (82), got: {tactics.DefensiveLineDepth}");
+
+        tactics.PressingIntensity = 20;
+        Assert(tactics.DefensiveLineDepth == 20, $"DefensiveLineDepth must auto-sync to low PressingIntensity (20), got: {tactics.DefensiveLineDepth}");
+
+        // 2. شريط التمرير يزامن تلقائياً سرعة الريتم
+        tactics.PassingDirectness = 75;
+        Assert(tactics.Tempo == 75, $"Tempo must auto-sync to PassingDirectness (75), got: {tactics.Tempo}");
+
+        tactics.PassingDirectness = 15;
+        Assert(tactics.Tempo == 15, $"Tempo must auto-sync to short PassingDirectness (15), got: {tactics.Tempo}");
     }
 
     private static void Assert(bool condition, string message)
