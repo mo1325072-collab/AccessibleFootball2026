@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AccessibleFootball2026.App\AccessibleFootball2026.App.csproj" />
+    <ProjectReference Include="..\AccessibleFootball2026.Core\AccessibleFootball2026.Core.csproj" />
+    <ProjectReference Include="..\AccessibleFootball2026.Input\AccessibleFootball2026.Input.csproj" />
+    <ProjectReference Include="..\AccessibleFootball2026.Audio\AccessibleFootball2026.Audio.csproj" />
+  </ItemGroup>
+
+</Project>

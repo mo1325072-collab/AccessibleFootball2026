@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AccessibleFootball2026.Core\AccessibleFootball2026.Core.csproj" />
+    <ProjectReference Include="..\AccessibleFootball2026.Audio\AccessibleFootball2026.Audio.csproj" />
+    <ProjectReference Include="..\AccessibleFootball2026.Input\AccessibleFootball2026.Input.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="nvdaControllerClient64.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="nvdaControllerClient32.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <AssemblyName>AccessibleFootball2026</AssemblyName>
+  </PropertyGroup>
+
+</Project>
