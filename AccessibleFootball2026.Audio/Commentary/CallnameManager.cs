@@ -33,6 +33,9 @@ public class CallnameManager
 
     private static string ResolveBaseAudioDir()
     {
+        string dDriveAudio = @"D:\AccessibleFootball2026\Assets\Audio";
+        if (Directory.Exists(dDriveAudio)) return dDriveAudio;
+
         string? dir = AppDomain.CurrentDomain.BaseDirectory;
         while (!string.IsNullOrEmpty(dir))
         {

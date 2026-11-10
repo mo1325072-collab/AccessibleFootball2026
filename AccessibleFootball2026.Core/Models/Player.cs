@@ -287,4 +287,42 @@ public class Player
         HeightCm = heightCm;
         TacticalRole = tacticalRole;
     }
+
+    public Player Clone()
+    {
+        return new Player(
+            Id,
+            Name,
+            ShirtNumber,
+            PrimaryPosition,
+            BaseSpeed,
+            BasePassing,
+            BaseShooting,
+            BaseDefending,
+            BasePhysical,
+            new List<SpecificPosition>(SecondaryPositions),
+            ClubOrigin,
+            CallnameId,
+            CallnameKey,
+            PreferredFoot,
+            Age,
+            HeightCm,
+            TacticalRole)
+        {
+            CurrentAssignedPosition = CurrentAssignedPosition,
+            BaseStamina = BaseStamina,
+            CurrentStamina = CurrentStamina,
+            Condition = Condition,
+            InjuryStatus = InjuryStatus,
+            YellowCards = YellowCards,
+            IsSentOff = IsSentOff,
+            IsOffPitch = IsOffPitch,
+            Position2D = Position2D,
+            Velocity = Velocity,
+            HomePosition = HomePosition,
+            FacingDirection = FacingDirection,
+            HasBall = HasBall,
+            MatchGoalsCount = MatchGoalsCount
+        };
+    }
 }

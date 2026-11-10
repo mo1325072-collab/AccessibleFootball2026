@@ -115,6 +115,26 @@ public class CommentaryEngine
         return false;
     }
 
+    public bool TryPlayMatchIntro()
+    {
+        string dir = Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Intro");
+        var files = GetCachedFiles(dir);
+        if (files.Length == 0)
+        {
+            dir = Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Intros");
+            files = GetCachedFiles(dir);
+        }
+
+        if (files.Length > 0)
+        {
+            var randFile = files[Random.Shared.Next(files.Length)];
+            _lastCommentaryTime = DateTime.UtcNow;
+            SoundEffectsPlayer.PlayCommentaryAudio(randFile);
+            return true;
+        }
+        return false;
+    }
+
     public bool TryCommentOnEvent(MatchEvent matchEvent, bool force = false)
     {
         bool isCritical = matchEvent.Type is MatchEventType.GoalScored or MatchEventType.DramaticComeback or MatchEventType.HatTrickAchieved or MatchEventType.WoodworkHit or MatchEventType.RedCard or MatchEventType.FullTime;

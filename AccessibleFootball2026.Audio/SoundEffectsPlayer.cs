@@ -125,9 +125,8 @@ public static class SoundEffectsPlayer
             string? p = ResolveAudioPath("Menu", "MenuMusic");
             if (p != null)
             {
-                string mciType = GetMciType(p);
                 SendMci("close bgm_menu");
-                SendMci($"open \"{p}\" type {mciType} alias bgm_menu");
+                SendMci($"open \"{p}\" type mpegvideo alias bgm_menu");
                 int vol = Math.Clamp((int)(GetEffectiveMusicVolume() * 1000), 0, 1000);
                 SendMci($"setaudio bgm_menu volume to {vol}");
                 SendMci("play bgm_menu repeat");
@@ -164,9 +163,8 @@ public static class SoundEffectsPlayer
             string? p = ResolveAudioPath("SFX", "Crowd", "CrowdAmbiance");
             if (p != null)
             {
-                string mciType = GetMciType(p);
                 SendMci("close crowd");
-                SendMci($"open \"{p}\" type {mciType} alias crowd");
+                SendMci($"open \"{p}\" type mpegvideo alias crowd");
                 int initialVol = Math.Clamp((int)(350 * GetEffectiveCrowdVolume()), 0, 1000);
                 SendMci($"setaudio crowd volume to {initialVol}");
                 SendMci("play crowd repeat");
@@ -320,8 +318,7 @@ public static class SoundEffectsPlayer
         {
             SendMci("stop crowd");
             SendMci("close crowd");
-            string mciType = GetMciType(acousticPath);
-            SendMci($"open \"{acousticPath}\" type {mciType} alias crowd");
+            SendMci($"open \"{acousticPath}\" type mpegvideo alias crowd");
             SendMci("play crowd repeat");
             SetCrowdVolume(800, force: true);
             _crowdPlaying = true;
@@ -561,7 +558,7 @@ public static class SoundEffectsPlayer
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
         try
         {
-            string mciType = GetMciType(filePath);
+            string mciType = (alias == "comm_voice" || alias == "chant_ch") ? "mpegvideo" : GetMciType(filePath);
             SendMci($"close {alias}");
             SendMci($"open \"{filePath}\" type {mciType} alias {alias}");
             if (customVolume.HasValue)

@@ -32,6 +32,7 @@ public class AccessibleFootballWindow : Form
     private readonly SmartAudioCoordinator _coordinator;
     private readonly AnthemEngine _anthemEngine;
     private readonly StadiumSoundEngine _stadiumSoundEngine = new();
+    private readonly CallnameManager _callnameManager = new();
 
     // حالة القوائم
     private readonly Stack<AccessibleMenu> _menuHistory = new();
@@ -141,6 +142,14 @@ public class AccessibleFootballWindow : Form
         {
             _commentaryEngine.TryCommentOnEvent(evt);
             _coordinator.HandleMatchEvent(evt);
+            if (_activeMatch != null)
+            {
+                _stadiumSoundEngine.HandleMatchContext(evt, _activeMatch.HomeTeam.Score, _activeMatch.AwayTeam.Score, _activeMatch.MatchTimeMinutes);
+                if (evt.Type == MatchEventType.BallKicked && _activeMatch.ActiveUserPlayer != null)
+                {
+                    _callnameManager.TryPlayPlayerCallname(_activeMatch.ActiveUserPlayer);
+                }
+            }
         };
 
         _commentaryEngine.OnCommentarySpoken += (commName, phrase) =>
@@ -306,18 +315,50 @@ public class AccessibleFootballWindow : Form
         SetActiveMenu(menu);
     }
 
+    private static Team GetClasicoRealMadrid(TeamSide side)
+    {
+        var dbTeam = JsonDatabaseProvider.GetTeamByName("Real Madrid");
+        if (dbTeam != null)
+        {
+            var cloned = dbTeam.Clone(side);
+            cloned.SetupFormation433();
+            return cloned;
+        }
+        var fallback = SpanishLaLigaDatabase.CreateRealMadrid();
+        fallback.Side = side;
+        return fallback;
+    }
+
+    private static Team GetClasicoBarcelona(TeamSide side)
+    {
+        var dbTeam = JsonDatabaseProvider.GetTeamByName("FC Barcelona") ?? JsonDatabaseProvider.GetTeamByName("Barcelona");
+        if (dbTeam != null)
+        {
+            var cloned = dbTeam.Clone(side);
+            cloned.SetupFormation433();
+            return cloned;
+        }
+        var fallback = SpanishLaLigaDatabase.CreateBarcelona();
+        fallback.Side = side;
+        return fallback;
+    }
+
     private void StartClasicoWizardFlow()
     {
         var teamMenu = new AccessibleMenu("اختر فريقك في الكلاسيكو", _screenReader);
 
         teamMenu.AddItem("ريال مدريد (أنت تلعب بريال مدريد ضد برشلونة)", () =>
         {
-            ChooseStadiumFlow(SpanishLaLigaDatabase.CreateRealMadrid(), SpanishLaLigaDatabase.CreateBarcelona());
+            var rma = GetClasicoRealMadrid(TeamSide.Home);
+            var bar = GetClasicoBarcelona(TeamSide.Away);
+            ChooseStadiumFlow(rma, bar);
         });
 
         teamMenu.AddItem("برشلونة (أنت تلعب ببرشلونة ضد ريال مدريد)", () =>
         {
-            ChooseStadiumFlow(SpanishLaLigaDatabase.CreateBarcelona(), SpanishLaLigaDatabase.CreateRealMadrid());
+            var bar = GetClasicoBarcelona(TeamSide.Home);
+            var rma = GetClasicoRealMadrid(TeamSide.Away);
+            ChooseStadiumFlow(bar, rma);
         });
 
         teamMenu.AddItem("رجوع للقائمة الرئيسية", () => PopMenu());
@@ -673,6 +714,10 @@ public class AccessibleFootballWindow : Form
             _anthemEngine.PlayMatchNationalAnthems(homeTeam, awayTeam);
         }
 
+        _stadiumSoundEngine.SetMatchTeams(homeTeam, awayTeam);
+        _stadiumSoundEngine.ApplyStadiumAcousticsForTeam(homeTeam);
+        _callnameManager.PreWarmSquads(homeTeam, awayTeam);
+
         // تشغيل صوت المدرجات الحقيقي المستمر وصافرة الحكم
         SoundEffectsPlayer.StartCrowdAmbiance();
         SoundEffectsPlayer.PlayWhistle();
@@ -691,9 +736,17 @@ public class AccessibleFootballWindow : Form
             SoundEffectsPlayer.SetCrowdVolume(vol);
         };
 
-        string introSpeech = $"انطلاق المباراة! {homeTeam.Name} ضد {awayTeam.Name}، بصوت المعلق {_commentaryEngine.ActiveCommentator.DisplayName}. " +
-                             $"الكرة معك الآن مع {match.ActiveUserPlayer.Name} في دائرة منتصف الملعب.";
-        _screenReader.Speak(introSpeech);
+        bool introPlayed = _commentaryEngine.TryPlayMatchIntro();
+        if (!introPlayed)
+        {
+            string introSpeech = $"انطلاق المباراة! {homeTeam.Name} ضد {awayTeam.Name}، بصوت المعلق {_commentaryEngine.ActiveCommentator.DisplayName}. " +
+                                 $"الكرة معك الآن مع {match.ActiveUserPlayer.Name} في دائرة منتصف الملعب.";
+            _screenReader.Speak(introSpeech);
+        }
+        else
+        {
+            _screenReader.Speak($"{homeTeam.Name} ضد {awayTeam.Name}. الكرة معك الآن مع {match.ActiveUserPlayer.Name}.", interrupt: false);
+        }
 
         _titleLabel.Text = $"{homeTeam.Name} ضد {awayTeam.Name}";
         _statusLabel.Text = $"النتيجة: {homeTeam.Score} - {awayTeam.Score} | المعلق: {_commentaryEngine.ActiveCommentator.DisplayName}";
@@ -722,11 +775,19 @@ public class AccessibleFootballWindow : Form
                     isSecondHalf: !_activeMatch.UserAttackingRight,
                     hasPossession: hasPossession
                 );
+
+                // فحص الأهازيج الدورية بحسب سياق اللعب
+                _stadiumSoundEngine.HandleMatchContext(
+                    new MatchEvent(MatchEventType.BallZoneChanged, "سياق اللعب", _activeMatch.CurrentZone),
+                    _activeMatch.HomeTeam.Score,
+                    _activeMatch.AwayTeam.Score,
+                    _activeMatch.MatchTimeMinutes
+                );
             }
 
             string matchStatus = $"المباراة جارية (الدقيقة {(int)_activeMatch.MatchTimeMinutes}): {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score} - {_activeMatch.AwayTeam.Score} {_activeMatch.AwayTeam.Name}";
             // أثناء اللعب النشط: نحدث _statusLabel المرئي فقط ونمنع تعديل _displayListBox لمنع تشويش قارئ الشاشة NVDA
-            if (_activeMatch.State != MatchState.InPlay)
+            if (_currentMenu == null && _activeMatch.State != MatchState.InPlay)
             {
                 if (_displayListBox.Items.Count > 0 && (string)_displayListBox.Items[0] != matchStatus)
                 {
@@ -737,6 +798,9 @@ public class AccessibleFootballWindow : Form
             if (_activeMatch.State == MatchState.HalfTime && _currentMenu == null)
             {
                 _inputHandler.Reset();
+                _gameLoopTimer?.Stop();
+                SoundEffectsPlayer.PauseCrowdAmbiance();
+                SoundEffectsPlayer.PlayWhistle();
 
                 if (MatchSettings.Current.AutoSubstitutionsEnabled &&
                     TacticalAiAdvisor.TryPerformAutoSubstitution(_activeMatch, out string autoSubMsg))
@@ -765,6 +829,11 @@ public class AccessibleFootballWindow : Form
                         _inputHandler.Reset();
                         SetupMatchDisplayListBox(_activeMatch.HomeTeam, _activeMatch.AwayTeam);
                         _activeMatch.ResumeMatch();
+                        SoundEffectsPlayer.ResumeCrowdAmbiance();
+                        SoundEffectsPlayer.PlayWhistle();
+                        _screenReader.Speak("صافرة انطلاق الشوط الثاني!");
+                        _lastFrameTime = DateTime.UtcNow;
+                        _gameLoopTimer?.Start();
                     },
                     onExit: () =>
                     {

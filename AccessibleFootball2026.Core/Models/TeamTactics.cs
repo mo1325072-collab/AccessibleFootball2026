@@ -335,4 +335,19 @@ public class TeamTactics
 
         return new TacticalSynergyResult(score, advantageMult, conflicts, synergies);
     }
+
+    public TeamTactics Clone()
+    {
+        return new TeamTactics
+        {
+            PressingIntensity = PressingIntensity,
+            DefensiveLineDepth = DefensiveLineDepth,
+            PassingDirectness = PassingDirectness,
+            Tempo = Tempo,
+            Marking = Marking,
+            Tackling = Tackling,
+            Focus = Focus,
+            OffsideTrap = OffsideTrap
+        };
+    }
 }

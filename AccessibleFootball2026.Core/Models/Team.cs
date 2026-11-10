@@ -65,6 +65,30 @@ public class Team
         Side = side;
     }
 
+    public Team Clone(TeamSide? newSide = null)
+    {
+        var copy = new Team(Id, Name, newSide ?? Side)
+        {
+            IsNationalTeam = IsNationalTeam,
+            CurrentFormation = CurrentFormation,
+            Tactics = Tactics.Clone(),
+            Score = 0,
+            SubstitutionsUsed = 0,
+            StoppageWindowsUsed = 0,
+            IsExtraTime = false,
+            WindowConsumedThisStoppage = false
+        };
+        foreach (var p in Players) copy.Players.Add(p.Clone());
+        foreach (var b in Bench) copy.Bench.Add(b.Clone());
+
+        if (Captain != null) copy.Captain = copy.Players.FirstOrDefault(p => p.Id == Captain.Id) ?? copy.Bench.FirstOrDefault(p => p.Id == Captain.Id);
+        if (PenaltyTaker != null) copy.PenaltyTaker = copy.Players.FirstOrDefault(p => p.Id == PenaltyTaker.Id) ?? copy.Bench.FirstOrDefault(p => p.Id == PenaltyTaker.Id);
+        if (FreeKickTaker != null) copy.FreeKickTaker = copy.Players.FirstOrDefault(p => p.Id == FreeKickTaker.Id) ?? copy.Bench.FirstOrDefault(p => p.Id == FreeKickTaker.Id);
+        if (CornerTaker != null) copy.CornerTaker = copy.Players.FirstOrDefault(p => p.Id == CornerTaker.Id) ?? copy.Bench.FirstOrDefault(p => p.Id == CornerTaker.Id);
+
+        return copy;
+    }
+
     public void SetupFormation433()
     {
         CurrentFormation = FormationType.Formation433_Attack;

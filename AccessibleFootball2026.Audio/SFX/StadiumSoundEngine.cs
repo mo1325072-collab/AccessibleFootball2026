@@ -43,10 +43,18 @@ public class StadiumSoundEngine
         if (ActiveHomeTeam == null || ActiveHomeTeam != team)
             return false;
 
-        if (ActiveStadiumKey == "SantiagoBernabeu" && (team.Id == "ESP_RMA" || team.Id == "173" || team.Name.Contains("مدريد")))
+        bool isRealMadrid = team.Id == "ESP_RMA" || team.Id == "173" || 
+                            team.Name.Contains("Real Madrid", StringComparison.OrdinalIgnoreCase) || 
+                            team.Name.Contains("مدريد", StringComparison.OrdinalIgnoreCase);
+
+        bool isBarcelona = team.Id == "ESP_BAR" || team.Id == "153" || 
+                           team.Name.Contains("Barcelona", StringComparison.OrdinalIgnoreCase) || 
+                           team.Name.Contains("برشلونة", StringComparison.OrdinalIgnoreCase);
+
+        if (ActiveStadiumKey == "SantiagoBernabeu" && isRealMadrid)
             return true;
 
-        if (ActiveStadiumKey == "CampNou" && (team.Id == "ESP_BAR" || team.Id == "153" || team.Name.Contains("برشلونة")))
+        if (ActiveStadiumKey == "CampNou" && isBarcelona)
             return true;
 
         return false;
@@ -61,6 +69,9 @@ public class StadiumSoundEngine
 
     private static string ResolveBaseAudioDir()
     {
+        string dDriveAudio = @"D:\AccessibleFootball2026\Assets\Audio";
+        if (Directory.Exists(dDriveAudio)) return dDriveAudio;
+
         string? dir = AppDomain.CurrentDomain.BaseDirectory;
         while (!string.IsNullOrEmpty(dir))
         {
@@ -87,11 +98,16 @@ public class StadiumSoundEngine
     {
         if (!Directory.Exists(_acousticsDir)) return;
 
-        // ربط هوية الملعب بالهندسة الصوتية ثلاثية الأبعاد
-        string acousticFile = Path.Combine(_acousticsDir, $"Acoustic_{homeTeam.Id}.wav");
+        // ربط هوية الملعب الحقيقي في PES 2013 بالملف الصوتي للملعب
+        string acousticFile = ActiveStadiumKey switch
+        {
+            "SantiagoBernabeu" => Path.Combine(_acousticsDir, "Acoustic_3.wav"), // سانتياجو برنابيو في PES 2013
+            "CampNou" => Path.Combine(_acousticsDir, "Acoustic_2.wav"),          // كامب نو في PES 2013
+            _ => Path.Combine(_acousticsDir, "Acoustic_10.wav")                  // ملعب محايد بصوت جماهير PES 2013 عام
+        };
+
         if (!File.Exists(acousticFile))
         {
-            // استخدام الملف الافتراضي أو أول ملف صوتي متاح في المجلد
             var files = Directory.GetFiles(_acousticsDir, "*.wav");
             acousticFile = files.Length > 0 ? files[0] : string.Empty;
         }
@@ -159,12 +175,24 @@ public class StadiumSoundEngine
         // التحقق من الشرط المزدوج: إذا لم يتحقق الشرط، يظل صوت الجماهير محايداً تماماً بدون أي هتاف خاص
         if (!ShouldPlayChantForTeam(team)) return;
 
-        string teamId = team.Id == "ESP_RMA" || team.Name.Contains("مدريد") ? "173" : (team.Id == "ESP_BAR" || team.Name.Contains("برشلونة") ? "153" : team.Id);
+        bool isRealMadrid = team.Id == "ESP_RMA" || team.Id == "173" || 
+                            team.Name.Contains("Real Madrid", StringComparison.OrdinalIgnoreCase) || 
+                            team.Name.Contains("مدريد", StringComparison.OrdinalIgnoreCase);
+
+        bool isBarcelona = team.Id == "ESP_BAR" || team.Id == "153" || 
+                           team.Name.Contains("Barcelona", StringComparison.OrdinalIgnoreCase) || 
+                           team.Name.Contains("برشلونة", StringComparison.OrdinalIgnoreCase);
+
+        string teamId = isRealMadrid ? "173" : (isBarcelona ? "153" : team.Id);
 
         string chantPath = Path.Combine(_chantsDir, $"Chant_{teamId}.wav");
         if (!File.Exists(chantPath))
         {
             chantPath = Path.Combine(_chantsDir, "SP_C", $"Chant_{teamId}.wav");
+        }
+        if (!File.Exists(chantPath))
+        {
+            chantPath = Path.Combine(_chantsDir, "Clubs", $"Chant_{teamId}.wav");
         }
         if (!File.Exists(chantPath))
         {

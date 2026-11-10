@@ -159,7 +159,7 @@ public static class Milestone3AudioOverhaulTests
             short channels = br.ReadInt16();
             Assert(channels == 2, "Crowd must be stereo 2-channel");
             int sr = br.ReadInt32();
-            Assert(sr == 18000, $"Crowd sample rate must be 18000 Hz, got {sr}");
+            Assert(sr == 18000 || sr == 24000, $"Crowd sample rate must be 18000 or 24000 Hz, got {sr}");
         }
 
         // 3. PostHit

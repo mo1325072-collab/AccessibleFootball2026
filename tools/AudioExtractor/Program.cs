@@ -227,6 +227,14 @@ public class Program
 
         var sw = Stopwatch.StartNew();
 
+        if (args.Length > 0 && args[0].ToLowerInvariant() == "menu")
+        {
+            string dt02Path = @"D:\games\PES 2013\img\dt02.img";
+            ExtractDt02MenuMusic(dt02Path, @"D:\AccessibleFootball2026\Assets\Audio\Menu\MenuMusic.wav");
+            ExtractDt02MenuMusic(dt02Path, Path.Combine(assetsAudio, "Menu", "MenuMusic.wav"));
+            return;
+        }
+
         // 1. Process dt00_a.img: 3,712 situational commentary + 13,610 callnames
         if (File.Exists(dt00Path))
         {
@@ -733,5 +741,28 @@ public class Program
             if (match) return i;
         }
         return -1;
+    }
+
+    public static void ExtractDt02MenuMusic(string dt02Path, string outWavPath)
+    {
+        if (!File.Exists(dt02Path)) return;
+        using var fs = File.OpenRead(dt02Path);
+        using var br = new BinaryReader(fs);
+        string sig = Encoding.ASCII.GetString(br.ReadBytes(4));
+        int fileCount = br.ReadInt32();
+        if (fileCount < 2) return;
+
+        br.ReadUInt32(); br.ReadUInt32(); // entry 0
+        uint offset = br.ReadUInt32();
+        uint length = br.ReadUInt32();
+
+        fs.Seek(offset, SeekOrigin.Begin);
+        byte[] rawAdx = new byte[length];
+        fs.Read(rawAdx, 0, (int)length);
+
+        byte[] wav = PesAudioDecoder.DecodeAdxToWav(rawAdx);
+        Directory.CreateDirectory(Path.GetDirectoryName(outWavPath)!);
+        File.WriteAllBytes(outWavPath, wav);
+        Console.WriteLine($"Extracted official PES 2013 menu track to {outWavPath} ({wav.Length} bytes)");
     }
 }
