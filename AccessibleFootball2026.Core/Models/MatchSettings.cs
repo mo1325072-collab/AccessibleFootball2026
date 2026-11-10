@@ -63,7 +63,23 @@ public class MatchSettings
 {
     public static MatchSettings Current { get; } = new();
 
-    private static readonly string DefaultSettingsFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json");
+    private static string GetDefaultSettingsPath()
+    {
+        try
+        {
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (!string.IsNullOrEmpty(appData))
+            {
+                string dir = Path.Combine(appData, "AccessibleFootball2026");
+                Directory.CreateDirectory(dir);
+                return Path.Combine(dir, "settings.json");
+            }
+        }
+        catch { }
+        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json");
+    }
+
+    private static readonly string DefaultSettingsFilePath = GetDefaultSettingsPath();
     public static string CustomSettingsFilePath { get; set; } = string.Empty;
     public static string ActiveSettingsFilePath => !string.IsNullOrEmpty(CustomSettingsFilePath)
         ? CustomSettingsFilePath
@@ -129,6 +145,13 @@ public class MatchSettings
         AiVarEnabled = true;
     }
 
+    public static event Action<MatchSettings>? OnSettingsChanged;
+
+    public void ApplyLive()
+    {
+        OnSettingsChanged?.Invoke(this);
+    }
+
     public void Save(string? targetPath = null)
     {
         string p = targetPath ?? ActiveSettingsFilePath;
@@ -141,6 +164,7 @@ public class MatchSettings
             File.WriteAllText(p, json);
         }
         catch { }
+        ApplyLive();
     }
 
     public static void Load(string? sourcePath = null)
@@ -172,6 +196,7 @@ public class MatchSettings
                     Current.AutoSubstitutionsEnabled = loaded.AutoSubstitutionsEnabled;
                     Current.AutoTacticalAdjustmentsEnabled = loaded.AutoTacticalAdjustmentsEnabled;
                     Current.AiVarEnabled = loaded.AiVarEnabled;
+                    Current.ApplyLive();
                 }
             }
         }

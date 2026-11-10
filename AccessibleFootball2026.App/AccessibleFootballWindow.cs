@@ -8,6 +8,7 @@ using AccessibleFootball2026.App.Menus;
 using AccessibleFootball2026.Audio;
 using AccessibleFootball2026.Audio.Anthems;
 using AccessibleFootball2026.Audio.Commentary;
+using AccessibleFootball2026.Audio.SFX;
 using AccessibleFootball2026.Core;
 using AccessibleFootball2026.Core.Input;
 using AccessibleFootball2026.Core.Models;
@@ -30,6 +31,7 @@ public class AccessibleFootballWindow : Form
     private readonly CommentaryEngine _commentaryEngine;
     private readonly SmartAudioCoordinator _coordinator;
     private readonly AnthemEngine _anthemEngine;
+    private readonly StadiumSoundEngine _stadiumSoundEngine = new();
 
     // حالة القوائم
     private readonly Stack<AccessibleMenu> _menuHistory = new();
@@ -152,12 +154,11 @@ public class AccessibleFootballWindow : Form
         base.OnShown(e);
 
         // 1. تشغيل نشيد دوري أبطال أوروبا الكامل كافتتاحية للعبة (Startup)
+        // لا يتحدث قارئ الشاشة مطلقاً في شاشة البداية احتراماً لنقاء النشيد
         _isInStartupIntro = true;
         _anthemEngine.PlayChampionsLeagueSample();
-        // 2. الترحيب الصوتي للمكفوفين
-        _screenReader.Speak("أهلاً بك في Accessible Football 2026. نشيد دوري أبطال أوروبا الكامل. اضغط على مفاتيح الأسهم للاختيار، والمسافة للاستماع.");
 
-        // 4. بناء القائمة الرئيسية
+        // 2. بناء القائمة الرئيسية (ستظهر وتبدأ موسيقاها بعد ضغط Enter أو Space)
         OpenMainMenu();
     }
 
@@ -268,26 +269,16 @@ public class AccessibleFootballWindow : Form
         {
             SoundEffectsPlayer.StartMenuMusic();
         }
-        var menu = new AccessibleMenu(LocalizationService.GetString("MainMenuTitle"), _screenReader);
+        var menu = new AccessibleMenu("القائمة الرئيسية - نسخة اختبار الكلاسيكو", _screenReader);
 
-        menu.AddItem(LocalizationService.GetString("ExhibitionMatch"), () =>
+        menu.AddItem("بدء مباراة الكلاسيكو (ريال مدريد ضد برشلونة)", () =>
         {
-            StartMatchWizardFlow();
+            StartClasicoWizardFlow();
         });
 
-        menu.AddItem(LocalizationService.GetString("DraftMode"), () =>
+        menu.AddItem("خطة اللعب والتكتيك والتشكيل", () =>
         {
-            StartDreamTeamBuilderFlow();
-        });
-
-        menu.AddItem(LocalizationService.GetString("UserGuide"), () =>
-        {
-            StartUserGuideFlow();
-        });
-
-        menu.AddItem(LocalizationService.GetString("SoundAcademy"), () =>
-        {
-            StartSoundAcademyFlow();
+            StartGamePlanFlow();
         });
 
         menu.AddItem(LocalizationService.GetString("Settings"), () =>
@@ -295,14 +286,14 @@ public class AccessibleFootballWindow : Form
             StartMatchSettingsFlow();
         });
 
-        menu.AddItem(LocalizationService.GetString("GamePlan"), () =>
+        menu.AddItem(LocalizationService.GetString("SoundAcademy"), () =>
         {
-            StartGamePlanFlow();
+            StartSoundAcademyFlow();
         });
 
-        menu.AddItem(LocalizationService.GetString("Tournaments"), () =>
+        menu.AddItem(LocalizationService.GetString("UserGuide"), () =>
         {
-            StartTournamentsBrowserFlow();
+            StartUserGuideFlow();
         });
 
         menu.AddItem(LocalizationService.GetString("ExitGame"), () =>
@@ -313,6 +304,53 @@ public class AccessibleFootballWindow : Form
         });
 
         SetActiveMenu(menu);
+    }
+
+    private void StartClasicoWizardFlow()
+    {
+        var teamMenu = new AccessibleMenu("اختر فريقك في الكلاسيكو", _screenReader);
+
+        teamMenu.AddItem("ريال مدريد (أنت تلعب بريال مدريد ضد برشلونة)", () =>
+        {
+            ChooseStadiumFlow(SpanishLaLigaDatabase.CreateRealMadrid(), SpanishLaLigaDatabase.CreateBarcelona());
+        });
+
+        teamMenu.AddItem("برشلونة (أنت تلعب ببرشلونة ضد ريال مدريد)", () =>
+        {
+            ChooseStadiumFlow(SpanishLaLigaDatabase.CreateBarcelona(), SpanishLaLigaDatabase.CreateRealMadrid());
+        });
+
+        teamMenu.AddItem("رجوع للقائمة الرئيسية", () => PopMenu());
+        PushMenu(teamMenu);
+    }
+
+    private void ChooseStadiumFlow(Team home, Team away)
+    {
+        var stadiumMenu = new AccessibleMenu("اختر ملعب المباراة لاختبار شرط الأهازيج والجماهير", _screenReader);
+
+        stadiumMenu.AddItem("ملعب سانتياجو برنابيو (معقل ريال مدريد)", () =>
+        {
+            _stadiumSoundEngine.ActiveStadiumKey = "SantiagoBernabeu";
+            _screenReader.Speak("تم اختيار ملعب سانتياجو برنابيو.");
+            StartInteractiveMatch(home, away);
+        });
+
+        stadiumMenu.AddItem("ملعب كامب نو (معقل برشلونة)", () =>
+        {
+            _stadiumSoundEngine.ActiveStadiumKey = "CampNou";
+            _screenReader.Speak("تم اختيار ملعب كامب نو.");
+            StartInteractiveMatch(home, away);
+        });
+
+        stadiumMenu.AddItem("ملعب محايد (لاختبار الجماهير بصوت محايد وبدون أهازيج خاصة)", () =>
+        {
+            _stadiumSoundEngine.ActiveStadiumKey = "NeutralStadium";
+            _screenReader.Speak("تم اختيار ملعب محايد. صوت الجماهير سيعمل بشكل محايد تماماً.");
+            StartInteractiveMatch(home, away);
+        });
+
+        stadiumMenu.AddItem("رجوع لاختيار الفريق", () => PopMenu());
+        PushMenu(stadiumMenu);
     }
 
     private void StartUserGuideFlow()
@@ -905,12 +943,16 @@ public class AccessibleFootballWindow : Form
     {
         if (_isInStartupIntro)
         {
-            _isInStartupIntro = false;
-            _anthemEngine.StopAllSounds();
-            SoundEffectsPlayer.StartMenuMusic();
-            OpenMainMenu();
-            e.Handled = true;
-            e.SuppressKeyPress = true;
+            // نشيد دوري الأبطال لا يتوقف إلا بعد ضغط Enter أو Space حصراً
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+            {
+                _isInStartupIntro = false;
+                _anthemEngine.StopAllSounds();
+                SoundEffectsPlayer.StartMenuMusic();
+                OpenMainMenu();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
             return;
         }
         // 1. أولوية القوائم: إذا كنا داخل أي قائمة (الرئيسية، التشكيلة، الإعدادات، أو الإيقاف المؤقت داخل الماتش)
@@ -996,6 +1038,22 @@ public class AccessibleFootballWindow : Form
         // 2. إذا كنا في مباراة حية جارية (التحكم بالملعب)
         if (_activeMatch != null)
         {
+            if (e.KeyCode == Keys.Space)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+
+                string ballStatus = _activeMatch.Ball.Owner != null
+                    ? $"الكرة مع {_activeMatch.Ball.Owner.Name} ({_activeMatch.Ball.Owner.CurrentAssignedPosition})"
+                    : (_activeMatch.IsPassInTransit ? "الكرة في تمريرة" : "الكرة حرة");
+
+                string zoneStatus = _activeMatch.CurrentZone.ToArabicAnnouncement();
+
+                string matchInfo = $"{ballStatus}. {zoneStatus}. الدقيقة {(int)_activeMatch.MatchTimeMinutes}. النتيجة: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.";
+                _screenReader.Speak(matchInfo, interrupt: true);
+                return;
+            }
+
             if (e.KeyCode == Keys.Q)
             {
                 e.Handled = true;

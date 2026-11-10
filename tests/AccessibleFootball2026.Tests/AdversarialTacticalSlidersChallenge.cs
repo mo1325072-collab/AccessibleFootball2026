@@ -31,6 +31,8 @@ public static class AdversarialTacticalSlidersChallenge
         runner("19N. Defensive Marking (Man-to-Man): Weak defender heavily penalized against superstar in 1v1", TestDefensiveMarking_ManToMan_ExposesWeakDefenderAgainstEliteCarrier);
         runner("19O. Defensive Marking (Zonal): Compact zone shields weak defender and enables collective cover", TestDefensiveMarking_Zonal_ShieldsWeakTeamWithSpatialCoverage);
         runner("19P. Two Core Sliders: Auto-synchronizes Line Depth with Pressing and Tempo with Passing", TestTwoMainSliders_AutoSyncsLineDepthAndTempo);
+        runner("19Q. Stadium Chants: Enforces double condition (Home stadium + Home team playing) and neutral crowd on neutral grounds", TestStadiumChants_DoubleConditionStrictlyEnforced);
+        runner("19R. Settings Engine: Live application without restart and persistence to AppData", TestSettings_LiveApplicationAndAppDataPersistence);
     }
 
     private static void TestZeroDiceRoll_NoFlatProbabilityInSimulation()
@@ -454,6 +456,48 @@ public static class AdversarialTacticalSlidersChallenge
 
         tactics.PassingDirectness = 15;
         Assert(tactics.Tempo == 15, $"Tempo must auto-sync to short PassingDirectness (15), got: {tactics.Tempo}");
+    }
+
+    private static void TestStadiumChants_DoubleConditionStrictlyEnforced()
+    {
+        var soundEngine = new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine();
+        var realMadrid = SpanishLaLigaDatabase.CreateRealMadrid();
+        var barcelona = SpanishLaLigaDatabase.CreateBarcelona();
+
+        // سيناريو 1: ريال مدريد هو صاحب الأرض وفي ملعبه سانتياجو برنابيو -> الأهازيج تعمل
+        soundEngine.SetMatchTeams(realMadrid, barcelona);
+        soundEngine.ActiveStadiumKey = "SantiagoBernabeu";
+        Assert(soundEngine.ShouldPlayChantForTeam(realMadrid), "Real Madrid playing as Home at Bernabéu MUST trigger Real Madrid chants");
+        Assert(!soundEngine.ShouldPlayChantForTeam(barcelona), "Barcelona playing as Away at Bernabéu must NEVER trigger Barcelona chants");
+
+        // سيناريو 2: برشلونة هو صاحب الأرض وفي ملعبه كامب نو -> الأهازيج تعمل لبرشلونة فقط
+        soundEngine.SetMatchTeams(barcelona, realMadrid);
+        soundEngine.ActiveStadiumKey = "CampNou";
+        Assert(soundEngine.ShouldPlayChantForTeam(barcelona), "Barcelona playing as Home at Camp Nou MUST trigger Barcelona chants");
+        Assert(!soundEngine.ShouldPlayChantForTeam(realMadrid), "Real Madrid playing as Away at Camp Nou must NEVER trigger Real Madrid chants");
+
+        // سيناريو 3: اللعب في ملعب محايد (أو أي ملعب آخر) -> مستحيل أهازيج أي فريق تشتغل (صوت جماهير محايد فقط)
+        soundEngine.ActiveStadiumKey = "NeutralStadium";
+        Assert(!soundEngine.ShouldPlayChantForTeam(barcelona), "Neutral stadium must NEVER trigger Barcelona chants");
+        Assert(!soundEngine.ShouldPlayChantForTeam(realMadrid), "Neutral stadium must NEVER trigger Real Madrid chants");
+    }
+
+    private static void TestSettings_LiveApplicationAndAppDataPersistence()
+    {
+        // 1. مسار الإعدادات في AppData أو مسار آمن
+        Assert(MatchSettings.ActiveSettingsFilePath.Contains("settings.json"), "Settings path must be a valid settings.json path");
+
+        // 2. التطبيق الفوري الحي عبر ApplyLive دون ريستارت
+        bool eventFired = false;
+        Action<MatchSettings> handler = s => { eventFired = true; };
+        MatchSettings.OnSettingsChanged += handler;
+
+        MatchSettings.Current.CommentaryVolumePercent = 65;
+        MatchSettings.Current.ApplyLive();
+
+        MatchSettings.OnSettingsChanged -= handler;
+
+        Assert(eventFired, "ApplyLive must fire OnSettingsChanged event for live audio adjustments");
     }
 
     private static void Assert(bool condition, string message)

@@ -228,7 +228,7 @@ public class TeamTactics
     /// حساب التناغم التكتيكي واكتشاف التناقضات بين الخيارات
     /// التحدي الأكبر للمدرب: التناقض يقلل الأدفانتيدج، والانسجام يمنح تفوقاً تكتيكياً
     /// </summary>
-    public TacticalSynergyResult CalculateSynergy()
+    public TacticalSynergyResult CalculateSynergy(FormationType formation = FormationType.Formation433_Attack)
     {
         int score = 100;
         var conflicts = new List<string>();
@@ -297,6 +297,33 @@ public class TeamTactics
         if (PassingDirectness <= 30 && Focus == AttackingFocus.Central && Tempo >= 65 && PressingIntensity >= 55)
         {
             synergies.Add("تناغم التيكي تاكا: انتشار ممتاز وتمريرات سريعة من لمسة ولمستين تضمن السيطرة على مجريات المباراة!");
+        }
+
+        // 10. فحص التناغم والتناقض الصارم مع الخطة (Formation Contradictions):
+        // القاعدة الذهبية: مستحيل تنزل بخطة دفاعية (5-3-2 أو 5-4-1) وتلعب ضغط عالي!
+        var req = FormationManager.GetRequirement(formation);
+        if (req.IsDefensive && PressingIntensity > 60)
+        {
+            score -= 30;
+            conflicts.Add($"تناقض تكتيكي كارثي: الخطة الحالية ({req.ArabicName}) دفاعية متكتلة بخمسة مدافعين، ولكن شريط الضغط مضبوط على مستوى عالي ({PressingIntensity}%)! هذا يمزق الخطوط ويترك ثغرات شاسعة بين الدفاع والهجوم ويستنزف اللياقة دون جدوى!");
+        }
+
+        // تناغم خطة 4-3-3A الهجومية مع الضغط العالي
+        if (formation == FormationType.Formation433_Attack && PressingIntensity >= 70)
+        {
+            synergies.Add("تناغم هجومي كاسح: تقارب خطوط 4-3-3 A والضغط العالي يخنق الخصم في مناطقه!");
+        }
+
+        // تناغم خطة 4-3-3B الدفاعية مع محور الارتكاز والتوازن
+        if (formation == FormationType.Formation433_Defend && (Focus == AttackingFocus.CounterAttack || Focus == AttackingFocus.Balanced))
+        {
+            synergies.Add("تناغم 4-3-3 B المتوازنة: محور الارتكاز الصريح يؤمن ظهر الدفاع ويسهل التحول المنظم!");
+        }
+
+        // تناغم خطة 5-3-2 و 5-4-1 مع التكتل الدفاعي والمرتدات
+        if (req.IsDefensive && PressingIntensity <= 35 && Focus == AttackingFocus.CounterAttack)
+        {
+            synergies.Add($"تناغم التكتل الدفاعي الكاتيناتشو ({req.ArabicName}): 5 مدافعين في الزون مع مرتدات سريعة يمنح الفريق أعلى درجات الصلابة!");
         }
 
         score = Math.Clamp(score, 10, 100);

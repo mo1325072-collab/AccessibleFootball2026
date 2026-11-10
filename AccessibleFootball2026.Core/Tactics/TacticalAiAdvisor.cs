@@ -172,18 +172,23 @@ public class TacticalAiAdvisor
                 }
             }
 
-            // 3. توصية الخطة التكتيكية
-            if (minute >= 75 && goalDiff > 0 && match.HomeTeam.CurrentFormation != FormationType.Formation532_Counter)
+            // 3. توصية الخطة التكتيكية وفحص التناقض
+            var formReq = FormationManager.GetRequirement(match.HomeTeam.CurrentFormation);
+            if (formReq.IsDefensive && match.HomeTeam.Tactics.PressingIntensity > 60)
             {
-                sb.Append("نصيحة تكتيكية: التحول إلى خطة 5-3-2 لتأمين العمق الدفاعي وإنهاء المباراة بالفوز.");
+                sb.Append($"تحذير تكتيكي عاجل: خطتك الحالية ({formReq.ArabicName}) دفاعية ولكنك تلعب بضغط عالي ({match.HomeTeam.Tactics.PressingIntensity}%)! هذا تناقض كارثي يمزق الخطوط ويستنزف اللياقة دون جدوى. نوصي بخفض الضغط لـ 25 أو التحول إلى 4-3-3A. ");
+            }
+            else if (minute >= 75 && goalDiff > 0 && match.HomeTeam.CurrentFormation != FormationType.Formation532_Counter)
+            {
+                sb.Append("نصيحة تكتيكية: التحول إلى خطة 5-3-2 الدفاعية لغلق العمق وتأمين الفوز بالمرتدات.");
             }
             else if (minute >= 65 && goalDiff < 0 && match.HomeTeam.CurrentFormation != FormationType.Formation433_Attack)
             {
-                sb.Append("نصيحة تكتيكية: التحول إلى خطة 4-3-3 الهجومية وتكثيف العرضيات والتسديد من خارج المنطقة.");
+                sb.Append("نصيحة تكتيكية: التحول إلى خطة 4-3-3 A الهجومية بصانع ألعاب متقدم لتكثيف الضغط العالي والعودة في النتيجة.");
             }
             else
             {
-                sb.Append($"خطة فريقك الحالية ({match.HomeTeam.CurrentFormation.ToArabicName()}) متوازنة وفعالة.");
+                sb.Append($"خطة فريقك الحالية ({match.HomeTeam.CurrentFormation.ToArabicName()}) متوازنة ومتوافقة تكتيكياً.");
             }
         }
         else

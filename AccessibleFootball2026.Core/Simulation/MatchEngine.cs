@@ -979,12 +979,12 @@ public class MatchEngine
         float carrierStaminaFactor = Math.Clamp(carrier.Stamina / 100.0f, 0.60f, 1.0f);
         float carrierSkill = ((carrier.Dribbling * 0.45f) + (carrier.Physical * 0.35f) + (carrier.Speed * 0.20f)) * carrierStaminaFactor;
 
-        // تطبيق معامل التناغم التكتيكي لحامل الكرة
-        var carrierSynergy = carrierTeam.Tactics.CalculateSynergy();
+        // تطبيق معامل التناغم التكتيكي لحامل الكرة (بما في ذلك توافق الخطة مع التكتيك)
+        var carrierSynergy = carrierTeam.Tactics.CalculateSynergy(carrierTeam.CurrentFormation);
         carrierSkill *= carrierSynergy.AdvantageMultiplier;
 
         // تطبيق معامل التناغم التكتيكي للمدافع
-        var tacklerSynergy = tacklerTeam.Tactics.CalculateSynergy();
+        var tacklerSynergy = tacklerTeam.Tactics.CalculateSynergy(tacklerTeam.CurrentFormation);
 
         // قاعدة ذهبية: مستحيل ندي الأدفانتيدج التكتيكي للفريق الأضعف مهارياً لو بيلعب رجل لرجل (Man-to-Man)
         // لأن الفوارق الفردية في الـ 1v1 بدون تغطية منطقة تفضح ضعف المدافع أمام المهاجم المهاري

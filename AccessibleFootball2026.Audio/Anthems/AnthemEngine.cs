@@ -66,7 +66,7 @@ public class AnthemEngine
         if (isAutomatedTest) return;
 
         _stopRequested = false;
-        _screenReader.Speak("Accessible Football 2026. نشيد دوري أبطال أوروبا الرسمي.");
+        // بدون أي حديث من قارئ الشاشة احتراماً لطلب المستخدم وجمال النشيد
 
         string? anthemPath = null;
         if (File.Exists(Path.Combine(_assetsBaseDir, "ChampionsLeague.mp3")))
@@ -165,8 +165,7 @@ public class AnthemEngine
     private void PlaySingleNationalAnthem(Team nationalTeam, Func<bool>? skipChecker)
     {
         _stopRequested = false;
-        string announcement = $"السلام الوطني لـ {nationalTeam.Name}.";
-        _screenReader.Speak(announcement);
+        // ترك الإعلان للمؤثر الصوتي للعبة دون تشويش من قارئ الشاشة
 
         string nationalDir = Path.Combine(_assetsBaseDir, "National");
         Directory.CreateDirectory(nationalDir);

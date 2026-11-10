@@ -59,6 +59,20 @@ public static class SoundEffectsPlayer
     {
         if (!string.IsNullOrEmpty(dir)) _baseAudioDir = dir;
         EnsureDefaultAudioAssets();
+        AccessibleFootball2026.Core.Models.MatchSettings.OnSettingsChanged += ApplyLiveSettings;
+    }
+
+    public static void ApplyLiveSettings(AccessibleFootball2026.Core.Models.MatchSettings settings)
+    {
+        MasterVolumeSetting = settings.MasterVolumePercent;
+        SfxVolumeSetting = settings.SfxVolumePercent;
+        CommentaryVolumeSetting = settings.CommentaryVolumePercent;
+        CrowdVolumeSetting = settings.CrowdVolumePercent;
+        GoalBeaconVolumeSetting = settings.GoalBeaconVolumePercent;
+        MusicVolumeSetting = settings.MusicVolumePercent;
+
+        ApplyMusicVolume();
+        ApplyCrowdVolume();
     }
 
     private static void SendMci(string command)
@@ -90,7 +104,8 @@ public static class SoundEffectsPlayer
 
     public static string GetMciType(string filePath)
     {
-        return "mpegvideo";
+        string ext = Path.GetExtension(filePath).ToLowerInvariant();
+        return ext == ".mp3" ? "mpegvideo" : "waveaudio";
     }
 
     // =========================================================================

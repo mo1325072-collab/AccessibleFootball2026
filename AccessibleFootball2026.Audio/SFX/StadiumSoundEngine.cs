@@ -27,6 +27,30 @@ public class StadiumSoundEngine
 
     public Team? ActiveHomeTeam { get; private set; }
     public Team? ActiveAwayTeam { get; private set; }
+    public string ActiveStadiumKey { get; set; } = "SantiagoBernabeu";
+    public string ActiveStadiumName => ActiveStadiumKey switch
+    {
+        "SantiagoBernabeu" => "ملعب سانتياجو برنابيو (معقل ريال مدريد)",
+        "CampNou" => "ملعب كامب نو (معقل برشلونة)",
+        _ => "ملعب محايد (صوت جماهير محايد فقط)"
+    };
+
+    public bool ShouldPlayChantForTeam(Team team)
+    {
+        // الشرط المزدوج الصارم:
+        // 1. الفريق يلعب على أرضه وصاحب الأرض (Home Team)
+        // 2. الملعب الحالي هو ملعبه الرسمي الحقيقي الموثق
+        if (ActiveHomeTeam == null || ActiveHomeTeam != team)
+            return false;
+
+        if (ActiveStadiumKey == "SantiagoBernabeu" && (team.Id == "ESP_RMA" || team.Id == "173" || team.Name.Contains("مدريد")))
+            return true;
+
+        if (ActiveStadiumKey == "CampNou" && (team.Id == "ESP_BAR" || team.Id == "153" || team.Name.Contains("برشلونة")))
+            return true;
+
+        return false;
+    }
 
     public StadiumSoundEngine(string? baseDir = null)
     {
@@ -132,15 +156,19 @@ public class StadiumSoundEngine
     {
         if (!Directory.Exists(_chantsDir)) return;
 
-        string chantPath = Path.Combine(_chantsDir, "Clubs", $"{team.Id}_{(int)slot:D2}.wav");
+        // التحقق من الشرط المزدوج: إذا لم يتحقق الشرط، يظل صوت الجماهير محايداً تماماً بدون أي هتاف خاص
+        if (!ShouldPlayChantForTeam(team)) return;
+
+        string teamId = team.Id == "ESP_RMA" || team.Name.Contains("مدريد") ? "173" : (team.Id == "ESP_BAR" || team.Name.Contains("برشلونة") ? "153" : team.Id);
+
+        string chantPath = Path.Combine(_chantsDir, $"Chant_{teamId}.wav");
         if (!File.Exists(chantPath))
         {
-            chantPath = Path.Combine(_chantsDir, "SP_C", $"Chant_{team.Id}.wav");
+            chantPath = Path.Combine(_chantsDir, "SP_C", $"Chant_{teamId}.wav");
         }
         if (!File.Exists(chantPath))
         {
-            // الرجوع إلى هتافات الدوري الثقافية الإقليمية (SP_R) أو العامة
-            chantPath = ResolveRegionalChant(team, slot);
+            chantPath = Path.Combine(_chantsDir, "Clubs", $"{team.Id}_{(int)slot:D2}.wav");
         }
 
         if (File.Exists(chantPath))
