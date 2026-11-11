@@ -173,21 +173,6 @@
       "priority": 0
     },
     {
-      "id": "00033",
-      "file": "Library/00033.mp3",
-      "event": "Miss",
-      "transcript": "الكرة إلى خارج المرمى، لم يكن في وضعية مريحة، كان قلقا، كان متوترا، هكذا كانت الملامح واضحة.",
-      "review": "verified",
-      "all": [
-        {
-          "fact": "shot.underPressure",
-          "op": "eq",
-          "value": "true"
-        }
-      ],
-      "priority": 0
-    },
-    {
       "id": "00034",
       "file": "Library/00034.mp3",
       "event": "Woodwork",
@@ -4266,15 +4251,6 @@
       "priority": 0
     },
     {
-      "id": "01629",
-      "file": "Library/01629.mp3",
-      "event": "OwnGoal",
-      "transcript": "بدل من ان يضع الكرة من مرماه، وضعها في المرمى. اللاعب حزين بكل تأكيد، كان الله في عونه وعون مدربه.",
-      "review": "verified",
-      "all": [],
-      "priority": 0
-    },
-    {
       "id": "01631",
       "file": "Library/01631.mp3",
       "event": "OwnGoal",
@@ -4618,51 +4594,6 @@
           "fact": "player.name",
           "op": "eq",
           "value": "عثمان ديمبيلي"
-        }
-      ],
-      "priority": 0
-    },
-    {
-      "id": "02009",
-      "file": "Library/02009.mp3",
-      "event": "BallTrapped",
-      "transcript": "Alcaraz and Fabian Ruiz",
-      "review": "verified",
-      "all": [
-        {
-          "fact": "player.name",
-          "op": "eq",
-          "value": "Fabián Ruiz"
-        }
-      ],
-      "priority": 0
-    },
-    {
-      "id": "02009-2",
-      "file": "Library/02009.mp3",
-      "event": "BallTrapped",
-      "transcript": "Alcaraz and Fabian Ruiz",
-      "review": "verified",
-      "all": [
-        {
-          "fact": "player.name",
-          "op": "eq",
-          "value": "Fabian Ruiz"
-        }
-      ],
-      "priority": 0
-    },
-    {
-      "id": "02009-3",
-      "file": "Library/02009.mp3",
-      "event": "BallTrapped",
-      "transcript": "Alcaraz and Fabian Ruiz",
-      "review": "verified",
-      "all": [
-        {
-          "fact": "player.name",
-          "op": "eq",
-          "value": "فابيان رويز"
         }
       ],
       "priority": 0
@@ -5219,15 +5150,6 @@
           "value": "true"
         }
       ],
-      "priority": 0
-    },
-    {
-      "id": "02959",
-      "file": "Library/02959.mp3",
-      "event": "OwnGoal",
-      "transcript": "اللاعب حزين بكل تأكيد، كان الله في عونه وعون مدربه.",
-      "review": "verified",
-      "all": [],
       "priority": 0
     },
     {
@@ -6255,7 +6177,7 @@
       "id": "03191",
       "file": "Library/03191.mp3",
       "event": "Shot",
-      "transcript": "ممکن ہے سجل",
+      "transcript": "ممكن يسجل.",
       "review": "verified",
       "all": [],
       "priority": 0
@@ -7733,7 +7655,7 @@
       "id": "03428",
       "file": "Library/03428.mp3",
       "event": "Shot",
-      "transcript": "Yaar, phir wahi plan.",
+      "transcript": "يضرب الآن.",
       "review": "verified",
       "all": [],
       "priority": 0

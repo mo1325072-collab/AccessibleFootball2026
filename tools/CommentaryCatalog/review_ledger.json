@@ -344,7 +344,7 @@
    "duration_seconds": 9.473741,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "context_visual_pending",
   "mappings": [
    {
     "event": "Miss",
@@ -357,7 +357,7 @@
     ]
    }
   ],
-  "notes": ""
+  "notes": "Explicit visible anxious facial features are not established by physical pressure alone."
  },
  {
   "slot": "00034",
@@ -7536,14 +7536,14 @@
    "duration_seconds": 8.080544,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "context_emotion_pending",
   "mappings": [
    {
     "event": "OwnGoal",
     "all": []
    }
   ],
-  "notes": ""
+  "notes": "Narration explicitly asserts player sadness; an own goal alone is not evidence of a represented emotional state. Original preserved."
  },
  {
   "slot": "01631",
@@ -8184,7 +8184,7 @@
    "duration_seconds": 1.950476,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "identity_pending",
   "mappings": [
    {
     "event": "BallTrapped",
@@ -8217,7 +8217,7 @@
     ]
    }
   ],
-  "notes": "Name agreed across independent transcripts; exact current subject name binding, no surname fallback."
+  "notes": "First transcript combines Alcaraz/Fabian Ruiz while Arabic source pass says ball with Fabian Ruiz. Hold conflicting name evidence for independent listening."
  },
  {
   "slot": "02015",
@@ -8997,14 +8997,14 @@
    "duration_seconds": 4.179592,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "context_emotion_pending",
   "mappings": [
    {
     "event": "OwnGoal",
     "all": []
    }
   ],
-  "notes": ""
+  "notes": "Narration explicitly asserts player sadness; an own goal alone is not evidence of a represented emotional state. Original preserved."
  },
  {
   "slot": "02962",
@@ -10882,7 +10882,8 @@
     "all": []
    }
   ],
-  "notes": ""
+  "notes": "Arabic-context cross-check resolves the wrong-script first transcript; only original phrase retained.",
+  "verifiedTranscript": "ممكن يسجل."
  },
  {
   "slot": "03193",
@@ -13739,7 +13740,8 @@
     "all": []
    }
   ],
-  "notes": ""
+  "notes": "Independent Arabic-context cross-check and Arabic ASR agree; added preamble is excluded from original words.",
+  "verifiedTranscript": "يضرب الآن."
  },
  {
   "slot": "03432",
