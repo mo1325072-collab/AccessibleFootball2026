@@ -213,7 +213,7 @@ public class AccessibleSettingsForm : Form
             BackColor = Color.FromArgb(36, 42, 56),
             ForeColor = Color.White
         };
-        _cmbCommentaryVoice.Items.AddRange(isArabic ? ["رؤوف خليف (Raouf Khlif)", "صامت (بدون تعليق)"] : ["Raouf Khlif", "Off (Silent)"]);
+        _cmbCommentaryVoice.Items.AddRange(isArabic ? ["فارس عوض (Fares Awad)", "رؤوف خليف (Raouf Khlif)", "صامت (بدون تعليق)"] : ["Fares Awad", "Raouf Khlif", "Off (Silent)"]);
         mainPanel.Controls.Add(lblVoice, 0, row);
         mainPanel.Controls.Add(_cmbCommentaryVoice, 1, row++);
 
@@ -366,7 +366,8 @@ public class AccessibleSettingsForm : Form
             int durIdx = Array.IndexOf(_durations, s.MatchDurationMinutes);
             _cmbDuration.SelectedIndex = durIdx >= 0 ? durIdx : 1;
 
-            _cmbCommentaryVoice.SelectedIndex = (s.CommentaryVoice == CommentaryVoiceOption.Off || !s.CommentaryEnabled) ? 1 : 0;
+            _cmbCommentaryVoice.SelectedIndex = (s.CommentaryVoice == CommentaryVoiceOption.Off || !s.CommentaryEnabled) ? 2
+                : (s.Commentator == CommentatorId.FaresAwad ? 0 : 1);
 
             _chkExtraTime.Checked = s.ExtraTimeEnabled;
             _chkPenalties.Checked = s.PenaltyShootoutEnabled;
@@ -423,7 +424,12 @@ public class AccessibleSettingsForm : Form
         s.Difficulty = (DifficultyLevel)_cmbDifficulty.SelectedIndex;
         s.MatchDurationMinutes = _durations[_cmbDuration.SelectedIndex];
 
-        if (_cmbCommentaryVoice.SelectedIndex == 0)
+        if (_cmbCommentaryVoice.SelectedIndex == 2)
+        {
+            s.CommentaryVoice = CommentaryVoiceOption.Off;
+            s.CommentaryEnabled = false;
+        }
+        else if (_cmbCommentaryVoice.SelectedIndex == 1)
         {
             s.Commentator = CommentatorId.RaoufKhlif;
             s.CommentaryVoice = CommentaryVoiceOption.RaoufKhlif;
@@ -431,8 +437,9 @@ public class AccessibleSettingsForm : Form
         }
         else
         {
-            s.CommentaryVoice = CommentaryVoiceOption.Off;
-            s.CommentaryEnabled = false;
+            s.Commentator = CommentatorId.FaresAwad;
+            s.CommentaryVoice = CommentaryVoiceOption.FaresAwad;
+            s.CommentaryEnabled = true;
         }
 
         s.ExtraTimeEnabled = _chkExtraTime.Checked;
