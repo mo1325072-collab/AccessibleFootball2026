@@ -45,6 +45,28 @@ public static class SoundEffectsPlayer
 
     public static string? LastPlayedSound { get; private set; }
     public static string? LastPlayedFilePath { get; private set; }
+
+    private static readonly List<string> _syntheticAssetsGenerated = new();
+    /// <summary>مسارات العينات التي ولّدها المحرك إجرائياً خلال هذه الجلسة لأن الأصل المستخرج كان غائباً (تشخيص فقط)</summary>
+    public static IReadOnlyList<string> SyntheticAssetsGenerated => _syntheticAssetsGenerated;
+    /// <summary>
+    /// true إذا كان آخر مسار رجعه ResolveAudioPath يحمل اسماً من مجموعة التوليد الإجرائي.
+    /// العينات المستخرجة من أصول PES تحمل أسماء رقمية (Kick_101.wav)، أما الأسماء الوصفية فيكتبها المولد
+    /// المحلي وحده (لذلك يتجاهلها ResolveExtractedSample)، فوجودها يعني عينة مولدة حتى لو كتبتها جلسة سابقة.
+    /// لا يشمل موسيقى القوائم والإياركونات فلهما مولدات خاصة غير مراقبة هنا.
+    /// </summary>
+    public static bool LastResolveWasSynthetic { get; private set; }
+
+    // الأسماء الوصفية التي يملكها EnsureDefaultAudioAssets (بدون امتداد)، بنفس صيغة relativeParts
+    private static readonly HashSet<string> _syntheticRelativeNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "SFX/Kicks/Shot", "SFX/Kicks/Shot_Center", "SFX/Kicks/Shot_Left", "SFX/Kicks/Shot_Right",
+        "SFX/Kicks/Pass", "SFX/Kicks/Pass_Center", "SFX/Kicks/Pass_Left", "SFX/Kicks/Pass_Right",
+        "SFX/Kicks/Cross", "SFX/Kicks/Cross_Center", "SFX/Kicks/Cross_Left", "SFX/Kicks/Cross_Right",
+        "SFX/Kicks/Kick", "SFX/Kicks/Kick_Center", "SFX/Kicks/Kick_Left", "SFX/Kicks/Kick_Right",
+        "SFX/Tackles/StandTackle", "SFX/Tackles/SlideTackle",
+        "SFX/Whistles/Whistle", "SFX/GoalNet/GoalNet", "SFX/PostHit/PostHit"
+    };
     public static float LastPlayedPan { get; private set; }
     public static int TotalSoundsPlayedCount { get; private set; } = 0;
 
@@ -89,18 +111,20 @@ public static class SoundEffectsPlayer
     public static string? ResolveAudioPath(params string[] relativeParts)
     {
         string fullWithoutExt = Path.Combine(_baseAudioDir, Path.Combine(relativeParts));
+        bool syntheticName = _syntheticRelativeNames.Contains(string.Join('/', relativeParts));
         // نفضل ملفات WAV ثم MP3
-        if (File.Exists(fullWithoutExt + ".wav")) return fullWithoutExt + ".wav";
-        if (File.Exists(fullWithoutExt + ".mp3")) return fullWithoutExt + ".mp3";
-        if (File.Exists(fullWithoutExt)) return fullWithoutExt;
+        if (File.Exists(fullWithoutExt + ".wav")) { LastResolveWasSynthetic = syntheticName; return fullWithoutExt + ".wav"; }
+        if (File.Exists(fullWithoutExt + ".mp3")) { LastResolveWasSynthetic = syntheticName; return fullWithoutExt + ".mp3"; }
+        if (File.Exists(fullWithoutExt)) { LastResolveWasSynthetic = syntheticName; return fullWithoutExt; }
 
         // توليد الملفات الصوتية تلقائياً إذا لم تكن موجودة
         EnsureDefaultAudioAssets();
 
-        if (File.Exists(fullWithoutExt + ".wav")) return fullWithoutExt + ".wav";
-        if (File.Exists(fullWithoutExt + ".mp3")) return fullWithoutExt + ".mp3";
-        if (File.Exists(fullWithoutExt)) return fullWithoutExt;
+        if (File.Exists(fullWithoutExt + ".wav")) { LastResolveWasSynthetic = syntheticName || _syntheticAssetsGenerated.Contains(fullWithoutExt + ".wav"); return fullWithoutExt + ".wav"; }
+        if (File.Exists(fullWithoutExt + ".mp3")) { LastResolveWasSynthetic = syntheticName || _syntheticAssetsGenerated.Contains(fullWithoutExt + ".mp3"); return fullWithoutExt + ".mp3"; }
+        if (File.Exists(fullWithoutExt)) { LastResolveWasSynthetic = syntheticName || _syntheticAssetsGenerated.Contains(fullWithoutExt); return fullWithoutExt; }
 
+        LastResolveWasSynthetic = false;
         return null;
     }
 
@@ -775,7 +799,14 @@ public static class SoundEffectsPlayer
     {
         if (!File.Exists(path) || new FileInfo(path).Length < 100)
         {
-            try { creator(path); } catch { }
+            try
+            {
+                creator(path);
+                // نسجل كل عينة مولدة حتى لا يختفي الفرق بين المستخرج والمولد في التشخيص
+                if (File.Exists(path) && !_syntheticAssetsGenerated.Contains(path))
+                    _syntheticAssetsGenerated.Add(path);
+            }
+            catch { }
         }
     }
 
