@@ -696,6 +696,19 @@ public class Program
         swChants.Stop();
         Console.WriteLine($"Extracted {crowdChants.Count} crowd chants in {swChants.ElapsedMilliseconds:N0} ms!");
 
+        // Preserve each chant's original AINF label (e.g. SP_C173_03). The _01.._05 suffix is the
+        // only documented slot distinction (see ChantSlot in StadiumSoundEngine); the game uses this
+        // index to resolve slot-specific chants without inventing any semantic mapping.
+        var chantIndexRecords = crowdChants.Select(c => new
+        {
+            Index = c.Index,
+            Label = c.Label,
+            Duration = Math.Round(c.Duration, 3),
+            FileName = $"Chant_{c.Index}.wav"
+        }).ToList();
+        string chantIndexJson = JsonSerializer.Serialize(chantIndexRecords, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(Path.Combine(chantsDir, "chants_index.json"), chantIndexJson);
+
         // Extract Kicks, Whistles & Short Impacts (38 files)
         Console.WriteLine($"Extracting {shortAdx.Count + shortAix.Count} kicks, whistles and impacts...");
         for (int i = 0; i < shortAdx.Count; i++)
@@ -780,4 +793,5 @@ public class Program
         Console.WriteLine($"Extracted official PES 2013 menu track to {outWavPath} ({wav.Length} bytes)");
     }
 }
+
 
