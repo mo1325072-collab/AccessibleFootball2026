@@ -48,6 +48,8 @@ public class CommentaryEngine : IDisposable
     // خريطة ربط صريحة اختيارية (commentary_map.json): eventKey -> مسارات نسبية لمقاطع محددة
     private Dictionary<string, string[]>? _manifest;
     private bool _manifestLoaded;
+    // ملف ربط صريح موجود = تصنيف منتقى: يمنع السقوط إلى مجلدات فئات أخرى (مثل إصابة -> Fouls)
+    private bool _manifestPresent;
     private readonly object _manifestLock = new();
 
     // اسم المعلق، الجملة المنطوقة، الحدث صاحب العلاقة
@@ -141,6 +143,7 @@ public class CommentaryEngine : IDisposable
             {
                 _manifest = null;
                 _manifestLoaded = false;
+                _manifestPresent = false;
             }
         }
     }
@@ -290,6 +293,7 @@ public class CommentaryEngine : IDisposable
                 string commentatorDir = Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString());
                 string path = Path.Combine(commentatorDir, "commentary_map.json");
                 if (!File.Exists(path)) return;
+                _manifestPresent = true;
 
                 using var doc = JsonDocument.Parse(File.ReadAllText(path));
                 var map = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
@@ -336,9 +340,11 @@ public class CommentaryEngine : IDisposable
             MatchEventType.StoppageTimeAnnounced => "StoppageTime",
             MatchEventType.FullTime => "FullTime",
             MatchEventType.HalfTime => "HalfTime",
-            MatchEventType.YellowCard or MatchEventType.RedCard => "Cards",
+            MatchEventType.YellowCard => "Cards",
+            MatchEventType.RedCard => "RedCards",
             MatchEventType.PlayerInjured => "Injuries",
-            MatchEventType.FoulCommitted or MatchEventType.PenaltyAwarded => "Fouls",
+            MatchEventType.FoulCommitted => "Fouls",
+            MatchEventType.PenaltyAwarded => "Penalties",
             _ => string.Empty
         };
 
@@ -354,9 +360,11 @@ public class CommentaryEngine : IDisposable
             MatchEventType.StoppageTimeAnnounced => "StoppageTime",
             MatchEventType.FullTime => "FullTime",
             MatchEventType.HalfTime => "HalfTime",
-            MatchEventType.YellowCard or MatchEventType.RedCard => "Card",
+            MatchEventType.YellowCard => "Card",
+            MatchEventType.RedCard => "RedCard",
             MatchEventType.PlayerInjured => "Injury",
-            MatchEventType.FoulCommitted or MatchEventType.PenaltyAwarded => "Foul",
+            MatchEventType.FoulCommitted => "Foul",
+            MatchEventType.PenaltyAwarded => "Penalty",
             _ => string.Empty
         };
 
@@ -372,8 +380,10 @@ public class CommentaryEngine : IDisposable
             files = GetCachedFiles(dir);
 
             // مسارات بديلة في حال عدم توفر المجلد التخصصي لدى بعض المعلقين
-            if (files.Length == 0)
+            if (files.Length == 0 && !_manifestPresent)
             {
+                // المسارات البديلة بين الفئات تعمل فقط بغياب ربط صريح؛ مع وجود commentary_map.json
+                // لا يجوز أن يُشغَّل مقطع من فئة مختلفة لحدث بلا مقطع (يُستخدم البديل النصي بدلاً منه)
                 if (eventFolder == "Corners" || eventFolder == "Cards" || eventFolder == "Injuries")
                 {
                     files = GetCachedFiles(Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Fouls"));
@@ -381,6 +391,14 @@ public class CommentaryEngine : IDisposable
                 else if (eventFolder == "Misses")
                 {
                     files = GetCachedFiles(Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Shots"));
+                }
+                else if (eventFolder == "RedCards")
+                {
+                    files = GetCachedFiles(Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Cards"));
+                }
+                else if (eventFolder == "Penalties")
+                {
+                    files = GetCachedFiles(Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Fouls"));
                 }
             }
         }
@@ -401,6 +419,8 @@ public class CommentaryEngine : IDisposable
             phrase = eventKey switch
             {
                 "Card" => ActiveCommentator.GetRandomPhrase("Foul"),
+                "RedCard" => "بطاقة حمراء وطرد مباشر للاعب",
+                "Penalty" => "ركلة جزاء! الحكم يشير إلى علامة الجزاء",
                 "Corner" => ActiveCommentator.GetRandomPhrase("Foul"),
                 "HalfTime" => "صافرة نهاية الشوط الأول للمباراة",
                 "FullTime" => ActiveCommentator.GetRandomPhrase("FullTime") ?? "صافرة النهاية وختام المباراة",
