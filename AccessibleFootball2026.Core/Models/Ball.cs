@@ -20,6 +20,7 @@ public class Ball
     public Vector2 Position2D => new(Position.X, Position.Y);
     public Vector3 Velocity { get; set; } = Vector3.Zero;
     public Player? Owner { get; set; } = null;
+    public float CurveRadiansPerSecond { get; set; }
     public BallState State { get; set; } = BallState.Free;
 
     // معاملات فيزيائية واقعية
@@ -41,6 +42,12 @@ public class Ball
             return;
         }
 
+        if (CurveRadiansPerSecond != 0 && Velocity.Length() > 1)
+        {
+            float angle = CurveRadiansPerSecond * deltaTime;
+            float cos = MathF.Cos(angle), sin = MathF.Sin(angle);
+            Velocity = new Vector3(Velocity.X * cos - Velocity.Y * sin, Velocity.X * sin + Velocity.Y * cos, Velocity.Z);
+        }
         // تحديث الموضع بناءً على السرعة
         Position += Velocity * deltaTime;
 
@@ -111,6 +118,7 @@ public class Ball
             Owner = null;
         }
 
+        CurveRadiansPerSecond = 0;
         Velocity = new Vector3(direction.X * horizontalSpeed, direction.Y * horizontalSpeed, verticalSpeed);
         State = verticalSpeed > 0.5f ? BallState.InFlight : BallState.Free;
     }
@@ -122,6 +130,7 @@ public class Ball
             Owner.HasBall = false;
         }
 
+        CurveRadiansPerSecond = 0;
         Owner = newOwner;
         newOwner.HasBall = true;
         State = BallState.Controlled;

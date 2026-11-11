@@ -43,6 +43,8 @@ public static class SoundEffectsPlayer
     public static float GetEffectiveBeaconVolume() => GetEffectiveMasterVolume() * Math.Clamp(GoalBeaconVolumeSetting / 100.0f, 0.0f, 1.0f);
     public static float GetEffectiveMusicVolume() => GetEffectiveMasterVolume() * Math.Clamp(MusicVolumeSetting / 100.0f, 0.0f, 1.0f);
 
+    private static bool _crowdPaused;
+    public static bool IsCrowdActive => _crowdPlaying && !_crowdPaused && GetEffectiveCrowdVolume() > .001f;
     public static string? LastPlayedSound { get; private set; }
     public static string? LastPlayedFilePath { get; private set; }
 
@@ -288,14 +290,18 @@ public static class SoundEffectsPlayer
             string? p = ResolveAudioPath("SFX", "Crowd", "CrowdAmbiance");
             if (p != null)
             {
-                SendMci("close crowd");
-                SendMci($"open \"{p}\" type mpegvideo alias crowd");
-                int initialVol = Math.Clamp((int)(350 * GetEffectiveCrowdVolume()), 0, 1000);
-                SendMci($"setaudio crowd volume to {initialVol}");
-                SendMci("play crowd repeat");
-                _crowdPlaying = true;
-                _lastReportedCrowdVol = initialVol;
-                _lastCrowdVolChange = DateTime.UtcNow;
+                try
+                {
+                    mciSendString("close crowd",null,0,IntPtr.Zero);
+                    if(mciSendString($"open \"{p}\" type mpegvideo alias crowd",null,0,IntPtr.Zero)!=0)return;
+                    int initialVol=Math.Clamp((int)(350*GetEffectiveCrowdVolume()),0,1000);
+                    if(mciSendString($"setaudio crowd volume to {initialVol}",null,0,IntPtr.Zero)!=0)return;
+                    if(mciSendString("play crowd repeat",null,0,IntPtr.Zero)!=0)return;
+                    _crowdPlaying=true;_crowdPaused=false;
+                    _lastReportedCrowdVol = initialVol;
+                    _lastCrowdVolChange = DateTime.UtcNow;
+                }
+                catch { _crowdPlaying=false; }
             }
         }
     }
@@ -306,7 +312,7 @@ public static class SoundEffectsPlayer
         {
             SendMci("stop crowd");
             SendMci("close crowd");
-            _crowdPlaying = false;
+            _crowdPlaying = false;_crowdPaused=false;
             _lastReportedCrowdVol = -1;
         }
     }
@@ -315,7 +321,7 @@ public static class SoundEffectsPlayer
     {
         lock (_lock)
         {
-            SendMci("pause crowd");
+            SendMci("pause crowd");_crowdPaused=true;
         }
     }
 
@@ -331,7 +337,7 @@ public static class SoundEffectsPlayer
 
             if (_crowdPlaying)
             {
-                SendMci("resume crowd");
+                SendMci("resume crowd");_crowdPaused=false;
             }
             else
             {
@@ -442,17 +448,40 @@ public static class SoundEffectsPlayer
         PlayOneShot(filePath, "chant_ch");
     }
 
+    public static bool TryPlayAudibleChant(string filePath)
+    {
+        if(!File.Exists(filePath)||GetEffectiveCrowdVolume()<=.001f)return false;
+        try
+        {
+            lock(_lock)
+            {
+                mciSendString("close chant_ch",null,0,IntPtr.Zero);
+                if(mciSendString($"open \"{filePath}\" type mpegvideo alias chant_ch",null,0,IntPtr.Zero)!=0)return false;
+                int volume=Math.Clamp((int)(GetEffectiveCrowdVolume()*1000),0,1000);
+                if(mciSendString($"setaudio chant_ch volume to {volume}",null,0,IntPtr.Zero)!=0)return false;
+                if(mciSendString("play chant_ch from 0",null,0,IntPtr.Zero)!=0)return false;
+                LastPlayedSound="chant_ch";LastPlayedFilePath=filePath;TotalSoundsPlayedCount++;
+                return true;
+            }
+        }
+        catch{return false;}
+    }
+
     public static void SetStadiumAcoustics(string acousticPath)
     {
         if (string.IsNullOrEmpty(acousticPath) || !File.Exists(acousticPath)) return;
         lock (_lock)
         {
-            SendMci("stop crowd");
-            SendMci("close crowd");
-            SendMci($"open \"{acousticPath}\" type mpegvideo alias crowd");
-            SendMci("play crowd repeat");
-            SetCrowdVolume(800, force: true);
-            _crowdPlaying = true;
+            try
+            {
+                mciSendString("stop crowd",null,0,IntPtr.Zero);mciSendString("close crowd",null,0,IntPtr.Zero);
+                _crowdPlaying=false;_crowdPaused=false;
+                if(mciSendString($"open \"{acousticPath}\" type mpegvideo alias crowd",null,0,IntPtr.Zero)!=0)return;
+                if(mciSendString("play crowd repeat",null,0,IntPtr.Zero)!=0)return;
+                _crowdPlaying=true;
+                SetCrowdVolume(800,force:true);
+            }
+            catch { _crowdPlaying=false; }
         }
     }
 

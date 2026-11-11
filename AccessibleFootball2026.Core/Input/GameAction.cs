@@ -22,7 +22,8 @@ public enum GameAction
     
     // النظام
     Pause,          // Escape
-    TacticalRadar   // Space / C (الرادار التكتيكي اللحظي على الطلب)
+    TacticalRadar,   // Space / C (الرادار التكتيكي اللحظي على الطلب)
+    Header, BicycleKick, Volley, LobShot, CurledShot, Clearance, GroundCross, FarPostCross, RequestLineup, SlowRunUp, LoftedThroughBall
 }
 
 public interface IInputHandler

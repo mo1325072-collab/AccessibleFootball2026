@@ -7,6 +7,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\ThirdParty\NVDA\**\*" Link="ThirdParty\NVDA\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="nvdaControllerClient64.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

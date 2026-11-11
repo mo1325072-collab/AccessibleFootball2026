@@ -137,20 +137,38 @@ public class AccessibleFootballWindow : Form
             SoundEffectsPlayer.SetCrowdVolume((int)(factor * 350));
         };
 
+        _stadiumSoundEngine.OnDiscontentWhistlePlayed += team =>
+        {
+            if(_activeMatch is not {} current)return;
+            var context=current.GetCommentarySnapshot().With(("crowd.protesting",true),("team.id",team.Id),
+                ("analysis.result",team.Score<(team==current.HomeTeam?current.AwayTeam:current.HomeTeam).Score?"loss":"other"));
+            _commentaryEngine.TryCommentOnEvent(new MatchEvent(MatchEventType.RefereeProtest,"صافرات استهجان من الجمهور") {Context=context},force:true);
+        };
+
         // معالجة أحداث المباراة أولاً بالمعلق ثم بقارئ الشاشة
         _eventBus.OnMatchEvent += evt =>
         {
+            evt.Context = evt.Context.With(("crowd.active", SoundEffectsPlayer.IsCrowdActive));
             _commentaryEngine.TryCommentOnEvent(evt);
+            if (evt.Type == MatchEventType.GoalScored && _activeMatch?.LastGoalReplay is { } replay)
+                _commentaryEngine.QueueGoalReplay(replay);
             _coordinator.HandleMatchEvent(evt);
+            if (evt.Type == MatchEventType.LineupRequested)
+                _commentaryEngine.RunAfterRecordedCommentary(() => _screenReader.Speak(evt.Description));
             if (_activeMatch != null)
             {
                 _stadiumSoundEngine.HandleMatchContext(evt, _activeMatch.HomeTeam.Score, _activeMatch.AwayTeam.Score, _activeMatch.MatchTimeMinutes);
                 // نداء اسم اللاعب صاحب اللمسة الفعلية (تمريرة/تسديدة/عرضية من أي فريق) وليس لاعب المستخدم دائماً
-                if (evt.Type == MatchEventType.BallKicked && evt.SubjectPlayer != null)
+                if (_commentaryEngine.ActiveCommentator.Id==CommentatorId.RaoufKhlif && evt.Type == MatchEventType.BallKicked && evt.SubjectPlayer != null)
                 {
                     _callnameManager.TryPlayPlayerCallname(evt.SubjectPlayer);
                 }
             }
+        };
+
+        _coordinator.OnGoalSequenceCompleted += () =>
+        {
+            if (!IsDisposed && IsHandleCreated) BeginInvoke(() => _activeMatch?.CompleteGoalCelebration());
         };
 
         _commentaryEngine.OnCommentarySpoken += (commName, phrase) =>
@@ -209,6 +227,8 @@ public class AccessibleFootballWindow : Form
         _displayListBox.Items.Clear();
         _displayListBox.Items.Add($"المباراة جارية الآن: {homeTeam.Name} ضد {awayTeam.Name}");
         _displayListBox.Items.Add("التحكم: S للتمرير | D للرفع والعرضيات | W للتسديد | A للبينية | Shift للجري | Ctrl لتبديل المدافع | Space للرادار");
+        _displayListBox.Items.Add("Q بينية عالية | K إبعاد | B عرضية أرضية | N القائم البعيد | T التشكيلة | R اقتراب بطيء ثم تسديد");
+        _displayListBox.Items.Add("التسديد: H رأسية | J مقصية | V على الطائر | L ساقطة | F مقوسة");
         _displayListBox.Items.Add("الدفاع: Ctrl لتبديل المدافع | S للاستخلاص الهادئ | W/D/A للاستخلاص القوي");
         _displayListBox.Items.Add("التكتيك: Space أو C للرادار التكتيكي | Esc للإيقاف المؤقت | Q للانسحاب");
         _displayListBox.SelectedIndex = 0;
@@ -303,6 +323,8 @@ public class AccessibleFootballWindow : Form
             StartMatchWizardFlow();
         });
 
+        menu.AddItem("نهائي كأس مخصص (أشواط إضافية وترجيح عند التعادل)", () => StartMatchWizardFlow(cupFinal: true));
+
         menu.AddItem("الكلاسيكو (ريال مدريد × برشلونة)", () =>
         {
             StartClasicoWizardFlow();
@@ -332,6 +354,8 @@ public class AccessibleFootballWindow : Form
         {
             StartSoundAcademyFlow();
         });
+
+        menu.AddItem("مكتبة تسجيلات فارس كاملة",()=>PushMenu(CommentaryLibraryMenuBuilder.Create(_commentaryEngine,_screenReader,PushMenu,PopMenu)));
 
         menu.AddItem(LocalizationService.GetString("UserGuide"), () =>
         {
@@ -406,21 +430,21 @@ public class AccessibleFootballWindow : Form
         {
             _stadiumSoundEngine.ActiveStadiumKey = "SantiagoBernabeu";
             _screenReader.Speak("تم اختيار ملعب سانتياجو برنابيو.");
-            StartInteractiveMatch(home, away);
+            StartInteractiveMatch(home, away, rivalry: true);
         });
 
         stadiumMenu.AddItem("ملعب كامب نو (معقل برشلونة)", () =>
         {
             _stadiumSoundEngine.ActiveStadiumKey = "CampNou";
             _screenReader.Speak("تم اختيار ملعب كامب نو.");
-            StartInteractiveMatch(home, away);
+            StartInteractiveMatch(home, away, rivalry: true);
         });
 
         stadiumMenu.AddItem("ملعب محايد (لاختبار الجماهير بصوت محايد وبدون أهازيج خاصة)", () =>
         {
             _stadiumSoundEngine.ActiveStadiumKey = "NeutralStadium";
             _screenReader.Speak("تم اختيار ملعب محايد. صوت الجماهير سيعمل بشكل محايد تماماً.");
-            StartInteractiveMatch(home, away);
+            StartInteractiveMatch(home, away, rivalry: true);
         });
 
         stadiumMenu.AddItem("رجوع لاختيار الفريق", () => PopMenu());
@@ -444,7 +468,7 @@ public class AccessibleFootballWindow : Form
     // معالج خطوات بدء المباراة الشامل (Match Wizard Flow)
     // =========================================================================
 
-    private void StartMatchWizardFlow()
+    private void StartMatchWizardFlow(bool cupFinal = false)
     {
         var teamManager = new TeamSelectionManager(_screenReader, PushMenu, PopMenu);
         Team? selectedHome = null;
@@ -462,7 +486,7 @@ public class AccessibleFootballWindow : Form
                 {
                     var preMatchMenu = GamePlanMenuBuilder.CreatePreMatchMenu(selectedHome, _screenReader, PushMenu, PopMenu, onStartMatch: () =>
                     {
-                        StartInteractiveMatch(selectedHome, selectedAway);
+                        StartInteractiveMatch(selectedHome, selectedAway, cupFinal: cupFinal);
                     });
                     PushMenu(preMatchMenu);
                 });
@@ -738,7 +762,7 @@ public class AccessibleFootballWindow : Form
     // محرك المباراة التفاعلي (Interactive Real-Time Match Engine)
     // =========================================================================
 
-    private void StartInteractiveMatch(Team homeTeam, Team awayTeam)
+    private void StartInteractiveMatch(Team homeTeam, Team awayTeam, bool cupFinal = false, bool rivalry = false)
     {
         _commentaryEngine.ClearPendingLines();
         _coordinator.CancelPendingGoalSequence();
@@ -765,8 +789,19 @@ public class AccessibleFootballWindow : Form
         SoundEffectsPlayer.StartCrowdAmbiance();
         SoundEffectsPlayer.PlayWhistle();
 
-        var match = new MatchEngine(homeTeam, awayTeam, _eventBus, _inputHandler);
+        var match = new MatchEngine(homeTeam, awayTeam, _eventBus, _inputHandler) { Mode = cupFinal ? MatchMode.CupFinal : MatchMode.Friendly, RivalryScenario = rivalry };
         _activeMatch = match;
+        match.OnAnalysisReplayReady += replay =>
+        {
+            if(!_commentaryEngine.QueuePlayReplay(replay)){match.CompleteAnalysisReplay();return;}
+            _commentaryEngine.RunAfterRecordedCommentary(()=>
+            {
+                if(!IsDisposed && IsHandleCreated)BeginInvoke(()=>
+                {
+                    if(_activeMatch==match)match.CompleteAnalysisReplay();
+                });
+            });
+        };
 
         match.OnNearBoundary += () =>
         {
@@ -779,7 +814,7 @@ public class AccessibleFootballWindow : Form
             SoundEffectsPlayer.SetCrowdVolume(vol);
         };
 
-        bool introPlayed = _commentaryEngine.TryPlayMatchIntro();
+        bool introPlayed = _commentaryEngine.TryPlayMatchIntro(match.GetCommentarySnapshot().With(("crowd.active",SoundEffectsPlayer.IsCrowdActive)));
         if (!introPlayed)
         {
             string introSpeech = $"انطلاق المباراة! {homeTeam.Name} ضد {awayTeam.Name}، بصوت المعلق {_commentaryEngine.ActiveCommentator.DisplayName}. " +
@@ -797,6 +832,7 @@ public class AccessibleFootballWindow : Form
 
         _lastFrameTime = DateTime.UtcNow;
 
+        if (_activeMatch != null) _activeMatch.AutomaticGoalRestart = false;
         _gameLoopTimer?.Dispose();
         _gameLoopTimer = new System.Windows.Forms.Timer { Interval = 20 }; // 50 updates per second
         _gameLoopTimer.Tick += (s, ev) =>
@@ -830,6 +866,7 @@ public class AccessibleFootballWindow : Form
             }
 
             string matchStatus = $"المباراة جارية (الدقيقة {(int)_activeMatch.MatchTimeMinutes}): {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score} - {_activeMatch.AwayTeam.Score} {_activeMatch.AwayTeam.Name}";
+            _statusLabel.Text=matchStatus;
             // أثناء اللعب النشط: نحدث _statusLabel المرئي فقط ونمنع تعديل _displayListBox لمنع تشويش قارئ الشاشة NVDA
             if (_currentMenu == null && _activeMatch.State != MatchState.InPlay)
             {
@@ -849,13 +886,20 @@ public class AccessibleFootballWindow : Form
                 if (MatchSettings.Current.AutoSubstitutionsEnabled &&
                     TacticalAiAdvisor.TryPerformAutoSubstitution(_activeMatch, out string autoSubMsg))
                 {
-                    _screenReader.Speak(autoSubMsg);
+                    _commentaryEngine.RunAfterRecordedCommentaryAsync(()=>_screenReader.SpeakUntilFinishedAsync(autoSubMsg));
                 }
 
                 if (MatchSettings.Current.AutoTacticalAdjustmentsEnabled &&
                     TacticalAiAdvisor.TryPerformDynamicTacticalAdjustment(_activeMatch, _activeMatch.HomeTeam, out string autoTacticMsg))
                 {
-                    _screenReader.Speak(autoTacticMsg);
+                    var coachMatch=_activeMatch;
+                    _commentaryEngine.RunAfterRecordedCommentaryAsync(async () =>
+                    {
+                        await _screenReader.SpeakUntilFinishedAsync(autoTacticMsg);
+                        if(_activeMatch==coachMatch)
+                            _commentaryEngine.TryCommentOnEvent(new MatchEvent(MatchEventType.CoachInstruction,"كلمة المدرب للاعبين")
+                            {Context=coachMatch.GetCommentarySnapshot().With(("analysis.coachInstructionSpoken",true))},force:true);
+                    });
                 }
 
                 // الذكاء الاصطناعي للخصم يقوم دائماً بالتعديل التكتيكي الذكي بين الشوطين
@@ -875,7 +919,7 @@ public class AccessibleFootballWindow : Form
                         _activeMatch.ResumeMatch();
                         SoundEffectsPlayer.ResumeCrowdAmbiance();
                         SoundEffectsPlayer.PlayWhistle();
-                        _screenReader.Speak("صافرة انطلاق الشوط الثاني!");
+                        _commentaryEngine.RunAfterRecordedCommentary(() => _screenReader.Speak(_activeMatch?.IsExtraTime == true ? "انطلاق الشوط الإضافي الثاني" : "صافرة انطلاق الشوط الثاني!"));
                         _lastFrameTime = DateTime.UtcNow;
                         _gameLoopTimer?.Start();
                     },
@@ -884,7 +928,14 @@ public class AccessibleFootballWindow : Form
                         EndMatchAndReturnToMenu();
                     });
 
-                PushMenu(halfTimeMenu);
+                var pausedMatch = _activeMatch;
+                _commentaryEngine.RunAfterRecordedCommentary(() =>
+                {
+                    if (!IsDisposed && IsHandleCreated) BeginInvoke(() =>
+                    {
+                        if (_activeMatch == pausedMatch && pausedMatch.State == MatchState.HalfTime) PushMenu(halfTimeMenu);
+                    });
+                });
                 return;
             }
 
@@ -907,13 +958,45 @@ public class AccessibleFootballWindow : Form
     {
         SoundEffectsPlayer.StopCrowdAmbiance();
         SoundEffectsPlayer.PlayWhistle();
-        _screenReader.Speak("انطلاق ركلات الترجيح الحاسمة! 5 ركلات لكل فريق لحسم بطل المباراة.");
+        // The existing shootout-start recording must finish before menus or official speech.
 
         int userPenaltiesScored = 0;
         int cpuPenaltiesScored = 0;
         int userKicksTaken = 0;
         int cpuKicksTaken = 0;
         bool suddenDeathAnnounced = false;
+        var readyContext = AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty;
+
+        void AfterCommentary(Action action)
+        {
+            _commentaryEngine.RunAfterRecordedCommentary(() =>
+            {
+                if (!IsDisposed && IsHandleCreated) BeginInvoke(() =>
+                {
+                    if (_activeMatch == match) action();
+                });
+            });
+        }
+
+        void Ready(bool home)
+        {
+            readyContext = AccessibleFootball2026.Core.Commentary.ShootoutCommentary.BeforeKick(
+                match.GetCommentarySnapshot(), home, userPenaltiesScored, cpuPenaltiesScored, userKicksTaken, cpuKicksTaken);
+            _commentaryEngine.TryCommentOnEvent(new MatchEvent(MatchEventType.ShootoutKickReady, "الاستعداد لركلة الترجيح") { Context = readyContext }, force: true);
+        }
+
+        void Outcome(bool home, bool scored, bool saved, string announcement, Action next, ShootoutKickResult result)
+        {
+            var context = AccessibleFootball2026.Core.Commentary.ShootoutCommentary.AfterKick(readyContext, home, scored, saved,
+                userPenaltiesScored, cpuPenaltiesScored, userKicksTaken, cpuKicksTaken,result.RunUp,result.KeeperHeld);
+            var type = scored ? MatchEventType.ShootoutGoal : saved ? MatchEventType.ShootoutSave : MatchEventType.ShootoutMiss;
+            _commentaryEngine.TryCommentOnEvent(new MatchEvent(type, announcement) { Context = context }, force: true);
+            _commentaryEngine.RunAfterRecordedCommentaryAsync(async () =>
+            {
+                await _screenReader.SpeakUntilFinishedAsync(announcement);
+                if (!IsDisposed && IsHandleCreated) BeginInvoke(() => { if (_activeMatch == match) next(); });
+            });
+        }
 
         // قواعد الحسم موثقة ومحمولة في PenaltyShootoutRules (IFAB Law 10) مع تغطية اختبارات انحدار
         bool IsShootoutDecided() => PenaltyShootoutRules.IsDecided(userPenaltiesScored, cpuPenaltiesScored, userKicksTaken, cpuKicksTaken);
@@ -936,36 +1019,31 @@ public class AccessibleFootballWindow : Form
             shotMenu.AddItem("التسديد في أقصى الزاوية اليمنى", () => ExecuteUserPenaltyShot(0));
             shotMenu.AddItem("التسديد بقوة في منتصف المرمى", () => ExecuteUserPenaltyShot(1));
             shotMenu.AddItem("التسديد في أقصى الزاوية اليسرى", () => ExecuteUserPenaltyShot(2));
-            PushMenu(shotMenu);
+            shotMenu.AddItem("اقتراب بطيء والتسديد يميناً", () => ExecuteUserPenaltyShot(0,true));
+            shotMenu.AddItem("اقتراب بطيء والتسديد في المنتصف", () => ExecuteUserPenaltyShot(1,true));
+            shotMenu.AddItem("اقتراب بطيء والتسديد يساراً", () => ExecuteUserPenaltyShot(2,true));
+            Ready(true);
+            AfterCommentary(() => PushMenu(shotMenu));
         }
 
-        void ExecuteUserPenaltyShot(int angle)
+        async void ExecuteUserPenaltyShot(int angle,bool slow=false)
         {
             PopMenu();
+            _inputHandler.Reset();
+            if(slow)await Task.Delay(1200);
+            if(_activeMatch!=match)return;
+            var takers=match.HomeTeam.Players.Where(p=>p.IsActiveOnPitch).ToArray();
+            var taker=takers[userKicksTaken%takers.Length];
+            var keeper=match.AwayTeam.Players.FirstOrDefault(p=>p.IsActiveOnPitch&&p.Role==PlayerRole.Goalkeeper);
+            var result=ShootoutKick.Resolve(angle,Random.Shared.Next(3),taker.Shooting,keeper?.Defending??50,slow,Random.Shared.NextDouble());
+            SoundEffectsPlayer.PlayKick(angle==0?.8f:angle==2?-.8f:0);
+            await Task.Delay(TimeSpan.FromSeconds(result.FlightSeconds));
+            if(_activeMatch!=match)return;
             userKicksTaken++;
-            int keeperDive = Random.Shared.Next(3);
-            SoundEffectsPlayer.PlayKick(angle == 0 ? 0.8f : (angle == 2 ? -0.8f : 0.0f));
-
-            if (angle != keeperDive)
-            {
-                userPenaltiesScored++;
-                SoundEffectsPlayer.PlayGoalNet();
-                SoundEffectsPlayer.PlayCrowdGoal();
-                _screenReader.Speak($"جوووووول! هدف رائع في الشباك! النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.");
-            }
-            else
-            {
-                SoundEffectsPlayer.PlayCrowdMiss();
-                _screenReader.Speak($"تصدى لها الحارس ببراعة! ركلة ضائعة! النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.");
-            }
-
-            Task.Delay(1800).ContinueWith(_ =>
-            {
-                if (!IsDisposed && IsHandleCreated)
-                {
-                    Invoke(() => PlayCpuTurn());
-                }
-            });
+            if(result.Scored){userPenaltiesScored++;SoundEffectsPlayer.PlayGoalNet();SoundEffectsPlayer.PlayCrowdGoal();}
+            else SoundEffectsPlayer.PlayCrowdMiss();
+            string description=result.Scored?"هدف في الشباك":result.KeeperHeld?"الحارس يمسك الركلة":result.Saved?"الحارس يبعد الركلة":"التسديدة خارج المرمى";
+            Outcome(true,result.Scored,result.Saved,$"{description}. النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.",PlayCpuTurn,result);
         }
 
         void PlayCpuTurn()
@@ -980,49 +1058,40 @@ public class AccessibleFootballWindow : Form
             diveMenu.AddItem("الارتماء نحو الزاوية اليمنى", () => ExecuteCpuPenaltyShot(0));
             diveMenu.AddItem("الثبات في منتصف المرمى", () => ExecuteCpuPenaltyShot(1));
             diveMenu.AddItem("الارتماء نحو الزاوية اليسرى", () => ExecuteCpuPenaltyShot(2));
-            PushMenu(diveMenu);
+            Ready(false);
+            AfterCommentary(() => PushMenu(diveMenu));
         }
 
-        void ExecuteCpuPenaltyShot(int userDive)
+        async void ExecuteCpuPenaltyShot(int userDive)
         {
             PopMenu();
+            _inputHandler.Reset();
+            bool slow=Random.Shared.Next(4)==0;
+            if(slow)await Task.Delay(1200);
+            if(_activeMatch!=match)return;
+            var takers=match.AwayTeam.Players.Where(p=>p.IsActiveOnPitch).ToArray();
+            var taker=takers[cpuKicksTaken%takers.Length];
+            var keeper=match.HomeTeam.Players.FirstOrDefault(p=>p.IsActiveOnPitch&&p.Role==PlayerRole.Goalkeeper);
+            int angle=Random.Shared.Next(3);
+            var result=ShootoutKick.Resolve(angle,userDive,taker.Shooting,keeper?.Defending??50,slow,Random.Shared.NextDouble());
+            SoundEffectsPlayer.PlayKick(angle==0?.8f:angle==2?-.8f:0);
+            await Task.Delay(TimeSpan.FromSeconds(result.FlightSeconds));
+            if(_activeMatch!=match)return;
             cpuKicksTaken++;
-            int cpuShot = Random.Shared.Next(3);
-            SoundEffectsPlayer.PlayKick(cpuShot == 0 ? 0.8f : (cpuShot == 2 ? -0.8f : 0.0f));
-
-            if (userDive == cpuShot)
-            {
-                SoundEffectsPlayer.PlayCrowdCheer();
-                _screenReader.Speak($"الله على تصدي تاريخي! حارسك تصدى لركلة الخصم بنجاح! النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.");
-            }
-            else
-            {
-                cpuPenaltiesScored++;
-                SoundEffectsPlayer.PlayGoalNet();
-                _screenReader.Speak($"هدف لصالح الخصم في ركلات الترجيح. النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.");
-            }
-
-            Task.Delay(1800).ContinueWith(_ =>
-            {
-                if (!IsDisposed && IsHandleCreated)
-                {
-                    Invoke(() =>
-                    {
-                        if (IsShootoutDecided())
-                        {
-                            FinishShootout(match, userPenaltiesScored, cpuPenaltiesScored);
-                        }
-                        else
-                        {
-                            PlayUserTurn();
-                        }
-                    });
-                }
-            });
+            if(result.Scored){cpuPenaltiesScored++;SoundEffectsPlayer.PlayGoalNet();}
+            else SoundEffectsPlayer.PlayCrowdCheer();
+            string description=result.Scored?"هدف لصالح الخصم":result.KeeperHeld?"حارسك يمسك ركلة الخصم":result.Saved?"حارسك يبعد ركلة الخصم":"ركلة الخصم خارج المرمى";
+            Outcome(false,result.Scored,result.Saved,$"{description}. النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.",PlayUserTurn,result);
         }
 
         void FinishShootout(MatchEngine m, int uScore, int cScore)
         {
+            m.CompleteShootout(uScore,cScore);
+            var finalContext = m.GetCommentarySnapshot().With(("shootout.homeScore", uScore), ("shootout.awayScore", cScore),
+                ("shootout.decided", true), ("shootout.winner", uScore > cScore ? "home" : "away"));
+            _commentaryEngine.TryCommentOnEvent(new MatchEvent(MatchEventType.ShootoutFinished, "نهاية ركلات الترجيح") { Context = finalContext }, force: true);
+            AfterCommentary(() =>
+            {
             _activeMatch = null;
             _currentMenu = null;
             _inputHandler.Reset();
@@ -1036,17 +1105,36 @@ public class AccessibleFootballWindow : Form
             _screenReader.Speak(outcome);
             SoundEffectsPlayer.StartMenuMusic();
             OpenMainMenu();
+            });
         }
 
-        PlayUserTurn();
+        _commentaryEngine.RunAfterRecordedCommentaryAsync(async () =>
+        {
+            await _screenReader.SpeakUntilFinishedAsync("انطلاق ركلات الترجيح الحاسمة! 5 ركلات لكل فريق.");
+            if (!IsDisposed && IsHandleCreated) BeginInvoke(() => { if (_activeMatch == match) PlayUserTurn(); });
+        });
     }
 
-    private void EndMatchAndReturnToMenu()
+    private void EndMatchAndReturnToMenu(bool waitForCommentary = true)
     {
         _gameLoopTimer?.Stop();
         _gameLoopTimer?.Dispose();
         _gameLoopTimer = null;
         _inputHandler.Reset();
+        if (waitForCommentary && _activeMatch is { State: MatchState.GameOver } ending)
+        {
+            if (ending.WinningGoalReplay() is { } winningReplay) _commentaryEngine.QueueGoalReplay(winningReplay);
+            _commentaryEngine.RunAfterRecordedCommentary(() =>
+            {
+                if (!IsDisposed && IsHandleCreated) BeginInvoke(() =>
+                {
+                    if (_activeMatch == ending) EndMatchAndReturnToMenu(false);
+                });
+            });
+            return;
+        }
+        _coordinator.CancelPendingGoalSequence();
+        _commentaryEngine.ClearPendingLines();
 
         if (_activeMatch != null)
         {
@@ -1157,7 +1245,7 @@ public class AccessibleFootballWindow : Form
                     if (wasHalfTime)
                     {
                         SoundEffectsPlayer.PlayWhistle();
-                        _screenReader.Speak("صافرة انطلاق الشوط الثاني!");
+                        _commentaryEngine.RunAfterRecordedCommentary(() => _screenReader.Speak(_activeMatch?.IsExtraTime == true ? "انطلاق الشوط الإضافي الثاني" : "صافرة انطلاق الشوط الثاني!"));
                     }
                     else
                     {
@@ -1268,7 +1356,7 @@ public class AccessibleFootballWindow : Form
         Keys.Up or Keys.Down or Keys.Left or Keys.Right => true,
         Keys.ShiftKey or Keys.LShiftKey or Keys.RShiftKey or Keys.Shift => true,
         Keys.ControlKey or Keys.LControlKey or Keys.RControlKey or Keys.Control => true,
-        Keys.D or Keys.W or Keys.S or Keys.A => true,
+        Keys.D or Keys.W or Keys.S or Keys.A or Keys.H or Keys.J or Keys.V or Keys.L or Keys.F or Keys.K or Keys.B or Keys.N or Keys.T or Keys.R or Keys.Q => true,
         Keys.Space or Keys.C => true,
         _ => false
     };

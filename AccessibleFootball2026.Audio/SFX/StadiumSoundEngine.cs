@@ -25,6 +25,7 @@ public class StadiumSoundEngine
     private DateTime _lastChantPlayTime = DateTime.MinValue;
     private readonly TimeSpan _minChantInterval = TimeSpan.FromSeconds(25);
 
+    public event Action<Team>? OnDiscontentWhistlePlayed;
     public Team? ActiveHomeTeam { get; private set; }
     public Team? ActiveAwayTeam { get; private set; }
     public string ActiveStadiumKey { get; set; } = "SantiagoBernabeu";
@@ -195,6 +196,7 @@ public class StadiumSoundEngine
         // بدون هذا الفهرس لا يوجد على القرص أي تمييز فئات موثق، فنبقى على الهتاف العام للفريق
         // ولا نخترع نسبة أي مقطع إلى فئة.
         string? chantPath = ResolveSlotChantPath(teamId, slot);
+        bool verifiedSlot=chantPath!=null;
 
         if (chantPath == null)
         {
@@ -214,7 +216,11 @@ public class StadiumSoundEngine
         if (chantPath != null && File.Exists(chantPath))
         {
             _lastChantPlayTime = DateTime.UtcNow;
-            SoundEffectsPlayer.PlayOneShotChant(chantPath);
+            if(verifiedSlot && slot==ChantSlot.DiscontentWhistle)
+            {
+                if(SoundEffectsPlayer.TryPlayAudibleChant(chantPath))OnDiscontentWhistlePlayed?.Invoke(team);
+            }
+            else SoundEffectsPlayer.PlayOneShotChant(chantPath);
         }
     }
 

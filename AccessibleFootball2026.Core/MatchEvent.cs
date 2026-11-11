@@ -1,4 +1,5 @@
 using AccessibleFootball2026.Core.Models;
+using AccessibleFootball2026.Core.Commentary;
 
 namespace AccessibleFootball2026.Core;
 
@@ -36,7 +37,25 @@ public enum MatchEventType
     PenaltyAwarded,          // Penalty kick awarded inside 18-yard box
     FullTime,                // Full time match whistle and final score
     DramaticComeback,        // Late dramatic comeback goal
-    HatTrickAchieved         // 3rd goal scored by player in match
+    HatTrickAchieved,        // 3rd goal scored by player in match
+    MatchIntro,
+    KickOff,
+    GoalAnalysis,
+    MatchAnalysis,
+    PossessionPlay,
+    PassCompleted,
+    PassIntercepted,
+    RegulationTimeEnded,
+    ExtraTimeHalfTime,
+    ShootoutKickReady,
+    ShootoutGoal,
+    ShootoutSave,
+    ShootoutMiss,
+    ShootoutFinished,
+    FreeKickAwarded, FreeKickReady, FreeKickTaken,
+    DribbleSuccessful, Clearance, ShotBlocked, ControlLost,
+    SubstitutionPlanned, RefereeProtest, GoalDisallowed, MissAnalysis, OffsideAnalysis,
+    Advantage, BallOut, LineupRequested, TrophyWon, CoachInstruction
 }
 
 /// <summary>
@@ -100,6 +119,8 @@ public class MatchEvent
     /// اللاعب صاحب الفعل الفعلي (المررر أو المسدد أو المستلم) لربط نداء الاسم الصوتي باللاعب الصحيح
     /// </summary>
     public Player? SubjectPlayer { get; set; }
+
+    public CommentaryContext Context { get; set; } = CommentaryContext.Empty;
 
     public bool HandledByCommentary { get; set; } = false;
 

@@ -37,6 +37,7 @@ public class CommentaryEngine : IDisposable
         public string? Phrase;
         public MatchEvent? Event;
         public Action? Callback;
+        public Func<System.Threading.Tasks.Task>? AsyncCallback;
     }
 
     private readonly Queue<PendingLine> _pendingLines = new();
@@ -48,6 +49,8 @@ public class CommentaryEngine : IDisposable
     // خريطة ربط صريحة اختيارية (commentary_map.json): eventKey -> مسارات نسبية لمقاطع محددة
     private Dictionary<string, string[]>? _manifest;
     private bool _manifestLoaded;
+    private ContextualCommentaryCatalog? _contextCatalog;
+    private bool _contextCatalogPresent;
     // ملف ربط صريح موجود = تصنيف منتقى: يمنع السقوط إلى مجلدات فئات أخرى (مثل إصابة -> Fouls)
     private bool _manifestPresent;
     private readonly object _manifestLock = new();
@@ -133,6 +136,14 @@ public class CommentaryEngine : IDisposable
         return binAudio;
     }
 
+    public CommentaryLibrary LoadFaresLibrary()=>new(Path.Combine(_baseCommentaryDir,"FaresAwad"));
+    public bool PlayLibraryRecording(CommentaryLibrary library,CommentaryLibrary.Recording recording)
+    {
+        if(!library.Recordings.Contains(recording))return false;
+        var path=library.Resolve(recording.File);if(path==null)return false;
+        EnqueueClip(path,null);return true;
+    }
+
     public void SwitchCommentator(CommentatorId newId)
     {
         var found = _availableCommentators.Find(c => c.Id == newId);
@@ -144,6 +155,8 @@ public class CommentaryEngine : IDisposable
                 _manifest = null;
                 _manifestLoaded = false;
                 _manifestPresent = false;
+                _contextCatalog = null;
+                _contextCatalogPresent = false;
             }
         }
     }
@@ -156,8 +169,16 @@ public class CommentaryEngine : IDisposable
         return false;
     }
 
-    public bool TryPlayMatchIntro()
+    public bool TryPlayMatchIntro(AccessibleFootball2026.Core.Commentary.CommentaryContext? context = null)
     {
+        EnsureManifestLoaded();
+        if (_contextCatalogPresent)
+        {
+            var clip = _contextCatalog?.Choose("Intro", context ?? AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty);
+            if (clip == null) return false;
+            EnqueueClip(clip, null);
+            return true;
+        }
         string dir = Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Intro");
         var files = GetCachedFiles(dir);
         if (files.Length == 0)
@@ -195,6 +216,37 @@ public class CommentaryEngine : IDisposable
         EnsureDispatcher();
     }
 
+    public void RunAfterRecordedCommentaryAsync(Func<System.Threading.Tasks.Task> callback)
+    {
+        lock(_queueLock){_pendingLines.Enqueue(new PendingLine{AsyncCallback=callback});}
+        EnsureDispatcher();
+    }
+
+    public bool QueueGoalReplay(AccessibleFootball2026.Core.Commentary.GoalReplay replay)
+    {
+        EnsureManifestLoaded();
+        if (!_contextCatalogPresent) return false;
+        string? path;
+        try { path = GoalReplayAudio.Render(replay); } catch { return false; }
+        if (path == null) return false;
+        var analysis = new MatchEvent(MatchEventType.GoalAnalysis, "إعادة صوتية لمسار الهدف", goalData: replay.Goal) { Context = replay.Context };
+        EnqueueClip(path, null);
+        TryCommentOnEvent(analysis, force: true);
+        return true;
+    }
+
+    public bool QueuePlayReplay(AccessibleFootball2026.Core.Simulation.PlayReplay replay)
+    {
+        EnsureManifestLoaded();
+        if(!_contextCatalogPresent)return false;
+        string? path;
+        try {path=GoalReplayAudio.RenderFrames(replay.Frames);} catch {return false;}
+        if(path==null)return false;
+        EnqueueClip(path,null);
+        TryCommentOnEvent(replay.Analysis,force:true);
+        return true;
+    }
+
     public void ClearPendingLines()
     {
         lock (_queueLock) { _pendingLines.Clear(); }
@@ -217,11 +269,7 @@ public class CommentaryEngine : IDisposable
     {
         lock (_queueLock)
         {
-            if (_pendingLines.Count >= MaxPendingLines)
-            {
-                if (matchEvent?.Type == MatchEventType.FullTime) _pendingLines.Dequeue();
-                else return;
-            }
+            // Admission throttling happens before this point. Never evict an ordered replay or completion callback.
             _pendingLines.Enqueue(new PendingLine { ClipPath = clipPath, Event = matchEvent });
         }
         EnsureDispatcher();
@@ -238,7 +286,7 @@ public class CommentaryEngine : IDisposable
         EnsureDispatcher();
     }
 
-    private void DispatchPending(object? state)
+    private async void DispatchPending(object? state)
     {
         if (Interlocked.Exchange(ref _dispatchActive, 1) == 1) return;
         try
@@ -257,6 +305,10 @@ public class CommentaryEngine : IDisposable
                 _lastCommentaryTime = DateTime.UtcNow;
                 SoundEffectsPlayer.PlayCommentaryAudio(next.ClipPath);
                 OnRecordedCommentaryStarted?.Invoke(next.ClipPath);
+            }
+            else if(next.AsyncCallback!=null)
+            {
+                await next.AsyncCallback();
             }
             else if (next.Callback != null)
             {
@@ -291,6 +343,14 @@ public class CommentaryEngine : IDisposable
             try
             {
                 string commentatorDir = Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString());
+                string contextPath = Path.Combine(commentatorDir, "commentary_context.json");
+                _contextCatalogPresent = File.Exists(contextPath);
+                if (_contextCatalogPresent)
+                {
+                    _manifestPresent = true;
+                    _contextCatalog = new ContextualCommentaryCatalog(commentatorDir);
+                    return; // Even an invalid catalog must never fall through into unfiltered pools.
+                }
                 string path = Path.Combine(commentatorDir, "commentary_map.json");
                 if (!File.Exists(path)) return;
                 _manifestPresent = true;
@@ -317,7 +377,8 @@ public class CommentaryEngine : IDisposable
 
     public bool TryCommentOnEvent(MatchEvent matchEvent, bool force = false)
     {
-        bool isCritical = matchEvent.Type is MatchEventType.GoalScored or MatchEventType.DramaticComeback or MatchEventType.HatTrickAchieved or MatchEventType.WoodworkHit or MatchEventType.RedCard or MatchEventType.FullTime;
+        bool isFinalAnalysis = matchEvent.Type == MatchEventType.MatchAnalysis && matchEvent.Context.TryGet("match.finished",out var finished) && finished=="true";
+        bool isCritical = isFinalAnalysis || matchEvent.Type is MatchEventType.GoalScored or MatchEventType.DramaticComeback or MatchEventType.HatTrickAchieved or MatchEventType.WoodworkHit or MatchEventType.RedCard or MatchEventType.FullTime or MatchEventType.HalfTime or MatchEventType.ExtraTimeHalfTime or MatchEventType.PenaltyAwarded or MatchEventType.FreeKickAwarded;
 
         if (!force && !isCritical)
         {
@@ -365,16 +426,32 @@ public class CommentaryEngine : IDisposable
             MatchEventType.PlayerInjured => "Injury",
             MatchEventType.FoulCommitted => "Foul",
             MatchEventType.PenaltyAwarded => "Penalty",
-            _ => string.Empty
+            _ => matchEvent.Type.ToString()
         };
 
         if (string.IsNullOrEmpty(eventKey)) return false;
+
+        EnsureManifestLoaded();
+        if (_contextCatalogPresent)
+        {
+            // The primary goal snapshot already includes player ordinal and comeback state.
+            // Do not queue three random goal screams for one goal.
+            if (matchEvent.Type is MatchEventType.HatTrickAchieved or MatchEventType.DramaticComeback) return false;
+            var contextualClip = _contextCatalog?.Choose(eventKey, matchEvent.Context);
+            if (contextualClip != null)
+            {
+                matchEvent.HandledByCommentary = true;
+                EnqueueClip(contextualClip, matchEvent);
+                return true;
+            }
+            // No matching recording means unknown or absent, not permission to ignore conditions.
+        }
 
         // 1. ربط صريح اختياري في commentary_map.json إن وُجد (لا يغيّر شيئاً بغيابه)
         string[] files = GetManifestFiles(eventKey);
 
         // 2. الترتيب الحالي كما هو: ملفات المعلق المسجلة في مجلد الحدث (ذاكرة فورية O(1) بدون تأخير قرص)
-        if (files.Length == 0)
+        if (files.Length == 0 && !_contextCatalogPresent)
         {
             string dir = Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), eventFolder);
             files = GetCachedFiles(dir);
@@ -419,7 +496,7 @@ public class CommentaryEngine : IDisposable
             phrase = eventKey switch
             {
                 "Card" => ActiveCommentator.GetRandomPhrase("Foul"),
-                "RedCard" => "بطاقة حمراء وطرد مباشر للاعب",
+                "RedCard" => matchEvent.Context.TryGet("card.kind", out var kind) && kind == "secondYellow" ? "إنذار ثانٍ وبطاقة حمراء للاعب" : "بطاقة حمراء للاعب",
                 "Penalty" => "ركلة جزاء! الحكم يشير إلى علامة الجزاء",
                 "Corner" => ActiveCommentator.GetRandomPhrase("Foul"),
                 "HalfTime" => "صافرة نهاية الشوط الأول للمباراة",

@@ -280,8 +280,9 @@ public class SmartAudioCoordinator
             await Task.Delay(250);
         }
         if (generation != Volatile.Read(ref _goalSequenceGeneration)) return;
-        SpeakWithDucking(goalData.ToOfficialAnnouncement());
-        await Task.Delay(2000);
+        OnCrowdVolumeDucking?.Invoke(.2f);
+        try { await _screenReader.SpeakUntilFinishedAsync(goalData.ToOfficialAnnouncement()); }
+        finally {OnCrowdVolumeDucking?.Invoke(1f);}
         if (generation == Volatile.Read(ref _goalSequenceGeneration)) OnGoalSequenceCompleted?.Invoke();
     }
 

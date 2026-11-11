@@ -1,0 +1,18 @@
+{
+  "originalSlots": 4918,
+  "distinctMonoRecordings": 933,
+  "distinctStereoEncodings": 3,
+  "monoReviewStatusCounts": {
+    "reviewed": 875,
+    "context_visual_pending": 4,
+    "speech_review_pending": 23,
+    "non_speech_pending": 6,
+    "non_game_promo": 3,
+    "coach_voice_pending": 9,
+    "context_asset_pending": 3,
+    "identity_pending": 10
+  },
+  "automaticMappings": 910,
+  "independentReview": "pending",
+  "windowsRuntimeVerified": false
+}

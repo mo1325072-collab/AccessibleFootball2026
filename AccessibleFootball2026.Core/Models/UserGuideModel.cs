@@ -52,6 +52,18 @@ public static class UserGuideDatabase
 
     private static List<UserGuideItem> GetControlsItems() => new()
     {
+        new("lofted_through", "controls", "Q", "Q: بينية عالية", "Q: Lofted through pass", "وأنت مستحوذ، مرر كرة بينية عالية في المساحة أمام زميلك. يتغير ارتفاع المسار حسب طول التمريرة.", "With possession, loft a through pass into space ahead of a teammate. Flight height depends on pass distance."),
+        new("clearance", "controls", "K", "K: إبعاد الكرة", "K: Clearance", "وأنت مستحوذ، أبعد الكرة في اتجاه وجهة اللاعب. انتبه عند توجيهها نحو مرماك. الضغط مع ضعف التركيز قد يؤدي إلى إبعاد قصير.", "With possession, clear in the direction the player faces. Beware of aiming toward your own goal. Pressure and low concentration can produce a short clearance."),
+        new("ground_cross", "controls", "B", "B: عرضية أرضية", "B: Ground cross", "وأنت مستحوذ، أرسل كرة عرضية أرضية نحو منطقة الجزاء.", "With possession, send a ground cross into the box."),
+        new("far_cross", "controls", "N", "N: عرضية للقائم البعيد", "N: Far-post cross", "وأنت مستحوذ، أرسل عرضية عالية نحو القائم البعيد. اضغط Shift مع N لعرضية أرضية إلى القائم البعيد.", "With possession, cross high toward the far post. Hold Shift with N for a ground far-post cross."),
+        new("lineup", "controls", "T", "T: قراءة التشكيلة", "T: Read lineup", "اطلب أسماء اللاعبين النشطين وأرقام قمصانهم.", "Request the active players and their shirt numbers."),
+        new("slow_run_up", "controls", "R", "R: تسديد بعد اقتراب بطيء", "R: Slow approach shot", "وأنت مستحوذ، انتظر 1.2 ثانية ثم تنفذ التسديدة. يظل الخصم قادراً على قطع الكرة. يعمل أيضاً عند الركلة الحرة والجزاء. الركلة غير المباشرة تحتاج تمريرة S.", "With possession, delay release for 1.2 seconds before shooting. Opponents can still challenge. Also available at free kicks and penalties; indirect kicks still require S to pass."),
+        new("goal_replay", "controls", "إعادة الهدف", "إعادة صوتية لمسار الهدف", "Goal path audio replay", "بعد الهدف يعاد مسار الكرة المسجل قبل استئناف اللعب: الصوت ينتقل يميناً ويساراً حسب موضع الكرة، وترتفع نغمته كلما ارتفعت الكرة. هذه إعادة صوتية للمسار الحقيقي وليست هدفاً جديداً.", "After a goal, the captured ball path is replayed before play resumes. Stereo position follows pitch X; pitch rises with ball height. This is a sonification, not a second goal."),
+        new("header", "controls", "H", "زر H: ضربة رأس", "H: Header", "اضغط عندما تكون الكرة الحرة على ارتفاع الرأس وعلى بعد أقل من ثلاثة أمتار. لا تنفذ ضربة رأس والكرة على الأرض.", "Head a free aerial ball within three metres at head height."),
+        new("bicycle", "controls", "J", "زر J: ضربة مقصية", "J: Bicycle kick", "محاولة مقصية للكرة الحرة القريبة في الهواء. تحتاج الكرة إلى ارتفاع مناسب بين الخصر والرأس.", "Attempt a bicycle kick on a nearby free aerial ball between waist and head height."),
+        new("volley", "controls", "V", "زر V: تسديدة على الطائر", "V: Volley", "تسديد الكرة الحرة القريبة قبل أن تلمس الأرض، عندما تكون دون مستوى الرأس.", "Volley a nearby free ball before it lands, below head height."),
+        new("lob_shot", "controls", "L", "زر L: كرة ساقطة على المرمى", "L: Lob shot", "وأنت مستحوذ على الكرة، أرسل تسديدة عالية فوق الحارس. يتغير مسار الكرة فعلياً حسب المسافة.", "With possession, lift the ball over the goalkeeper on a high trajectory."),
+        new("curled_shot", "controls", "F", "زر F: تسديدة مقوسة", "F: Curled shot", "وأنت مستحوذ، أطلق تسديدة بباطن القدم ذات انحناء في مسارها.", "With possession, shoot with the inside of the foot and a curved flight."),
         new(
             "short_pass",
             "controls",

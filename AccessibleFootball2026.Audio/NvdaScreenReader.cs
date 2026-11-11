@@ -6,8 +6,7 @@ namespace AccessibleFootball2026.Audio;
 
 /// <summary>
 /// جسر الاتصال الفوري بقارئ الشاشة NVDA عبر nvdaControllerClient64
-/// بزمن استجابة 0ms وبدون أي لاج، مع دعم احتياطي تلقائي لـ Windows SAPI
-/// وبدون أي رموز كونسول أو صفارات مذر بورد مزعجة
+/// يحافظ على صوت NVDA المختار، مع توافق تقديري للنسخ القديمة وSAPI عند غياب NVDA فقط.
 /// </summary>
 public class NvdaScreenReader : IScreenReader
 {
@@ -24,7 +23,42 @@ public class NvdaScreenReader : IScreenReader
     [DllImport("nvdaControllerClient64.dll", CharSet = CharSet.Unicode, EntryPoint = "nvdaController_cancelSpeech")]
     private static extern int nvdaController_cancelSpeech64();
 
+    [DllImport("nvdaControllerClient64.dll", CharSet=CharSet.Unicode, EntryPoint="nvdaController_speakSsml")]
+    private static extern int SpeakSsmlNative(string ssml,int symbolLevel,int priority,[MarshalAs(UnmanagedType.U1)] bool asynchronous);
+
     public bool IsAvailable => _nvdaAvailable;
+    public bool LastCompletionWaitEstimated { get; private set; }
+
+    public async System.Threading.Tasks.Task SpeakUntilFinishedAsync(string text,bool interrupt=true)
+    {
+        if(string.IsNullOrWhiteSpace(text))return;
+        CheckNvda();
+        LastCompletionWaitEstimated=false;
+        if(_nvdaAvailable)
+        {
+            try
+            {
+                if(interrupt)nvdaController_cancelSpeech64();
+                string escaped=System.Security.SecurityElement.Escape(text)??"";
+                var spoken=System.Threading.Tasks.Task.Run(()=>SpeakSsmlNative("<speak>"+escaped+"</speak>",-1,0,false));
+                try
+                {
+                    int result=await spoken.WaitAsync(TimeSpan.FromSeconds(60));
+                    if(result==0 || result==1223)return; // completed, or canceled by the user
+                }
+                catch(TimeoutException){CancelSpeech();return;} // avoid an old NVDA synchronous-cancel race hanging the match
+            }
+            catch(DllNotFoundException){}
+            catch(EntryPointNotFoundException){}
+            // Preserve the user's NVDA voice/routing on older APIs. This compatibility wait is an estimate, not completion evidence.
+            LastCompletionWaitEstimated=true;
+            Speak(text,interrupt);
+            await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(Math.Max(2,text.Split(' ',StringSplitOptions.RemoveEmptyEntries).Length*.65)));
+            return;
+        }
+        // Existing SAPI route only when NVDA itself is unavailable, never to replace a working NVDA voice.
+        await System.Threading.Tasks.Task.Run(()=>SpeakSapi(text,interrupt,synchronous:true));
+    }
 
     public NvdaScreenReader()
     {
@@ -96,7 +130,7 @@ public class NvdaScreenReader : IScreenReader
         }
     }
 
-    private static void SpeakSapi(string text, bool interrupt)
+    private static void SpeakSapi(string text, bool interrupt, bool synchronous=false)
     {
         try
         {
@@ -112,7 +146,7 @@ public class NvdaScreenReader : IScreenReader
 
             if (_sapiVoice != null)
             {
-                int flags = 1 | (interrupt ? 2 : 0); // 1 = SVSFlagsAsync, 2 = SVSFPurgeBeforeSpeak
+                int flags = (synchronous ? 0 : 1) | (interrupt ? 2 : 0); // 1 = SVSFlagsAsync, 2 = SVSFPurgeBeforeSpeak
                 _sapiVoice.GetType().InvokeMember("Speak",
                     BindingFlags.InvokeMethod,
                     null, _sapiVoice, new object[] { text, flags });
