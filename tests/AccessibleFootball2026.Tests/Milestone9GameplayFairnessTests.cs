@@ -32,6 +32,7 @@ public static class Milestone9GameplayFairnessTests
         runTest("23F. Startup Intro Skips Immediately When Anthem Cannot Play", Test23F_AnthemFailureSkipsIntroContract);
         runTest("23G. User GK Auto-Catch Respects Ball Height And Excludes Shots", Test23G_UserGkAutoCatchContract);
         runTest("23H. Combined Database Schema: Exact Nov 8 Artifact Layout Parses", Test23H_CombinedDatabaseSchemaContract);
+        runTest("23I. Combined Database: Unknown Player Age (null) Must Not Invalidate The File", Test23I_NullAgeDoesNotInvalidateDatabase);
     }
 
     /// <summary>
@@ -377,6 +378,32 @@ public static class Milestone9GameplayFairnessTests
             dir = Path.GetDirectoryName(dir);
         }
         throw new DirectoryNotFoundException("Could not find AccessibleFootball2026.sln in parent directory tree.");
+    }
+
+    /// <summary>
+    /// 23I: انحدار من الملف الفعلي: 483 لاعباً فيهم "age": null (العمر غير معروف)،
+    /// وكان الحقل int غير قابل للقيمة الفارغة فيفشل تحليل الملف كله ويُحمّل صفر فرق.
+    /// الآن العمر المجهول يُقرأ كقيمة فارغة ولا يبطل الملف، ولا يُعدَّل الملف الأصلي.
+    /// </summary>
+    private static void Test23I_NullAgeDoesNotInvalidateDatabase()
+    {
+        string fixture = "{ \"artifact\": \"x\", \"season\": \"2026/27\", \"teams\": [ { \"team\": \"El Mokawloon SC\", \"type\": \"club\", \"group\": \"Egyptian Premier League\", \"edition\": \"2026-09\", \"players\": [ "
+            + "{ \"name\": \"Known Age\", \"age\": 30, \"position\": \"Goalkeeper\", \"power\": 66 }, "
+            + "{ \"name\": \"Unknown Age\", \"age\": null, \"position\": \"Centre-Back\", \"power\": 68 } ] } ] }";
+        string path = Path.Combine(Path.GetTempPath(), "players_database_combined-m9nullage.json");
+        File.WriteAllText(path, fixture);
+        try
+        {
+            Assert(JsonDatabaseProvider.ProbeTeamCount(path) == 1, "A file containing a null player age must still parse and count its team.");
+            var root = System.Text.Json.JsonSerializer.Deserialize<JsonPlayerDbRoot>(fixture, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var players = root!.teams![0].players!;
+            Assert(players[0].age == 30, "A known age must be preserved exactly.");
+            Assert(players[1].age == null, "An unknown age must stay unknown (null) in the parsed entry, not become a made-up value.");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     private static void Assert(bool condition, string message)
