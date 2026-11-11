@@ -79,7 +79,7 @@ internal static class Program
         var screenReader = new NvdaScreenReader();
         var eventBus = new MatchEventBus();
         var inputHandler = new KeyboardInputHandler();
-        var commentaryEngine = new CommentaryEngine(CommentatorId.RaoufKhlif, baseAudioDir);
+        var commentaryEngine = new CommentaryEngine(MatchSettings.Current.Commentator, baseAudioDir);
         var coordinator = new SmartAudioCoordinator(screenReader, () => commentaryEngine.IsIdle);
         var anthemEngine = new AnthemEngine(screenReader, Path.Combine(baseAudioDir, "Anthems"));
 
