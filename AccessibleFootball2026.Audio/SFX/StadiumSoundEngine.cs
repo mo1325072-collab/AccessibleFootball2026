@@ -190,42 +190,81 @@ public class StadiumSoundEngine
 
         string teamId = isRealMadrid ? "173" : (isBarcelona ? "153" : team.Id);
 
-        string chantPath = Path.Combine(_chantsDir, $"Chant_{teamId}.wav");
-        if (!File.Exists(chantPath))
+        // التمييز الموثق الوحيد بين فئات الهتاف هو لاحقة الاسم الأصلي داخل dt01.img
+        // (SP_C<team>_01..05 كما في توثيق ChantSlot)؛ يحفظه المستخرج في chants_index.json.
+        // بدون هذا الفهرس لا يوجد على القرص أي تمييز فئات موثق، فنبقى على الهتاف العام للفريق
+        // ولا نخترع نسبة أي مقطع إلى فئة.
+        string? chantPath = ResolveSlotChantPath(teamId, slot);
+
+        if (chantPath == null)
         {
-            chantPath = Path.Combine(_chantsDir, "SP_C", $"Chant_{teamId}.wav");
-        }
-        if (!File.Exists(chantPath))
-        {
-            chantPath = Path.Combine(_chantsDir, "Clubs", $"Chant_{teamId}.wav");
-        }
-        if (!File.Exists(chantPath))
-        {
-            chantPath = Path.Combine(_chantsDir, "Clubs", $"{team.Id}_{(int)slot:D2}.wav");
+            // السلوك العام السابق: ملف هتاف واحد للفريق يستخدم لكل الفئات
+            string generic = Path.Combine(_chantsDir, $"Chant_{teamId}.wav");
+            if (!File.Exists(generic))
+            {
+                generic = Path.Combine(_chantsDir, "SP_C", $"Chant_{teamId}.wav");
+            }
+            if (!File.Exists(generic))
+            {
+                generic = Path.Combine(_chantsDir, "Clubs", $"Chant_{teamId}.wav");
+            }
+            if (File.Exists(generic)) chantPath = generic;
         }
 
-        if (File.Exists(chantPath))
+        if (chantPath != null && File.Exists(chantPath))
         {
             _lastChantPlayTime = DateTime.UtcNow;
             SoundEffectsPlayer.PlayOneShotChant(chantPath);
         }
     }
 
-    private string ResolveRegionalChant(Team team, ChantSlot slot)
+    private Dictionary<string, int>? _chantLabelIndex;
+    private bool _chantLabelIndexLoaded;
+
+    /// <summary>
+    /// يحمّل فهرس الأهازيج الذي يكتبه المستخرج (رقم مقطع dt01.img إلى اسمه الأصلي من مقطع AINF).
+    /// الاسم الأصلي وحده هو ما يخوّل نسبة مقطع إلى فئة عبر اللاحقة _01.._05.
+    /// </summary>
+    private void EnsureChantLabelIndexLoaded()
     {
-        string regionalDir = Path.Combine(_chantsDir, "Regional");
-        if (!Directory.Exists(regionalDir)) regionalDir = _chantsDir;
-
-        var files = Directory.GetFiles(regionalDir, "*.wav");
-        if (files.Length > 0)
+        if (_chantLabelIndexLoaded) return;
+        _chantLabelIndexLoaded = true;
+        try
         {
-            int teamHash = team.Id != null ? team.Id.GetHashCode() : 0;
-            int idx = Math.Abs(teamHash * 5 + (int)slot) % files.Length;
-            return files[idx];
+            string mapPath = Path.Combine(_chantsDir, "chants_index.json");
+            if (!File.Exists(mapPath)) return;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(mapPath));
+            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in doc.RootElement.EnumerateArray())
+            {
+                bool hasLabel = entry.TryGetProperty("label", out var lp) || entry.TryGetProperty("Label", out lp);
+                string label = hasLabel ? lp.GetString() ?? string.Empty : string.Empty;
+                if (label.StartsWith("A_", StringComparison.OrdinalIgnoreCase)) label = label[2..];
+                if (label.Length == 0) continue;
+                bool hasIndex = entry.TryGetProperty("index", out var ip) || entry.TryGetProperty("Index", out ip);
+                if (hasIndex && ip.TryGetInt32(out int idx))
+                    map[label] = idx;
+            }
+            _chantLabelIndex = map;
         }
-
-        var anyChants = Directory.GetFiles(_chantsDir, "*.wav");
-        return anyChants.Length > 0 ? anyChants[0] : string.Empty;
+        catch { _chantLabelIndex = null; }
     }
+
+    /// <summary>
+    /// يحل مسار هتاف خاص بفئة معينة للفريق عبر اسمه الأصلي الموثق، أو null إن لم يوجد فهرس أو مقطع مطابق.
+    /// </summary>
+    private string? ResolveSlotChantPath(string teamId, ChantSlot slot)
+    {
+        EnsureChantLabelIndexLoaded();
+        if (_chantLabelIndex == null) return null;
+        if (!_chantLabelIndex.TryGetValue($"SP_C{teamId}_{(int)slot:D2}", out int slotIndex)) return null;
+        foreach (string dir in new[] { _chantsDir, Path.Combine(_chantsDir, "SP_C"), Path.Combine(_chantsDir, "Clubs") })
+        {
+            string candidate = Path.Combine(dir, $"Chant_{slotIndex}.wav");
+            if (File.Exists(candidate)) return candidate;
+        }
+        return null;
+    }
+
 }
 
