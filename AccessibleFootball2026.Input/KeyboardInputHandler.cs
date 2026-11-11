@@ -52,7 +52,19 @@ public class KeyboardInputHandler : IInputHandler
 
     private static bool IsKeyDown(int vKey)
     {
-        return (GetAsyncKeyState(vKey) & 0x8000) != 0;
+        try
+        {
+            return (GetAsyncKeyState(vKey) & 0x8000) != 0;
+        }
+        catch (DllNotFoundException)
+        {
+            // Non-Windows host (headless testing): treat key as not pressed.
+            return false;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -340,3 +352,4 @@ public class KeyboardInputHandler : IInputHandler
         return GameAction.None;
     }
 }
+

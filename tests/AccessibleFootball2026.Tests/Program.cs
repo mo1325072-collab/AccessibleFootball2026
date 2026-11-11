@@ -98,6 +98,11 @@ public static class Program
 
         AdversarialTacticalSlidersChallenge.RunAll(RunTest);
 
+        Milestone7RepairRegressionTests.RunAll(RunTest);
+
+        Milestone8AudioIntegrationTests.RunAll(RunTest);
+        Milestone9GameplayFairnessTests.RunAll(RunTest);
+
         if (args.Any(a => a.Equals("--challenge-m5", StringComparison.OrdinalIgnoreCase) || a.Equals("--challenger", StringComparison.OrdinalIgnoreCase)))
         {
             AdversarialM5AudioChallenge.RunAll(RunTest);
@@ -1646,3 +1651,4 @@ public static class Program
         public void CancelSpeech() {}
     }
 }
+

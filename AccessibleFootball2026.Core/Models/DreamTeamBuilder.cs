@@ -70,15 +70,18 @@ public class DreamTeamBuilder
         {
             foreach (var p in club.Players.Concat(club.Bench))
             {
-                p.ClubOrigin = club.Name;
-                p.Condition = (PlayerCondition)rng.Next(0, 5);
+                // نسخ مستقلة من اللاعبين: لا نعدّل كائنات الأندية المصدر (قد تكون مخزنة ومشتركة
+                // من قاعدة JSON)، حتى لا تتسرب حالة الدرافت أو المباراة إلى الفرق الأصلية
+                var clone = p.Clone();
+                clone.ClubOrigin = club.Name;
+                clone.Condition = (PlayerCondition)rng.Next(0, 5);
 
-                switch (p.Role)
+                switch (clone.Role)
                 {
-                    case PlayerRole.Goalkeeper: allGks.Add(p); break;
-                    case PlayerRole.Defender: allDefs.Add(p); break;
-                    case PlayerRole.Midfielder: allMids.Add(p); break;
-                    case PlayerRole.Forward: allFwds.Add(p); break;
+                    case PlayerRole.Goalkeeper: allGks.Add(clone); break;
+                    case PlayerRole.Defender: allDefs.Add(clone); break;
+                    case PlayerRole.Midfielder: allMids.Add(clone); break;
+                    case PlayerRole.Forward: allFwds.Add(clone); break;
                 }
             }
         }
@@ -118,3 +121,4 @@ public class DreamTeamBuilder
         }
     }
 }
+

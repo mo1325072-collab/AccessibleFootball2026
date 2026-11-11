@@ -96,15 +96,21 @@ public class MatchEvent
     public float SpatialPan { get; set; } = 0.0f;
     public DateTime Timestamp { get; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// اللاعب صاحب الفعل الفعلي (المررر أو المسدد أو المستلم) لربط نداء الاسم الصوتي باللاعب الصحيح
+    /// </summary>
+    public Player? SubjectPlayer { get; set; }
+
     public bool HandledByCommentary { get; set; } = false;
 
-    public MatchEvent(MatchEventType type, string description, PitchZone currentZone = PitchZone.Midfield, GoalDetails? goalData = null, float spatialPan = 0.0f)
+    public MatchEvent(MatchEventType type, string description, PitchZone currentZone = PitchZone.Midfield, GoalDetails? goalData = null, float spatialPan = 0.0f, Player? subjectPlayer = null)
     {
         Type = type;
         Description = description;
         CurrentZone = currentZone;
         GoalData = goalData;
         SpatialPan = spatialPan;
+        SubjectPlayer = subjectPlayer;
     }
 }
 
@@ -117,3 +123,4 @@ public class MatchEventBus
         OnMatchEvent?.Invoke(matchEvent);
     }
 }
+

@@ -95,7 +95,12 @@ public class AnthemEngine
         }
     }
 
-    public void PlayChampionsLeagueSample()
+    /// <summary>
+    /// تشغيل نشيد دوري الأبطال الافتتاحي. يعيد true إذا بدأ التشغيل فعلاً،
+    /// وfalse إذا كان الملف مفقوداً أو رفض جهاز الصوت فتحه/تشغيله، حتى يتجاوز
+    /// المتصل شاشة البداية فوراً بدلاً من ترك المستخدم الكفيف أمام شاشة صامتة.
+    /// </summary>
+    public bool PlayChampionsLeagueSample()
     {
         string? anthemPath = null;
         if (File.Exists(Path.Combine(_assetsBaseDir, "ChampionsLeague.mp3")))
@@ -103,17 +108,34 @@ public class AnthemEngine
         else if (File.Exists(Path.Combine(_assetsBaseDir, "ChampionsLeague.wav")))
             anthemPath = Path.Combine(_assetsBaseDir, "ChampionsLeague.wav");
 
-        if (anthemPath != null)
+        if (anthemPath == null)
         {
-            LastPlayedAnthem = "ChampionsLeague";
-            try
+            return false;
+        }
+
+        LastPlayedAnthem = "ChampionsLeague";
+        try
+        {
+            string mciType = anthemPath.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ? "mpegvideo" : "waveaudio";
+            mciSendString("close anthem", null, 0, IntPtr.Zero);
+            int openErr = mciSendString($"open \"{anthemPath}\" type {mciType} alias anthem", null, 0, IntPtr.Zero);
+            if (openErr != 0)
             {
-                string mciType = anthemPath.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ? "mpegvideo" : "waveaudio";
                 mciSendString("close anthem", null, 0, IntPtr.Zero);
-                mciSendString($"open \"{anthemPath}\" type {mciType} alias anthem", null, 0, IntPtr.Zero);
-                mciSendString("play anthem from 0", null, 0, IntPtr.Zero);
+                return false;
             }
-            catch { }
+            int playErr = mciSendString("play anthem from 0", null, 0, IntPtr.Zero);
+            if (playErr != 0)
+            {
+                mciSendString("close anthem", null, 0, IntPtr.Zero);
+                return false;
+            }
+            IsAnthemPlaying = true;
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -230,3 +252,4 @@ public class AnthemEngine
         }
     }
 }
+

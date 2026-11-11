@@ -79,16 +79,111 @@ public static class JsonDatabaseProvider
         }
     }
 
+    /// <summary>
+    /// مسار ملف قاعدة البيانات الذي تم تحميله فعلاً (للتشخيص والاختبارات).
+    /// </summary>
+    public static string? LoadedDatabasePath { get; private set; }
+
     private static void LoadDatabase()
     {
-        string? jsonPath = ResolveDatabasePath();
-        if (jsonPath == null || !File.Exists(jsonPath))
+        // نفحص كل المسارات المرشحة ونختار قاعدة البيانات الأكمل (الأكثر فرقاً)،
+        // لا أول ملف يُقرأ بنجاح: أي ملف players_database.json قديم في مجلد التشغيل
+        // أو على القرص D:\ كان يحجب قاعدة البيانات المدمجة الجديدة (529 فريقاً) للمستخدم،
+        // فتظهر اللعبة دائماً بالقاعدة القديمة. عند التعادل في عدد الفرق يفوز المسار الأسبق.
+        var probed = new List<(string Path, int TeamCount, bool IsCombined)>();
+        foreach (var jsonPath in GetCandidatePaths())
+        {
+            int teamCount = ProbeTeamCount(jsonPath);
+            if (teamCount > 0)
+            {
+                bool isCombined = Path.GetFileName(jsonPath).StartsWith("players_database_combined", StringComparison.OrdinalIgnoreCase);
+                probed.Add((jsonPath, teamCount, isCombined));
+            }
+        }
+
+        string? selected = SelectBestDatabaseCandidate(probed);
+        if (selected == null)
         {
             return;
         }
 
         try
         {
+            LoadDatabaseFromFile(selected);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[JsonDatabaseProvider] Error loading database from {selected}: {ex.Message}");
+        }
+
+        if (_allTeams.Count > 0)
+        {
+            LoadedDatabasePath = selected;
+            return;
+        }
+
+        ClearLoadedTeams();
+    }
+
+    /// <summary>
+    /// عدد الفرق في ملف قاعدة بيانات مرشح دون تحميله؛ -1 لملف غير موجود أو تالف أو بلا فرق.
+    /// </summary>
+    public static int ProbeTeamCount(string jsonPath)
+    {
+        try
+        {
+            if (!File.Exists(jsonPath)) return -1;
+            string json = File.ReadAllText(jsonPath);
+            var root = JsonSerializer.Deserialize<JsonPlayerDbRoot>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (root?.teams == null || root.teams.Count == 0) return -1;
+            return root.teams.Count;
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// اختيار الملف الفائز من المرشحين المفحوصين:
+    /// 1) أولوية صريحة لقاعدة البيانات المدمجة المقصودة (players_database_combined-*.json)
+    ///    على أي ملف قياسي players_database.json حتى لو كان القياسي أكبر،
+    ///    لأن الملف المدمج هو الذي بناه المستخدم وسلّمه في 8 نوفمبر 2026.
+    /// 2) داخل كل فئة يفوز الأكثر فرقاً، وعند التعادل يفوز الأسبق في القائمة.
+    /// 3) بلا أي مرشح مدمج صالح: يفوز أكبر ملف قياسي صالح (سلوك احتياطي حتمي).
+    /// </summary>
+    public static string? SelectBestDatabaseCandidate(IReadOnlyList<(string Path, int TeamCount, bool IsCombined)> probedCandidates)
+    {
+        string? best = null;
+        int bestCount = 0;
+        bool bestIsCombined = false;
+        foreach (var (path, count, isCombined) in probedCandidates)
+        {
+            bool better = count > 0
+                && (best == null
+                    || (isCombined && !bestIsCombined)
+                    || (isCombined == bestIsCombined && count > bestCount));
+            if (better)
+            {
+                best = path;
+                bestCount = count;
+                bestIsCombined = isCombined;
+            }
+        }
+        return best;
+    }
+
+    private static void ClearLoadedTeams()
+    {
+        _allTeams.Clear();
+        _teamsByName.Clear();
+        _teamsById.Clear();
+        _teamsByGroup.Clear();
+        _groupArabicNames.Clear();
+    }
+
+    private static void LoadDatabaseFromFile(string jsonPath)
+    {
             string json = File.ReadAllText(jsonPath);
             var options = new JsonSerializerOptions
             {
@@ -183,11 +278,6 @@ public static class JsonDatabaseProvider
 
                 teamIndex++;
             }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[JsonDatabaseProvider] Error loading database: {ex.Message}");
-        }
     }
 
     private static void AssignSquadHierarchy(Team team, List<Player> allPlayers)
@@ -348,33 +438,42 @@ public static class JsonDatabaseProvider
         return res.Length > 12 ? res.Substring(0, 12) : res;
     }
 
-    private static string? ResolveDatabasePath()
+    private static List<string> GetCandidatePaths()
     {
-        string p1 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Data", "players_database.json");
-        if (File.Exists(p1)) return p1;
+        var candidates = new List<string>
+        {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Data", "players_database.json"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "players_database.json"),
+            @"D:\AccessibleFootball2026\Assets\Data\players_database.json",
+            @"C:\Users\mohamed farag\Downloads\38833FF26BA1D.UnigramPreview_g9c9v27vpyspw!App\players_database_combined-fdfd1d53.json"
+        };
 
-        string p2 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "players_database.json");
-        if (File.Exists(p2)) return p2;
-
-        string p3 = @"D:\AccessibleFootball2026\Assets\Data\players_database.json";
-        if (File.Exists(p3)) return p3;
-
-        string p4 = @"C:\Users\mohamed farag\Downloads\38833FF26BA1D.UnigramPreview_g9c9v27vpyspw!App\players_database_combined-fdfd1d53.json";
-        if (File.Exists(p4)) return p4;
+        // مجلدات وصول ملفات قاعدة البيانات المعتادة لدى المستخدم: التنزيلات وسطح المكتب،
+        // بما فيها أي نسخة من قاعدة البيانات المدمجة (players_database_combined-*.json)
+        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        foreach (string userDir in new[] { Path.Combine(userProfile, "Downloads"), Path.Combine(userProfile, "Desktop") })
+        {
+            candidates.Add(Path.Combine(userDir, "players_database.json"));
+            try
+            {
+                if (Directory.Exists(userDir))
+                {
+                    candidates.AddRange(Directory.EnumerateFiles(userDir, "players_database_combined*.json"));
+                }
+            }
+            catch { }
+        }
 
         string? dir = AppDomain.CurrentDomain.BaseDirectory;
         while (!string.IsNullOrEmpty(dir))
         {
-            string candidate = Path.Combine(dir, "AccessibleFootball2026.Core", "Data", "players_database.json");
-            if (File.Exists(candidate)) return candidate;
-
-            candidate = Path.Combine(dir, "Assets", "Data", "players_database.json");
-            if (File.Exists(candidate)) return candidate;
+            candidates.Add(Path.Combine(dir, "AccessibleFootball2026.Core", "Data", "players_database.json"));
+            candidates.Add(Path.Combine(dir, "Assets", "Data", "players_database.json"));
 
             dir = Path.GetDirectoryName(dir);
         }
 
-        return null;
+        return candidates;
     }
 
     // =========================================================================
@@ -452,3 +551,4 @@ public static class JsonDatabaseProvider
         return _groupArabicNames.TryGetValue(group, out var ar) ? ar : group;
     }
 }
+

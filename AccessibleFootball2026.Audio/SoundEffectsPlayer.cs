@@ -44,12 +44,14 @@ public static class SoundEffectsPlayer
     public static float GetEffectiveMusicVolume() => GetEffectiveMasterVolume() * Math.Clamp(MusicVolumeSetting / 100.0f, 0.0f, 1.0f);
 
     public static string? LastPlayedSound { get; private set; }
+    public static string? LastPlayedFilePath { get; private set; }
     public static float LastPlayedPan { get; private set; }
     public static int TotalSoundsPlayedCount { get; private set; } = 0;
 
     public static void ResetTelemetry()
     {
         LastPlayedSound = null;
+        LastPlayedFilePath = null;
         LastPlayedPan = 0.0f;
         TotalSoundsPlayedCount = 0;
         _commentaryBusyUntil = DateTime.MinValue;
@@ -102,6 +104,101 @@ public static class SoundEffectsPlayer
         return null;
     }
 
+    /// <summary>
+    /// حل مسار ملف صوتي موجود فعلاً بدون توليد أي عيّنات بديلة
+    /// </summary>
+    public static string? TryResolveExistingAudioPath(params string[] relativeParts)
+    {
+        string fullWithoutExt = Path.Combine(_baseAudioDir, Path.Combine(relativeParts));
+        if (File.Exists(fullWithoutExt + ".wav")) return fullWithoutExt + ".wav";
+        if (File.Exists(fullWithoutExt + ".mp3")) return fullWithoutExt + ".mp3";
+        if (File.Exists(fullWithoutExt)) return fullWithoutExt;
+        return null;
+    }
+
+    private static readonly Dictionary<string, string[]> _extractedDirCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// يختار مقطعاً حقيقياً مستخرجاً من مكتبة صوتيات PES 2013 بأسمائها الرقمية (مثل Kick_101.wav أو Whistle_12.wav)
+    /// حتى تُستخدم العيّنات الأصلية بدل التوليد الإجرائي عند توفرها. يتجاهل الأسماء الوصفية المولدة محلياً.
+    /// </summary>
+    public static string? ResolveExtractedSample(string relativeDir, params string[] prefixes)
+    {
+        string dir = Path.Combine(_baseAudioDir, relativeDir);
+        if (!_extractedDirCache.TryGetValue(dir, out var files))
+        {
+            try
+            {
+                files = Directory.Exists(dir)
+                    ? Directory.GetFiles(dir, "*.*")
+                        .Where(f => f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase))
+                        .ToArray()
+                    : Array.Empty<string>();
+            }
+            catch { files = Array.Empty<string>(); }
+            _extractedDirCache[dir] = files;
+        }
+        if (files.Length == 0) return null;
+
+        var matches = files.Where(f =>
+        {
+            string name = Path.GetFileNameWithoutExtension(f);
+            foreach (var prefix in prefixes)
+            {
+                if (name.Length > prefix.Length + 1
+                    && name.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase)
+                    && name[(prefix.Length + 1)..].All(char.IsDigit))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }).ToArray();
+
+        return matches.Length > 0 ? matches[Random.Shared.Next(matches.Length)] : null;
+    }
+
+    /// <summary>
+    /// مدة ملف WAV بالثواني من ترويسته (لضبط نافذة انشغال قناة المعلق على المدة الحقيقية للمقطع)
+    /// </summary>
+    public static double GetWavDurationSeconds(string filePath)
+    {
+        try
+        {
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (fs.Length < 44) return 0;
+            using var br = new BinaryReader(fs);
+            if (br.ReadUInt32() != 0x46464952) return 0; // "RIFF"
+            br.ReadUInt32();
+            if (br.ReadUInt32() != 0x45564157) return 0; // "WAVE"
+
+            int byteRate = 0;
+            long dataSize = -1;
+            while (fs.Position + 8 <= fs.Length)
+            {
+                uint chunkId = br.ReadUInt32();
+                uint chunkSize = br.ReadUInt32();
+                long nextChunk = fs.Position + chunkSize;
+                if (chunkId == 0x20746D66 && chunkSize >= 16) // "fmt "
+                {
+                    br.ReadUInt16(); // audio format
+                    br.ReadUInt16(); // channels
+                    br.ReadUInt32(); // sample rate
+                    byteRate = br.ReadInt32();
+                }
+                else if (chunkId == 0x61746164) // "data"
+                {
+                    dataSize = chunkSize;
+                    break;
+                }
+                fs.Position = nextChunk;
+            }
+            if (byteRate > 0 && dataSize > 0) return (double)dataSize / byteRate;
+        }
+        catch { }
+        return 0;
+    }
+
     public static string GetMciType(string filePath)
     {
         string ext = Path.GetExtension(filePath).ToLowerInvariant();
@@ -118,6 +215,10 @@ public static class SoundEffectsPlayer
             // إيقاف أي نشيد أو صوت افتتاحية عند الدخول إلى القوائم
             SendMci("stop anthem");
             SendMci("close anthem");
+
+            // إيقاف صخب الجماهير أيضاً: معاينة "أجواء المدرجات" في أكاديمية الأصوات
+            // كانت تتركه يعمل فوق موسيقى القوائم بعد الرجوع
+            StopCrowdAmbiance();
 
             if (_menuMusicPlaying) return;
             if (GetEffectiveMusicVolume() <= 0.001f) return;
@@ -218,6 +319,12 @@ public static class SoundEffectsPlayer
     public static void ApplyMusicVolume()
     {
         int vol = Math.Clamp((int)(GetEffectiveMusicVolume() * 1000), 0, 1000);
+        // تغيير مستوى الصوت لا يبدأ الموسيقى أبداً: تعديل الإعدادات من قائمة الإيقاف
+        // أثناء المباراة (حيث تتوقف موسيقى القوائم عمداً) كان يشغّلها فوق اللعب
+        if (!_menuMusicPlaying)
+        {
+            return;
+        }
         if (vol <= 0)
         {
             SendMci("pause bgm_menu");
@@ -225,8 +332,8 @@ public static class SoundEffectsPlayer
         }
         else
         {
-            SendMci("play bgm_menu repeat");
             SendMci($"setaudio bgm_menu volume to {vol}");
+            SendMci("play bgm_menu repeat");
         }
     }
 
@@ -346,7 +453,8 @@ public static class SoundEffectsPlayer
             > 0.25f => "Kick_Right",
             _ => "Kick_Center"
         };
-        string? p = ResolveAudioPath("SFX", "Kicks", fileName) 
+        string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
+                 ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick")
                  ?? ResolveAudioPath("SFX", "Kicks", "Pass");
         if (p != null) PlayOneShot(p, "kick");
@@ -361,7 +469,8 @@ public static class SoundEffectsPlayer
             > 0.25f => "Shot_Right",
             _ => "Shot_Center"
         };
-        string? p = ResolveAudioPath("SFX", "Kicks", fileName) 
+        string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
+                 ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Shot") 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick_Center");
         if (p != null) PlayOneShot(p, "shot_kick");
@@ -376,7 +485,8 @@ public static class SoundEffectsPlayer
             > 0.25f => "Pass_Right",
             _ => "Pass_Center"
         };
-        string? p = ResolveAudioPath("SFX", "Kicks", fileName) 
+        string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
+                 ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Pass") 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick_Center");
         if (p != null) PlayOneShot(p, "pass_kick");
@@ -391,7 +501,8 @@ public static class SoundEffectsPlayer
             > 0.25f => "Cross_Right",
             _ => "Cross_Center"
         };
-        string? p = ResolveAudioPath("SFX", "Kicks", fileName) 
+        string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
+                 ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Cross") 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick_Center");
         if (p != null) PlayOneShot(p, "cross_kick");
@@ -402,6 +513,7 @@ public static class SoundEffectsPlayer
         LastPlayedPan = pan;
         string? p = ResolveAudioPath("SFX", "Tackles", "StandTackle")
                  ?? ResolveAudioPath("SFX", "Tackles", "Tackle")
+                 ?? ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Impact", "Kick")
                  ?? ResolveAudioPath("SFX", "Kicks", "Pass");
         if (p != null) PlayOneShot(p, "stand_tackle");
     }
@@ -411,13 +523,15 @@ public static class SoundEffectsPlayer
         LastPlayedPan = pan;
         string? p = ResolveAudioPath("SFX", "Tackles", "SlideTackle")
                  ?? ResolveAudioPath("SFX", "Tackles", "Tackle")
+                 ?? ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Impact", "Kick")
                  ?? ResolveAudioPath("SFX", "Kicks", "Shot");
         if (p != null) PlayOneShot(p, "slide_tackle");
     }
 
     public static void PlayWhistle()
     {
-        string? p = ResolveAudioPath("SFX", "Whistles", "Whistle");
+        string? p = ResolveExtractedSample(Path.Combine("SFX", "Whistles"), "Whistle")
+                 ?? ResolveAudioPath("SFX", "Whistles", "Whistle");
         if (p != null) PlayOneShot(p, "whistle");
     }
 
@@ -490,7 +604,10 @@ public static class SoundEffectsPlayer
     public static void PlayCommentaryAudio(string filePath)
     {
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
-        _commentaryBusyUntil = DateTime.UtcNow.AddSeconds(3.2);
+        // نافذة الانشغال تساوي المدة الحقيقية للمقطع (نداءات الأسماء القصيرة لا تحجب التعليق 3 ثوانٍ كاملة)
+        double seconds = filePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? GetWavDurationSeconds(filePath) : 0;
+        if (seconds <= 0.05) seconds = 3.2;
+        _commentaryBusyUntil = DateTime.UtcNow.AddSeconds(Math.Clamp(seconds, 0.3, 30.0));
         PlayOneShot(filePath, "comm_voice");
     }
 
@@ -553,6 +670,7 @@ public static class SoundEffectsPlayer
     private static void PlayOneShot(string filePath, string alias, string? soundName = null, float? customVolume = null)
     {
         LastPlayedSound = soundName ?? alias;
+        LastPlayedFilePath = filePath;
         TotalSoundsPlayedCount++;
 
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
@@ -876,3 +994,4 @@ public static class SoundEffectsPlayer
         SendMci("close all");
     }
 }
+

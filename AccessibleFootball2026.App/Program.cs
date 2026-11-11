@@ -30,10 +30,31 @@ internal static class Program
         string appBaseAudio = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio");
         string desktopGameAudio = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "AccessibleFootball2026", "Assets", "Audio");
 
+        // مجلد الأصول بجوار ملف الحل (وجهة أداة استخراج صوتيات PES 2013) عند التشغيل من بناء داخل المشروع
+        string? slnAudio = null;
+        string? walkDir = AppDomain.CurrentDomain.BaseDirectory;
+        while (!string.IsNullOrEmpty(walkDir))
+        {
+            if (File.Exists(Path.Combine(walkDir, "AccessibleFootball2026.sln")))
+            {
+                string candidate = Path.Combine(walkDir, "Assets", "Audio");
+                if (Directory.Exists(candidate) && Directory.GetFiles(candidate, "*.*", SearchOption.AllDirectories).Length > 0)
+                {
+                    slnAudio = candidate;
+                }
+                break;
+            }
+            walkDir = Path.GetDirectoryName(walkDir);
+        }
+
         string baseAudioDir = appBaseAudio;
         if (Directory.Exists(dDriveAudio) && Directory.GetFiles(dDriveAudio, "*.*", SearchOption.AllDirectories).Length > 0)
         {
             baseAudioDir = dDriveAudio;
+        }
+        else if (slnAudio != null)
+        {
+            baseAudioDir = slnAudio;
         }
         else if (Directory.Exists(desktopGameAudio) && Directory.GetFiles(desktopGameAudio, "*.*", SearchOption.AllDirectories).Length > 0)
         {
@@ -53,6 +74,7 @@ internal static class Program
         SoundEffectsPlayer.MusicVolumeSetting = MatchSettings.Current.MusicVolumePercent;
 
         SoundEffectsPlayer.Initialize(baseAudioDir);
+        GoalBeaconPlayer.Initialize(baseAudioDir);
 
         var screenReader = new NvdaScreenReader();
         var eventBus = new MatchEventBus();
@@ -143,3 +165,4 @@ internal static class Program
         Console.WriteLine("  * المؤثرات الصوتية ثلاثية الأبعاد للركلات (Kick_Left, Kick_Center, Kick_Right): مفعلة وجاهزة. ✅");
     }
 }
+

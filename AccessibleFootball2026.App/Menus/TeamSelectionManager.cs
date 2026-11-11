@@ -140,16 +140,20 @@ public class TeamSelectionManager
 
         // 4. بطولات الأندية الإفريقية (أندية الكاف من قاعدة بيانات المستخدم)
         var cafClClubs = JsonDatabaseProvider.GetTeamsByGroup("CAF Champions League (clubs outside Egyptian league)");
+        if (cafClClubs.Count == 0) cafClClubs = CAFCompetitions.GetChampionsLeagueClubs();
         menu.AddItem($"دوري أبطال إفريقيا للأندية ({cafClClubs.Count} نادياً)", () => onCategoryChosen(cafClClubs, "دوري أبطال إفريقيا"));
 
         var cafConfClubs = JsonDatabaseProvider.GetTeamsByGroup("CAF Confederation Cup clubs");
+        if (cafConfClubs.Count == 0) cafConfClubs = CAFCompetitions.GetConfederationCupClubs();
         menu.AddItem($"كأس الكونفدرالية الإفريقية للأندية ({cafConfClubs.Count} نادياً)", () => onCategoryChosen(cafConfClubs, "كأس الكونفدرالية الإفريقية"));
 
         // 5. بطولات الأندية الأوروبية
         var uclClubs = JsonDatabaseProvider.GetTeamsByGroup("UEFA Champions League (clubs outside the 7 leagues)");
+        if (uclClubs.Count == 0) uclClubs = UEFACompetitions.GetChampionsLeagueClubs();
         menu.AddItem($"دوري أبطال أوروبا للأندية ({uclClubs.Count} نادياً)", () => onCategoryChosen(uclClubs, "دوري أبطال أوروبا"));
 
         var uelClubs = JsonDatabaseProvider.GetTeamsByGroup("UEFA Europa League (clubs outside the 7 leagues)");
+        if (uelClubs.Count == 0) uelClubs = UEFACompetitions.GetEuropaLeagueClubs();
         menu.AddItem($"الدوري الأوروبي للأندية ({uelClubs.Count} نادياً)", () => onCategoryChosen(uelClubs, "الدوري الأوروبي"));
 
         var ueclClubs = JsonDatabaseProvider.GetTeamsByGroup("UEFA Conference League (clubs outside the 7 leagues)");
@@ -158,6 +162,7 @@ public class TeamSelectionManager
         // 6. المنتخبات الوطنية الرسمية (211 منتخباً)
         var nationalTeams = JsonDatabaseProvider.GetTeamsByGroup("National teams - current squads");
         if (nationalTeams.Count == 0) nationalTeams = JsonDatabaseProvider.GetAllNationalTeams();
+        if (nationalTeams.Count == 0) nationalTeams = NationalTeamDatabase.GetAllNationalTeams();
         menu.AddItem($"المنتخبات الوطنية الرسمية ({nationalTeams.Count} منتخباً)", () => onCategoryChosen(nationalTeams, "المنتخبات الوطنية"));
 
         // 7. جميع الفرق (529 فريقاً موثقاً من ملف المستخدم)
@@ -188,3 +193,4 @@ private AccessibleMenu CreateSubTeamSelectMenu(string title, List<Team> teams, T
         return subMenu;
     }
 }
+

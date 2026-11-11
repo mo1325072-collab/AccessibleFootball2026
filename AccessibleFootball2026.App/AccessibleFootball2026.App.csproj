@@ -10,7 +10,8 @@
     <None Include="nvdaControllerClient64.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="nvdaControllerClient32.dll">
+    <!-- نسخة 32-بت اختيارية: اللعبة تستخدم نسخة 64-بت فقط، والشرط يمنع كسر البناء عند غيابها -->
+    <None Include="nvdaControllerClient32.dll" Condition="Exists('nvdaControllerClient32.dll')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
@@ -27,3 +28,4 @@
   </PropertyGroup>
 
 </Project>
+

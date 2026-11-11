@@ -110,6 +110,9 @@ public class MatchEngine
     private float _crowdUpdateTimer = 0.0f;
     private float _currentCrowdVolume = 500.0f;
     private bool _isShotInProgress = false;
+    private float _shotTargetGoalX = 0.0f;   // المرمى المستهدف بالتسديدة الجارية
+    private bool _shotGkResolved = false;    // هل حُسمت مواجهة الحارس لهذه التسديدة
+    private Player? _shotShooter = null;     // مسدد التسديدة الجارية
     private float _celebrationTimer = 0.0f;
     private float _gkHoldTimer = 0.0f;
     private float _ballFreeTimer = 0.0f;
@@ -662,7 +665,7 @@ public class MatchEngine
         string passDesc = isThroughBall 
             ? $"بينية إلى {bestTarget.Name} في {CurrentZone.ToArabicAnnouncement()}" 
             : $"تمريرة إلى {bestTarget.Name} في {CurrentZone.ToArabicAnnouncement()}";
-        EventBus.Publish(new MatchEvent(MatchEventType.BallKicked, passDesc, CurrentZone, spatialPan: CalculateBallPan()));
+        EventBus.Publish(new MatchEvent(MatchEventType.BallKicked, passDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer));
     }
 
     public void AdjustAimingAngle(float deltaY)
@@ -697,7 +700,7 @@ public class MatchEngine
 
         Vector2 crossDir = boxCenter - ActiveUserPlayer.Position2D;
         Ball.Kick(crossDir, horizontalSpeed: 19.0f, verticalSpeed: 6.5f, ActiveUserPlayer);
-        EventBus.Publish(new MatchEvent(MatchEventType.BallKicked, $"عرضية عالية من {ActiveUserPlayer.Name} داخل منطقة الجزاء!", CurrentZone, spatialPan: CalculateBallPan()));
+        EventBus.Publish(new MatchEvent(MatchEventType.BallKicked, $"عرضية عالية من {ActiveUserPlayer.Name} داخل منطقة الجزاء!", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer));
     }
 
     public void ExecuteShot()
@@ -733,7 +736,10 @@ public class MatchEngine
         float shotPower = 30.0f + (ActiveUserPlayer.Shooting * 0.12f);
         Ball.Kick(shotDir, shotPower, verticalSpeed: 1.8f, ActiveUserPlayer);
         _isShotInProgress = true;
-        EventBus.Publish(new MatchEvent(MatchEventType.ShotTaken, $"تسديدة قوية من {ActiveUserPlayer.Name} نحو المرمى!", CurrentZone, spatialPan: CalculateBallPan()));
+        _shotTargetGoalX = UserAttackingRight ? Pitch.Length : 0.0f;
+        _shotGkResolved = false;
+        _shotShooter = ActiveUserPlayer;
+        EventBus.Publish(new MatchEvent(MatchEventType.ShotTaken, $"تسديدة قوية من {ActiveUserPlayer.Name} نحو المرمى!", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer));
     }
 
     public static string GetArabicPositionName(SpecificPosition pos) => pos switch
@@ -1276,6 +1282,52 @@ public class MatchEngine
     }
 
     /// <summary>
+    /// احتمال تصدي الحارس لتسديدة: مواجهة واحدة محسومة بلفة واحدة تعتمد على
+    /// مهارة التسديد للمهاجم وقدرة الحارس، وليست لفة متكررة بكل إطار.
+    /// </summary>
+    public static float ComputeSaveProbability(Player shooter, Player goalkeeper)
+    {
+        float probability = 0.50f + (goalkeeper.Defending - shooter.Shooting) * 0.006f;
+        return Math.Clamp(probability, 0.20f, 0.85f);
+    }
+
+    /// <summary>
+    /// حسم مواجهة حارس مع تسديدة بلفة واحدة؛ forcedRoll للاختبارات الحتمية.
+    /// </summary>
+    public static bool ResolveGoalkeeperSaveAttempt(Player shooter, Player goalkeeper, double forcedRoll = -1.0)
+    {
+        double roll = forcedRoll >= 0.0 ? forcedRoll : Random.Shared.NextDouble();
+        return roll < ComputeSaveProbability(shooter, goalkeeper);
+    }
+
+    /// <summary>
+    /// وجهة تسديدة الكمبيوتر: مقص قريب أو بعيد (بتفضيل البعيد) مع انتشار مهاري،
+    /// بدلاً من التصويب الدائم إلى قلب المرمى حيث يقف الحارس فيلتقط كل شيء.
+    /// </summary>
+    public static Vector2 ComputeCpuShotTarget(Vector2 shooterPos, bool attackingRight, double postChoiceRoll, double spreadRoll)
+    {
+        float goalX = attackingRight ? Pitch.Length : 0.0f;
+        float goalCenterY = (Pitch.GoalYMin + Pitch.GoalYMax) / 2.0f;
+        bool shooterAboveCenter = shooterPos.Y < goalCenterY;
+        bool aimFarPost = postChoiceRoll < 0.65;
+        bool aimHighSide = aimFarPost ? !shooterAboveCenter : shooterAboveCenter;
+        float targetY = aimHighSide ? Pitch.GoalYMin + 1.3f : Pitch.GoalYMax - 1.3f;
+        float spread = (float)(spreadRoll * 2.0 - 1.0) * 2.2f;
+        targetY = Math.Clamp(targetY + spread, Pitch.GoalYMin - 1.0f, Pitch.GoalYMax + 1.0f);
+        return new Vector2(goalX, targetY);
+    }
+
+    /// <summary>
+    /// حارس المرمى المدافع عن مرمى التسديدة الجارية (بحسب فريق المسدد، لا اتجاه هجوم المستخدم).
+    /// </summary>
+    private Player? GetDefendingGoalkeeperForShot()
+    {
+        Team defendingTeam = (_shotShooter != null && AwayTeam.Players.Contains(_shotShooter)) ? HomeTeam : AwayTeam;
+        return defendingTeam.Players.FirstOrDefault(p => p.Role == PlayerRole.Goalkeeper && !p.IsSentOff && !p.IsOffPitch)
+            ?? defendingTeam.Players.FirstOrDefault();
+    }
+
+    /// <summary>
     /// فحص مصيدة التسلل والتسلل الميداني وفق القانون 11
     /// عند تفعيل مصيدة التسلل:
     /// - إذا نجحت: يرفع الحكم الراية ويعلن التسلل وتمنح ركلة حرة غير مباشرة
@@ -1315,7 +1367,14 @@ public class MatchEngine
             return false;
         }
 
-        // مصيدة التسلل مفعلة (Offside Trap ON):
+        // لا تقييم للمصيدة إطلاقاً إذا لم يكن المهاجم خلف خط الدفاع:
+        // كان الفحص العشوائي يعلن "كسر المصيدة" حتى والمهاجم في موقف سليم تماماً
+        if (!isBehindLine)
+        {
+            return false;
+        }
+
+        // مصيدة التسلل مفعلة (Offside Trap ON) والمهاجم خلف خط الدفاع فعلاً:
         // فحص انضباط وتناغم خط الدفاع: هل ينجح خط الدفاع بشكل جماعي أم يكسر أحدهم المصيدة؟
         float lineCoordination = (float)backline.Average(d => d.Defending * (d.Stamina / 100.0f));
         bool trapBroken = Random.Shared.Next(100) > (int)lineCoordination;
@@ -1327,18 +1386,13 @@ public class MatchEngine
             return false;
         }
 
-        if (isBehindLine)
-        {
-            // نجاح مصيدة التسلل
-            EventBus.Publish(new MatchEvent(MatchEventType.Offside, $"مصيدة تسلل ناجحة! خط دفاع {defendingTeam.Name} يوقع {receiver.Name} في التسلل.", CurrentZone, spatialPan: CalculateBallPan()));
+        // نجاح مصيدة التسلل
+        EventBus.Publish(new MatchEvent(MatchEventType.Offside, $"مصيدة تسلل ناجحة! خط دفاع {defendingTeam.Name} يوقع {receiver.Name} في التسلل.", CurrentZone, spatialPan: CalculateBallPan()));
 
-            Ball.Velocity = Vector3.Zero;
-            Ball.State = BallState.Free;
-            _aiTackleCooldownTimer = 1.0f;
-            return true;
-        }
-
-        return false;
+        Ball.Velocity = Vector3.Zero;
+        Ball.State = BallState.Free;
+        _aiTackleCooldownTimer = 1.0f;
+        return true;
     }
 
     public bool CheckDogso(Player tackler, Player carrier)
@@ -1395,9 +1449,10 @@ public class MatchEngine
         {
             DismissPlayer(player, playerTeam);
 
+            int remainingPlayers = playerTeam.Players.Count(p => !p.IsSentOff && !p.IsOffPitch);
             string desc = string.IsNullOrEmpty(reason)
-                ? $"بطاقة حمراء وطرد مباشر لـ {player.Name}! {playerTeam.Name} يكمل بـ 10 لاعبين."
-                : $"بطاقة حمراء وطرد مباشر لـ {player.Name} ({reason})! {playerTeam.Name} يكمل بـ 10 لاعبين.";
+                ? $"بطاقة حمراء وطرد مباشر لـ {player.Name}! {playerTeam.Name} يكمل بـ {remainingPlayers} لاعبين."
+                : $"بطاقة حمراء وطرد مباشر لـ {player.Name} ({reason})! {playerTeam.Name} يكمل بـ {remainingPlayers} لاعبين.";
             EventBus.Publish(new MatchEvent(MatchEventType.RedCard, desc, CurrentZone, spatialPan: CalculateBallPan()));
         }
         else
@@ -1407,7 +1462,8 @@ public class MatchEngine
             {
                 DismissPlayer(player, playerTeam);
 
-                string desc = $"إنذار ثانٍ وبطاقة حمراء وطرد لـ {player.Name}! {playerTeam.Name} يكمل بـ 10 لاعبين.";
+                int remainingPlayers = playerTeam.Players.Count(p => !p.IsSentOff && !p.IsOffPitch);
+                string desc = $"إنذار ثانٍ وبطاقة حمراء وطرد لـ {player.Name}! {playerTeam.Name} يكمل بـ {remainingPlayers} لاعبين.";
                 EventBus.Publish(new MatchEvent(MatchEventType.RedCard, desc, CurrentZone, spatialPan: CalculateBallPan()));
             }
             else
@@ -1713,10 +1769,10 @@ public class MatchEngine
                         EventBus.Publish(new MatchEvent(MatchEventType.GoalKick, $"حارس مرمى {AwayTeam.Name} يشتت الكرة عالية للأمام نحو نصف الملعب.", CurrentZone, spatialPan: CalculateBallPan()));
                     }
                 }
-                else if (Vector2.Distance(opponent.Position2D, ball2D) < 2.0f && Ball.Position.Z < Pitch.GoalHeight)
+                else if (!_isShotInProgress && Vector2.Distance(opponent.Position2D, ball2D) < 2.0f && Ball.Position.Z < Pitch.GoalHeight)
                 {
-                    bool wasShot = _isShotInProgress;
-                    _isShotInProgress = false;
+                    // التقاط الكرات العادية فقط: التسديدات تُحسم بمواجهة حارس واحدة مبنية
+                    // على المهارات، لا بالتقاط تلقائي مؤكد 100%
                     _gkHoldTimer = 0.0f;
                     Ball.CatchOrTackle(opponent);
                     RecordBallTouch(opponent);
@@ -1724,10 +1780,6 @@ public class MatchEngine
                     {
                         ActivePassTransit.IsActive = false;
                         ActivePassTransit = null;
-                    }
-                    if (wasShot)
-                    {
-                        EventBus.Publish(new MatchEvent(MatchEventType.MissedChance, "تصدي رائع من حارس المرمى!", CurrentZone, spatialPan: CalculateBallPan()));
                     }
                 }
                 continue;
@@ -1744,10 +1796,19 @@ public class MatchEngine
                 float distToUserGoal = Vector2.Distance(opponent.Position2D, attackTarget);
                 if (distToUserGoal < 24.0f)
                 {
-                    Ball.Kick(attackDir, 26.0f, 1.2f, opponent);
-                    EventBus.Publish(new MatchEvent(MatchEventType.BallKicked, $"تسديدة خطيرة من {opponent.Name} لاعب الخصم!", CurrentZone, spatialPan: CalculateBallPan()));
+                    // تصويب الكمبيوتر نحو مقص المرمى مع انتشار مهاري، بدلاً من قلب المرمى
+                    // دائماً حيث يقف الحارس فيلتقط كل التسديدات ولا يسجل الكمبيوتر أبداً
+                    Vector2 shotTarget = ComputeCpuShotTarget(opponent.Position2D, !UserAttackingRight, Random.Shared.NextDouble(), Random.Shared.NextDouble());
+                    Vector2 cpuShotDir = Vector2.Normalize(shotTarget - opponent.Position2D);
+                    float cpuShotPower = 24.0f + (opponent.Shooting * 0.08f);
+                    Ball.Kick(cpuShotDir, cpuShotPower, 1.6f, opponent);
+                    _isShotInProgress = true;
+                    _shotTargetGoalX = shotTarget.X;
+                    _shotGkResolved = false;
+                    _shotShooter = opponent;
+                    EventBus.Publish(new MatchEvent(MatchEventType.ShotTaken, $"تسديدة خطيرة من {opponent.Name} لاعب الخصم!", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: opponent));
                 }
-                else if (!ActiveUserPlayer.IsSentOff && !ActiveUserPlayer.IsOffPitch && Vector2.Distance(ActiveUserPlayer.Position2D, opponent.Position2D) < 2.5f && new Random().Next(100) < 5)
+                else if (!ActiveUserPlayer.IsSentOff && !ActiveUserPlayer.IsOffPitch && Vector2.Distance(ActiveUserPlayer.Position2D, opponent.Position2D) < 2.5f && Random.Shared.Next(100) < 5)
                 {
                     var openTeammate = AwayTeam.Players.FirstOrDefault(p => p != opponent && p.Role != PlayerRole.Goalkeeper && 
                         (UserAttackingRight ? p.Position2D.X < opponent.Position2D.X : p.Position2D.X > opponent.Position2D.X));
@@ -1755,7 +1816,7 @@ public class MatchEngine
                     {
                         Vector2 passDir = Vector2.Normalize(openTeammate.Position2D - opponent.Position2D);
                         Ball.Kick(passDir, 18.0f, 0.2f, opponent);
-                        EventBus.Publish(new MatchEvent(MatchEventType.BallKicked, $"تمريرة من {opponent.Name} إلى {openTeammate.Name}", CurrentZone, spatialPan: CalculateBallPan()));
+                        EventBus.Publish(new MatchEvent(MatchEventType.BallKicked, $"تمريرة من {opponent.Name} إلى {openTeammate.Name}", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: opponent));
                     }
                 }
                 continue;
@@ -1910,7 +1971,7 @@ public class MatchEngine
                         EventBus.Publish(new MatchEvent(MatchEventType.GoalKick, $"حارسك {teammate.Name} يشتت الكرة عالية للأمام نحو نصف الملعب.", CurrentZone, spatialPan: CalculateBallPan()));
                     }
                 }
-                else if (Vector2.Distance(teammate.Position2D, ball2D) < 2.5f && (Ball.Owner == null || AwayTeam.Players.Contains(Ball.Owner)))
+                else if (!_isShotInProgress && Vector2.Distance(teammate.Position2D, ball2D) < 2.5f && Ball.Position.Z < Pitch.GoalHeight && (Ball.Owner == null || AwayTeam.Players.Contains(Ball.Owner)))
                 {
                     _gkHoldTimer = 0.0f;
                     Ball.CatchOrTackle(teammate);
@@ -2009,7 +2070,7 @@ public class MatchEngine
                     }
                     else
                     {
-                        EventBus.Publish(new MatchEvent(MatchEventType.BallKicked, $"الكرة مع {closestPlayer.Name} لاعب {AwayTeam.Name} في {CurrentZone.ToArabicAnnouncement()}.", CurrentZone, spatialPan: CalculateBallPan()));
+                        EventBus.Publish(new MatchEvent(MatchEventType.BallTrapped, $"الكرة مع {closestPlayer.Name} لاعب {AwayTeam.Name} في {CurrentZone.ToArabicAnnouncement()}.", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: closestPlayer));
                     }
                 }
             }
@@ -2044,8 +2105,7 @@ public class MatchEngine
         // 0. فحص تصدي الحارس أو ارتطام الكرة بالقائم/العارضة أثناء التسديد
         if (_isShotInProgress)
         {
-            float targetGoalX = UserAttackingRight ? Pitch.Length : 0.0f;
-            float distToGoalX = Math.Abs(Ball.Position.X - targetGoalX);
+            float distToGoalX = Math.Abs(Ball.Position.X - _shotTargetGoalX);
 
             // فحص ارتطام القائم أو العارضة (Woodwork Hit)
             if (distToGoalX <= 1.2f)
@@ -2064,18 +2124,34 @@ public class MatchEngine
                 }
             }
 
-            // فحص تصدي حارس المرمى (Goalkeeper Save)
-            if (distToGoalX <= 3.0f && Ball.Position.Y >= Pitch.GoalYMin - 0.5f && Ball.Position.Y <= Pitch.GoalYMax + 0.5f && Ball.Position.Z <= Pitch.GoalHeight)
+            // فحص تصدي حارس المرمى: مواجهة واحدة لكل تسديدة تُحسم بلفة واحدة تعتمد
+            // على مهارة المسدد وقدرة الحارس، لا لفة 35% متكررة بكل إطار (~82% تصدٍ حتمي)
+            if (!_shotGkResolved && distToGoalX <= 3.0f && Ball.Position.Y >= Pitch.GoalYMin - 0.5f && Ball.Position.Y <= Pitch.GoalYMax + 0.5f && Ball.Position.Z <= Pitch.GoalHeight)
             {
-                var defendingGk = UserAttackingRight ? AwayTeam.Players[0] : HomeTeam.Players[0];
-                float gkDist = Vector2.Distance(new Vector2(Ball.Position.X, Ball.Position.Y), defendingGk.Position2D);
-                if (gkDist <= 4.2f && Random.Shared.NextDouble() < 0.35)
+                Player? defendingGk = GetDefendingGoalkeeperForShot();
+                if (defendingGk != null)
                 {
-                    _isShotInProgress = false;
-                    Ball.Velocity = new Vector3(-Ball.Velocity.X * 0.35f, ((float)Random.Shared.NextDouble() - 0.5f) * 6.0f, 0.5f);
-                    EventBus.Publish(new MatchEvent(MatchEventType.GoalkeeperSave, "تصدي رائع وخيالي من حارس المرمى!", CurrentZone, spatialPan: CalculateBallPan()));
-                    return;
+                    float gkDist = Vector2.Distance(new Vector2(Ball.Position.X, Ball.Position.Y), defendingGk.Position2D);
+                    if (gkDist <= 4.2f)
+                    {
+                        _shotGkResolved = true;
+                        Player shooter = _shotShooter ?? LastKicker ?? defendingGk;
+                        if (ResolveGoalkeeperSaveAttempt(shooter, defendingGk))
+                        {
+                            _isShotInProgress = false;
+                            Ball.Velocity = new Vector3(-Ball.Velocity.X * 0.35f, ((float)Random.Shared.NextDouble() - 0.5f) * 6.0f, 0.5f);
+                            EventBus.Publish(new MatchEvent(MatchEventType.GoalkeeperSave, $"تصدي رائع وخيالي من {defendingGk.Name}!", CurrentZone, spatialPan: CalculateBallPan()));
+                            return;
+                        }
+                        // الحارس مُتغلَّب عليه: الكرة تكمل نحو المرمى أو الخشبات
+                    }
                 }
+            }
+
+            // تسديدة ميتة: فقدت الكرة سرعتها قبل بلوغ المرمى -> عودة للعب المفتوح
+            if (Ball.Velocity.Length() < 1.0f && Ball.Position.Z <= 0.05f)
+            {
+                _isShotInProgress = false;
             }
         }
 
@@ -2351,3 +2427,4 @@ public class MatchEngine
         State = MatchState.InPlay;
     }
 }
+

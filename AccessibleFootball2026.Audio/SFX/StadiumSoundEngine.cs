@@ -130,12 +130,13 @@ public class StadiumSoundEngine
         {
             if (matchEvent.GoalData.ScoringTeam == ActiveHomeTeam)
             {
-                PlayTeamChant(ActiveHomeTeam, ChantSlot.GoalCelebration);
+                // أحداث حقيقية حاسمة تتجاوز كبح التكرار: احتفال الهدف يقطع أي هتاف جارٍ
+                PlayTeamChant(ActiveHomeTeam, ChantSlot.GoalCelebration, force: true);
             }
             else
             {
                 // هدف للخصم -> صافرات استهجان من جماهير الأرض
-                PlayTeamChant(ActiveHomeTeam, ChantSlot.DiscontentWhistle);
+                PlayTeamChant(ActiveHomeTeam, ChantSlot.DiscontentWhistle, force: true);
             }
             return;
         }
@@ -143,7 +144,7 @@ public class StadiumSoundEngine
         // 2. خطأ ارتكبه الخصم ضد صاحب الأرض
         if (matchEvent.Type == MatchEventType.FoulCommitted)
         {
-            PlayTeamChant(ActiveHomeTeam, ChantSlot.DiscontentWhistle);
+            PlayTeamChant(ActiveHomeTeam, ChantSlot.DiscontentWhistle, force: true);
             return;
         }
 
@@ -168,8 +169,12 @@ public class StadiumSoundEngine
         }
     }
 
-    public void PlayTeamChant(Team team, ChantSlot slot)
+    public void PlayTeamChant(Team team, ChantSlot slot, bool force = false)
     {
+        // كبح التكرار: الحلقة الرئيسية تستدعي فحص السياق كل إطار (50 مرة/ثانية)،
+        // وبدون هذا الكبح يعاد فتح قناة الهتاف كل إطار فيسمع المستخدم تقطيعاً متصلاً
+        if (!force && DateTime.UtcNow - _lastChantPlayTime < _minChantInterval) return;
+
         if (!Directory.Exists(_chantsDir)) return;
 
         // التحقق من الشرط المزدوج: إذا لم يتحقق الشرط، يظل صوت الجماهير محايداً تماماً بدون أي هتاف خاص
@@ -223,3 +228,4 @@ public class StadiumSoundEngine
         return anyChants.Length > 0 ? anyChants[0] : string.Empty;
     }
 }
+

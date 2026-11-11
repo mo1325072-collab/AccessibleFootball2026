@@ -221,6 +221,20 @@ public class Program
         Console.WriteLine("===============================================================");
 
         string projectRoot = @"C:\Users\mohamed farag\.gemini\antigravity\scratch\AccessibleFootball2026";
+        if (!Directory.Exists(projectRoot))
+        {
+            // احتياطي: إذا انتقل المشروع من مساره القديم، استخرج في مجلد المشروع الحالي (بحث تصاعدي عن ملف الحل)
+            string? walk = AppDomain.CurrentDomain.BaseDirectory;
+            while (!string.IsNullOrEmpty(walk))
+            {
+                if (File.Exists(Path.Combine(walk, "AccessibleFootball2026.sln")))
+                {
+                    projectRoot = walk;
+                    break;
+                }
+                walk = Path.GetDirectoryName(walk);
+            }
+        }
         string dt00Path = @"D:\games\PES 2013\img\dt00_a.img";
         string dt01Path = @"D:\games\PES 2013\img\dt01.img";
         string assetsAudio = Path.Combine(projectRoot, "Assets", "Audio");
@@ -766,3 +780,4 @@ public class Program
         Console.WriteLine($"Extracted official PES 2013 menu track to {outWavPath} ({wav.Length} bytes)");
     }
 }
+
