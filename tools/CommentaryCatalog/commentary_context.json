@@ -11482,6 +11482,31 @@
       "priority": 0
     },
     {
+      "id": "04487",
+      "file": "Library/04487.mp3",
+      "event": "CoachPraise",
+      "transcript": "Good, good, good, good, good. Very good, guys. Nice.",
+      "review": "verified",
+      "all": [
+        {
+          "fact": "coach.response",
+          "op": "eq",
+          "value": "teamGoalPraise"
+        },
+        {
+          "fact": "goal.assisted",
+          "op": "eq",
+          "value": "true"
+        },
+        {
+          "fact": "goal.own",
+          "op": "eq",
+          "value": "false"
+        }
+      ],
+      "priority": 0
+    },
+    {
       "id": "04488",
       "file": "Library/04488.mp3",
       "event": "PassIntercepted",

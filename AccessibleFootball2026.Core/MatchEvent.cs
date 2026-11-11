@@ -55,7 +55,7 @@ public enum MatchEventType
     FreeKickAwarded, FreeKickReady, FreeKickTaken,
     DribbleSuccessful, Clearance, ShotBlocked, ControlLost,
     SubstitutionPlanned, RefereeProtest, GoalDisallowed, MissAnalysis, OffsideAnalysis,
-    Advantage, BallOut, LineupRequested, TrophyWon, CoachInstruction
+    Advantage, BallOut, LineupRequested, TrophyWon, CoachInstruction, CoachPraise
 }
 
 /// <summary>

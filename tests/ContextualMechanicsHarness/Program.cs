@@ -11,6 +11,24 @@ int passed=0,failed=0;
 void Check(bool ok,string label){ Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(ok)passed++;else failed++;}
 Team Team(string id,TeamSide side){var t=new Team(id,id,side);for(int i=0;i<11;i++)t.Players.Add(new Player(i+(side==TeamSide.Home?100:200),"P"+i,i+1,i==0?SpecificPosition.GK:SpecificPosition.ST,75,75,75,75,75));return t;}
 (MatchEngine m,List<MatchEvent> ev,Input input) Fresh(){var h=Team("h",TeamSide.Home);var a=Team("a",TeamSide.Away);var b=new MatchEventBus();var ev=new List<MatchEvent>();b.OnMatchEvent+=ev.Add;var input=new Input();var m=new MatchEngine(h,a,b,input);m.ResumeMatch();return(m,ev,input);}
+foreach(bool assisted in new[]{true,false})
+{
+ var(m,ev,input)=Fresh();m.AutomaticGoalRestart=false;
+ if(assisted)typeof(MatchEngine).GetProperty("PreviousKicker")!.SetValue(m,m.HomeTeam.Players.First(p=>p!=m.ActiveUserPlayer));
+ m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ Check(m.RequestCoachPraiseForLastTeamGoal()==assisted,assisted?"Actual teammate-assisted goal permits coach team praise":"Unassisted goal cannot claim a team-play coach response");
+ Check(!m.RequestCoachPraiseForLastTeamGoal(),"Coach team-goal response never repeats for the same goal");
+ Check(m.State==MatchState.GoalCelebration,"Coach response does not release live play before audio completion");
+ if(assisted)Check(ev.Last().Type==MatchEventType.CoachPraise&&ev.Last().Context.Facts["goal.assisted"]=="true"&&ev.Last().Context.Facts["coach.response"]=="teamGoalPraise","Coach response carries actual scoring team and assisted-goal facts");
+ m.CompleteGoalCelebration();Check(!m.RequestCoachPraiseForLastTeamGoal(),"Live play cannot emit a stale coach celebration");
+}
+{
+ var(m,ev,input)=Fresh();m.AutomaticGoalRestart=false;
+ typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m,m.AwayTeam.Players[3]);
+ typeof(MatchEngine).GetProperty("PreviousKicker")!.SetValue(m,m.HomeTeam.Players[4]);
+ m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ Check(ev.Last(e=>e.Type==MatchEventType.GoalScored).GoalData!.IsOwnGoal&&!m.RequestCoachPraiseForLastTeamGoal(),"Own-goal attribution cannot become team-assisted coach praise");
+}
 foreach(var technique in new[]{ShotTechnique.Header,ShotTechnique.Bicycle,ShotTechnique.Volley})
 {
  var(m,ev,input)=Fresh();Check(!m.TryExecuteTechnique(technique),technique+" rejects owned ground ball");

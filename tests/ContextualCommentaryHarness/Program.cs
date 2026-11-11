@@ -93,6 +93,8 @@ if (args.Length>0)
  Check(slots.Length==4918&&slots.Distinct().Count()==4918,"All4918 original slots accounted exactly once");
  Check(library.Recordings.Count(r=>r.ReviewStatus=="digital_zero")==1&&library.Recordings.Count(r=>r.ReviewStatus=="nonzero_fragment")==2,"Stereo silent encoding and two nonzero fragments remain separate from mono commentary");
  Check(!document.Clips.Any(c=>library.Recordings.Single(r=>r.File==c.File).ReviewStatus!="reviewed"),"Review holds and promos cannot leak into automatic selection");
+ var coachPraise=document.Clips.Single(c=>c.Id=="04487");
+ Check(coachPraise.Event=="CoachPraise"&&coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",true),("goal.own",false))))&&!coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",false),("goal.own",false)))),"Direct coach praise requires actual assisted team-goal response, not a generic goal or inferred mood");
  var reviewHolds=new[]{"00520","01201","01616","02009","04397","04431","04446","04472","04665","04721"};
  Check(!document.Clips.Any(c=>reviewHolds.Contains(c.Id.Split('-')[0])),"Independent-review unknown words, names and historical cause cannot leak into automatic matches");
  Check(library.Recordings.Single(r=>r.Slot=="01616").ReviewStatus=="context_history_pending","Genuine historical speech remains historical, not a current Ronaldo goal");

@@ -149,7 +149,7 @@ public class AccessibleFootballWindow : Form
         _eventBus.OnMatchEvent += evt =>
         {
             evt.Context = evt.Context.With(("crowd.active", SoundEffectsPlayer.IsCrowdActive));
-            _commentaryEngine.TryCommentOnEvent(evt);
+            _commentaryEngine.TryCommentOnEvent(evt,force:evt.Type==MatchEventType.CoachPraise);
             if (evt.Type == MatchEventType.GoalScored && _activeMatch?.LastGoalReplay is { } replay)
                 _commentaryEngine.QueueGoalReplay(replay);
             _coordinator.HandleMatchEvent(evt);
@@ -168,7 +168,17 @@ public class AccessibleFootballWindow : Form
 
         _coordinator.OnGoalSequenceCompleted += () =>
         {
-            if (!IsDisposed && IsHandleCreated) BeginInvoke(() => _activeMatch?.CompleteGoalCelebration());
+            if (!IsDisposed && IsHandleCreated) BeginInvoke(() =>
+            {
+                if(_activeMatch is not {} completedMatch)return;
+                if(_commentaryEngine.ActiveCommentator.Id==CommentatorId.FaresAwad && completedMatch.RequestCoachPraiseForLastTeamGoal())
+                    _commentaryEngine.RunAfterRecordedCommentary(() =>
+                    {
+                        if(!IsDisposed && IsHandleCreated)BeginInvoke(() =>
+                        {if(_activeMatch==completedMatch)completedMatch.CompleteGoalCelebration();});
+                    });
+                else completedMatch.CompleteGoalCelebration();
+            });
         };
 
         _commentaryEngine.OnCommentarySpoken += (commName, phrase) =>

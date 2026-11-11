@@ -871,8 +871,8 @@
     ],
     "sec": 7.5
    },
-   "finalStatus": "coach_voice_pending",
-   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+   "finalStatus": "reviewed",
+   "decision": "Independent review and original audio agree: Good, good, very good guys, nice. Direct coach praise after a real assisted team goal; no inferred face or historical cause. Routed after official announcement and before live restart."
   },
   {
    "slot": "04502",

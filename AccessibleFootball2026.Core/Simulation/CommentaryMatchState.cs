@@ -187,6 +187,22 @@ public partial class MatchEngine
             _shotContextValid = false;
     }
 
+    private GoalReplay? _praisedTeamGoal;
+    /// <summary>A real audible coach response, not a third-person claim about an inferred face or emotion.
+    /// Called only after the official goal announcement; the caller waits for its recording before restart.</summary>
+    public bool RequestCoachPraiseForLastTeamGoal()
+    {
+        if (State != MatchState.GoalCelebration || LastGoalReplay is not {} replay || ReferenceEquals(_praisedTeamGoal,replay)) return false;
+        var g=replay.Goal;
+        if(g.IsOwnGoal || g.Assister==null || g.Assister==g.Scorer ||
+           (g.ScoringTeam!=HomeTeam && g.ScoringTeam!=AwayTeam) ||
+           !g.ScoringTeam.Players.Contains(g.Scorer) || !g.ScoringTeam.Players.Contains(g.Assister)) return false;
+        _praisedTeamGoal=replay;
+        Publish(new MatchEvent(MatchEventType.CoachPraise,"إشادة المدرب بالعمل الجماعي بعد هدف بصناعة زميل",goalData:g),
+            ("coach.response","teamGoalPraise"),("coach.response.teamId",g.ScoringTeam.Id));
+        return true;
+    }
+
     /// <summary>Used for non-physics events (intro, shootout) with the same event-time score snapshot.</summary>
     public CommentaryContext GetCommentarySnapshot() => Snapshot();
 }

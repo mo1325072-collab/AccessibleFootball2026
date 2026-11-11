@@ -50,3 +50,5 @@ The catalog harness checks the actual decoded files, all source-slot accounting,
 ## Bounded independent review reconciliation
 
 The independent 59-recording pass is finished and recorded in `tools/CommentaryCatalog/independent_review.json`. It resolves only the claims supported by its evidence, not the full 933-recording corpus. Unclear names, historical claims, unrepresented expressions and missing genuine crowd responses remain nonautomatic. The staged audio package is a candidate implementation, not full semantic or Windows-runtime approval.
+
+Fully corroborated English coach praise (04487) is a direct response to an actual valid teammate-assisted non-own goal. It is queued after the official announcement, once per goal, and the match waits for its completion before restarting. It is not narration claiming an inferred facial expression. `remaining_route.json` names every unresolved recording and the exact evidence or meaningful feature it still needs.
