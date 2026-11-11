@@ -102,6 +102,7 @@ public static class Program
 
         Milestone8AudioIntegrationTests.RunAll(RunTest);
         Milestone9GameplayFairnessTests.RunAll(RunTest);
+        Milestone10CommentaryRepairTests.RunAll(RunTest);
 
         if (args.Any(a => a.Equals("--challenge-m5", StringComparison.OrdinalIgnoreCase) || a.Equals("--challenger", StringComparison.OrdinalIgnoreCase)))
         {

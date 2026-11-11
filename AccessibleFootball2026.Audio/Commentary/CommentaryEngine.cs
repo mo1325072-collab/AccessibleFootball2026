@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Threading;
 using AccessibleFootball2026.Core;
 using AccessibleFootball2026.Core.Models;
 
@@ -10,8 +12,15 @@ namespace AccessibleFootball2026.Audio.Commentary;
 /// <summary>
 /// محرك التعليق التفاعلي: يدير بنوك أصوات المعلقين، ويبث التعليق في اللحظة المناسبة،
 /// يدعم تشغيل مقاطع المعلقين الحقيقية المسجلة (WAV و MP3)، أو قراءتها عبر محرك الصوت في حال عدم توفر التسجيل.
+///
+/// إصلاح تنسيق التشغيل (تداخل الجمل) بدون أي تغيير في سياسة اختيار المقاطع القائمة:
+/// 1) كل المقاطع المسجلة تُشغَّل واحداً تلو الآخر عبر طابور تسلسلي: الحدث الحاسم (هدف/هاتريك/ريمونتادا)
+///    لم يعد يقطع المقطع الجاري في نفس اللحظة، بل يُسلسل بعده، ولا يتداخل صوتان أبداً.
+/// 2) الجمل النصية البديلة تنتظر انتهاء المقطع الجاري بدل النطق فوقه.
+/// 3) ربط صريح اختياري عبر commentary_map.json بجانب مجلد المعلق (eventKey -> مقاطع محددة):
+///    عند وجوده يقدَّم على مجلد الحدث؛ وبدونه يسري الترتيب الحالي كما هو تماماً.
 /// </summary>
-public class CommentaryEngine
+public class CommentaryEngine : IDisposable
 {
     public CommentatorProfile ActiveCommentator { get; private set; }
     private readonly List<CommentatorProfile> _availableCommentators;
@@ -21,14 +30,38 @@ public class CommentaryEngine
 
     private readonly Dictionary<string, string[]> _cachedFilesByDir = new(StringComparer.OrdinalIgnoreCase);
 
-    public event Action<string, string>? OnCommentarySpoken; // اسم المعلق، الجملة
+    // طابور التسلسل: لا يُشغَّل مقطع مسجل جديد قبل انتهاء الحالي (منع تداخل الجمل)
+    private sealed class PendingLine
+    {
+        public string? ClipPath;
+        public string? Phrase;
+        public MatchEvent? Event;
+        public Action? Callback;
+    }
+
+    private readonly Queue<PendingLine> _pendingLines = new();
+    private readonly object _queueLock = new();
+    private const int MaxPendingLines = 6;
+    private Timer? _dispatcher;
+    private int _dispatchActive;
+
+    // خريطة ربط صريحة اختيارية (commentary_map.json): eventKey -> مسارات نسبية لمقاطع محددة
+    private Dictionary<string, string[]>? _manifest;
+    private bool _manifestLoaded;
+    private readonly object _manifestLock = new();
+
+    // اسم المعلق، الجملة المنطوقة، الحدث صاحب العلاقة
+    public event Action<string, string>? OnCommentarySpoken;
+
+    // يُطلق عند بدء تشغيل مقطع مسجل فعلياً (لإسكات قارئ الشاشة حتى لا يتداخل الصوتان)
+    public event Action<string>? OnRecordedCommentaryStarted;
 
     public CommentaryEngine(CommentatorId defaultCommentator = CommentatorId.RaoufKhlif, string? baseDir = null)
     {
         _availableCommentators = CommentatorBank.GetAllCommentators();
-        ActiveCommentator = _availableCommentators.Find(c => c.Id == defaultCommentator) 
+        ActiveCommentator = _availableCommentators.Find(c => c.Id == defaultCommentator)
                             ?? _availableCommentators[0];
-        
+
         string baseAudioDir = baseDir ?? ResolveBaseAudioDir();
         _baseCommentaryDir = Path.Combine(baseAudioDir, "Commentary");
         PreWarmCache();
@@ -104,6 +137,11 @@ public class CommentaryEngine
         if (found != null)
         {
             ActiveCommentator = found;
+            lock (_manifestLock)
+            {
+                _manifest = null;
+                _manifestLoaded = false;
+            }
         }
     }
 
@@ -128,11 +166,149 @@ public class CommentaryEngine
         if (files.Length > 0)
         {
             var randFile = files[Random.Shared.Next(files.Length)];
-            _lastCommentaryTime = DateTime.UtcNow;
-            SoundEffectsPlayer.PlayCommentaryAudio(randFile);
+            EnqueueClip(randFile, null);
             return true;
         }
         return false;
+    }
+
+    /// <summary>هل قناة التعليق حرة تماماً: لا مقطع يُشغَّل ولا جملة تنتظر في الطابور.</summary>
+    public bool IsIdle
+    {
+        get
+        {
+            lock (_queueLock)
+            {
+                if (_pendingLines.Count > 0 || Volatile.Read(ref _dispatchActive) != 0) return false;
+            }
+            return !SoundEffectsPlayer.IsCommentaryPlaying();
+        }
+    }
+
+    // Used for match introductions: retain the spoken team information, but wait for the recorded intro.
+    public void RunAfterRecordedCommentary(Action callback)
+    {
+        lock (_queueLock) { _pendingLines.Enqueue(new PendingLine { Callback = callback }); }
+        EnsureDispatcher();
+    }
+
+    public void ClearPendingLines()
+    {
+        lock (_queueLock) { _pendingLines.Clear(); }
+    }
+
+    private bool HasPendingLines
+    {
+        get { lock (_queueLock) { return _pendingLines.Count > 0; } }
+    }
+
+    private void EnsureDispatcher()
+    {
+        lock (_queueLock)
+        {
+            _dispatcher ??= new Timer(DispatchPending, null, 250, 250);
+        }
+    }
+
+    private void EnqueueClip(string clipPath, MatchEvent? matchEvent)
+    {
+        lock (_queueLock)
+        {
+            if (_pendingLines.Count >= MaxPendingLines)
+            {
+                if (matchEvent?.Type == MatchEventType.FullTime) _pendingLines.Dequeue();
+                else return;
+            }
+            _pendingLines.Enqueue(new PendingLine { ClipPath = clipPath, Event = matchEvent });
+        }
+        EnsureDispatcher();
+        DispatchPending(null); // تشغيل فوري إن كانت القناة حرة، بلا انتظار نبضة المؤقت
+    }
+
+    private void EnqueuePhrase(string phrase, MatchEvent matchEvent)
+    {
+        lock (_queueLock)
+        {
+            if (_pendingLines.Count >= MaxPendingLines) return;
+            _pendingLines.Enqueue(new PendingLine { Phrase = phrase, Event = matchEvent });
+        }
+        EnsureDispatcher();
+    }
+
+    private void DispatchPending(object? state)
+    {
+        if (Interlocked.Exchange(ref _dispatchActive, 1) == 1) return;
+        try
+        {
+            if (SoundEffectsPlayer.IsCommentaryPlaying()) return;
+
+            PendingLine? next;
+            lock (_queueLock)
+            {
+                next = _pendingLines.Count > 0 ? _pendingLines.Dequeue() : null;
+            }
+            if (next == null) return;
+
+            if (next.ClipPath != null)
+            {
+                _lastCommentaryTime = DateTime.UtcNow;
+                SoundEffectsPlayer.PlayCommentaryAudio(next.ClipPath);
+                OnRecordedCommentaryStarted?.Invoke(next.ClipPath);
+            }
+            else if (next.Callback != null)
+            {
+                next.Callback();
+            }
+            else if (next.Phrase != null && next.Event != null)
+            {
+                _lastCommentaryTime = DateTime.UtcNow;
+                OnCommentarySpoken?.Invoke(ActiveCommentator.DisplayName, next.Phrase);
+            }
+        }
+        catch { }
+        finally
+        {
+            _dispatchActive = 0;
+        }
+    }
+
+    private string[] GetManifestFiles(string eventKey)
+    {
+        EnsureManifestLoaded();
+        if (_manifest != null && _manifest.TryGetValue(eventKey, out var files)) return files;
+        return Array.Empty<string>();
+    }
+
+    private void EnsureManifestLoaded()
+    {
+        lock (_manifestLock)
+        {
+            if (_manifestLoaded) return;
+            _manifestLoaded = true;
+            try
+            {
+                string commentatorDir = Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString());
+                string path = Path.Combine(commentatorDir, "commentary_map.json");
+                if (!File.Exists(path)) return;
+
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                var map = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    if (prop.Value.ValueKind != JsonValueKind.Array) continue;
+                    var list = prop.Value.EnumerateArray()
+                        .Where(e => e.ValueKind == JsonValueKind.String)
+                        .Select(e => e.GetString()!)
+                        .Where(rel => !string.IsNullOrWhiteSpace(rel) && !Path.IsPathRooted(rel) && !rel.Contains(".."))
+                        .Select(rel => Path.Combine(commentatorDir, rel))
+                        .Where(File.Exists)
+                        .ToArray();
+                    if (list.Length > 0) map[prop.Name] = list;
+                }
+                _manifest = map;
+            }
+            catch { }
+        }
     }
 
     public bool TryCommentOnEvent(MatchEvent matchEvent, bool force = false)
@@ -141,7 +317,8 @@ public class CommentaryEngine
 
         if (!force && !isCritical)
         {
-            if (DateTime.UtcNow - _lastCommentaryTime < _minIntervalBetweenLines || SoundEffectsPlayer.IsCommentaryPlaying())
+            if (DateTime.UtcNow - _lastCommentaryTime < _minIntervalBetweenLines ||
+                SoundEffectsPlayer.IsCommentaryPlaying() || HasPendingLines)
             {
                 return false;
             }
@@ -185,33 +362,39 @@ public class CommentaryEngine
 
         if (string.IsNullOrEmpty(eventKey)) return false;
 
-        // 1. أولاً: فحص الملفات المسجلة الحقيقية للمعلق في مجلد الحدث (ذاكرة فورية O(1) بدون تأخير قرص)
-        string dir = Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), eventFolder);
-        var files = GetCachedFiles(dir);
+        // 1. ربط صريح اختياري في commentary_map.json إن وُجد (لا يغيّر شيئاً بغيابه)
+        string[] files = GetManifestFiles(eventKey);
 
-        // مسارات بديلة في حال عدم توفر المجلد التخصصي لدى بعض المعلقين
+        // 2. الترتيب الحالي كما هو: ملفات المعلق المسجلة في مجلد الحدث (ذاكرة فورية O(1) بدون تأخير قرص)
         if (files.Length == 0)
         {
-            if (eventFolder == "Corners" || eventFolder == "Cards" || eventFolder == "Injuries")
+            string dir = Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), eventFolder);
+            files = GetCachedFiles(dir);
+
+            // مسارات بديلة في حال عدم توفر المجلد التخصصي لدى بعض المعلقين
+            if (files.Length == 0)
             {
-                files = GetCachedFiles(Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Fouls"));
-            }
-            else if (eventFolder == "Misses")
-            {
-                files = GetCachedFiles(Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Shots"));
+                if (eventFolder == "Corners" || eventFolder == "Cards" || eventFolder == "Injuries")
+                {
+                    files = GetCachedFiles(Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Fouls"));
+                }
+                else if (eventFolder == "Misses")
+                {
+                    files = GetCachedFiles(Path.Combine(_baseCommentaryDir, ActiveCommentator.Id.ToString(), "Shots"));
+                }
             }
         }
 
         if (files.Length > 0)
         {
-            _lastCommentaryTime = DateTime.UtcNow;
             matchEvent.HandledByCommentary = true;
             var randFile = files[Random.Shared.Next(files.Length)];
-            SoundEffectsPlayer.PlayCommentaryAudio(randFile);
+            // تسلسل بدل القطع الفوري: الحدث الحاسم لم يعد يغلق المقطع الجاري في نفس اللحظة
+            EnqueueClip(randFile, matchEvent);
             return true;
         }
 
-        // 2. إذا لم يكن هناك ملف مسجل بعد، نستخدم الجملة النصية عبر قارئ الشاشة
+        // 3. إذا لم يكن هناك ملف مسجل بعد، نستخدم الجملة النصية عبر قارئ الشاشة
         string? phrase = ActiveCommentator.GetRandomPhrase(eventKey);
         if (string.IsNullOrEmpty(phrase))
         {
@@ -228,12 +411,30 @@ public class CommentaryEngine
 
         if (!string.IsNullOrEmpty(phrase))
         {
-            _lastCommentaryTime = DateTime.UtcNow;
             matchEvent.HandledByCommentary = true;
-            OnCommentarySpoken?.Invoke(ActiveCommentator.DisplayName, phrase);
+            if (SoundEffectsPlayer.IsCommentaryPlaying() || HasPendingLines)
+            {
+                // القناة مشغولة بمقطع مسجل: تُسلسل الجملة بعده حتى لا يتداخل الصوتان
+                EnqueuePhrase(phrase, matchEvent);
+            }
+            else
+            {
+                _lastCommentaryTime = DateTime.UtcNow;
+                OnCommentarySpoken?.Invoke(ActiveCommentator.DisplayName, phrase);
+            }
             return true;
         }
 
         return false;
+    }
+
+    public void Dispose()
+    {
+        lock (_queueLock)
+        {
+            _dispatcher?.Dispose();
+            _dispatcher = null;
+            _pendingLines.Clear();
+        }
     }
 }

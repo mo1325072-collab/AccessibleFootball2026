@@ -157,6 +157,14 @@ public class AccessibleFootballWindow : Form
         {
             _screenReader.Speak($"{commName}: {phrase}", interrupt: false);
         };
+
+        // بدء مقطع مسجل يسكت قارئ الشاشة فوراً حتى لا يتداخل الصوتان
+        _commentaryEngine.OnRecordedCommentaryStarted += _ => _screenReader.CancelSpeech();
+        FormClosed += (_, _) =>
+        {
+            _coordinator.CancelPendingGoalSequence();
+            _commentaryEngine.Dispose();
+        };
     }
 
     protected override void OnShown(EventArgs e)
@@ -280,6 +288,8 @@ public class AccessibleFootballWindow : Form
 
     public void OpenMainMenu()
     {
+        _commentaryEngine.ClearPendingLines();
+        _coordinator.CancelPendingGoalSequence();
         UpdateWindowHeadings();
         _menuHistory.Clear();
         if (!_isInStartupIntro)
@@ -725,6 +735,8 @@ public class AccessibleFootballWindow : Form
 
     private void StartInteractiveMatch(Team homeTeam, Team awayTeam)
     {
+        _commentaryEngine.ClearPendingLines();
+        _coordinator.CancelPendingGoalSequence();
         _currentMenu = null;
         _menuHistory.Clear();
         _inputHandler.Reset();
@@ -771,7 +783,8 @@ public class AccessibleFootballWindow : Form
         }
         else
         {
-            _screenReader.Speak($"{homeTeam.Name} ضد {awayTeam.Name}. الكرة معك الآن مع {match.ActiveUserPlayer.Name}.", interrupt: false);
+            _commentaryEngine.RunAfterRecordedCommentary(() =>
+                _screenReader.Speak($"{homeTeam.Name} ضد {awayTeam.Name}. الكرة معك الآن مع {match.ActiveUserPlayer.Name}.", interrupt: false));
         }
 
         _titleLabel.Text = $"{homeTeam.Name} ضد {awayTeam.Name}";
@@ -1255,4 +1268,5 @@ public class AccessibleFootballWindow : Form
         _ => false
     };
 }
+
 

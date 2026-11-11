@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using AccessibleFootball2026.Core;
 
 namespace AccessibleFootball2026.Audio;
@@ -29,9 +32,14 @@ public class SmartAudioCoordinator
     public event Action<float>? OnCrowdVolumeDucking;
     public event Action? OnGoalSequenceCompleted; // إشارة للمحرك باستئناف اللعب بعد اكتمال إعلان الهدف
 
-    public SmartAudioCoordinator(IScreenReader screenReader)
+    // يجيب: هل قناة المعلق حرة تماماً (لا مقطع يُشغَّل ولا جملة في الطابور)؟
+    // يحقن من نافذة اللعبة نحو CommentaryEngine.IsIdle؛ عند غيابه يُكتفى بحالة القناة اللحظية.
+    private readonly Func<bool>? _isCommentaryIdle;
+
+    public SmartAudioCoordinator(IScreenReader screenReader, Func<bool>? isCommentaryIdle = null)
     {
         _screenReader = screenReader;
+        _isCommentaryIdle = isCommentaryIdle;
     }
 
     public void NotifyBallZoneChanged(PitchZone newZone)
@@ -256,23 +264,25 @@ public class SmartAudioCoordinator
         }
     }
 
-    private void HandleGoalCelebrationSequence(GoalDetails goalData, bool handledByCommentary)
+    private int _goalSequenceGeneration;
+
+    public void CancelPendingGoalSequence() => Interlocked.Increment(ref _goalSequenceGeneration);
+
+    private async void HandleGoalCelebrationSequence(GoalDetails goalData, bool handledByCommentary)
     {
-        // صوت الجماهير يبقى بكامل حماسه الطبيعي 100% مع صرخة المعلق
-        int delayMs = handledByCommentary ? 3000 : 500;
-
-        Task.Delay(delayMs).ContinueWith(_ =>
+        int generation = Volatile.Read(ref _goalSequenceGeneration);
+        await Task.Delay(handledByCommentary ? 600 : 500);
+        // No fixed timeout that would speak over a longer sequence of recorded clips.
+        while (generation == Volatile.Read(ref _goalSequenceGeneration))
         {
-            // 3. قارئ الشاشة يعلن رسمياً مسجل الهدف وصاحب الأسيست أو الهدف الذاتي والنتيجة والدقيقة
-            string officialGoalAnnouncement = goalData.ToOfficialAnnouncement();
-            SpeakWithDucking(officialGoalAnnouncement);
-
-            // 4. بعد انتهاء القراءة، ننتظر ثانية ثم نعطي إشارة للمحرك باستئناف المباراة وركلة البداية
-            Task.Delay(2000).ContinueWith(__ =>
-            {
-                OnGoalSequenceCompleted?.Invoke();
-            });
-        });
+            bool idle = _isCommentaryIdle?.Invoke() ?? !SoundEffectsPlayer.IsCommentaryPlaying();
+            if (idle) break;
+            await Task.Delay(250);
+        }
+        if (generation != Volatile.Read(ref _goalSequenceGeneration)) return;
+        SpeakWithDucking(goalData.ToOfficialAnnouncement());
+        await Task.Delay(2000);
+        if (generation == Volatile.Read(ref _goalSequenceGeneration)) OnGoalSequenceCompleted?.Invoke();
     }
 
     private void SpeakWithDucking(string text)
@@ -286,3 +296,4 @@ public class SmartAudioCoordinator
         });
     }
 }
+

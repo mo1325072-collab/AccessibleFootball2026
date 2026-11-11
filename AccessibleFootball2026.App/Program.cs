@@ -80,7 +80,7 @@ internal static class Program
         var eventBus = new MatchEventBus();
         var inputHandler = new KeyboardInputHandler();
         var commentaryEngine = new CommentaryEngine(CommentatorId.RaoufKhlif, baseAudioDir);
-        var coordinator = new SmartAudioCoordinator(screenReader);
+        var coordinator = new SmartAudioCoordinator(screenReader, () => commentaryEngine.IsIdle);
         var anthemEngine = new AnthemEngine(screenReader, Path.Combine(baseAudioDir, "Anthems"));
 
         if (runOnlyTest)
