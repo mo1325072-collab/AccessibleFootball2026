@@ -642,6 +642,11 @@ public class AccessibleFootballWindow : Form
             menu.AddItem($"{current.DisplayName}، {current.Region}", () =>
             {
                 _commentaryEngine.SwitchCommentator(current.Id);
+                // حفظ الاختيار حتى يبقى معتمداً في المباريات القادمة ولا ترجعه مزامنة الإعدادات
+                MatchSettings.Current.Commentator = current.Id;
+                MatchSettings.Current.CommentaryVoice = current.Id == CommentatorId.FaresAwad ? CommentaryVoiceOption.FaresAwad : CommentaryVoiceOption.RaoufKhlif;
+                MatchSettings.Current.CommentaryEnabled = true;
+                MatchSettings.Current.Save();
                 _screenReader.Speak($"تم اعتماد المعلق {current.DisplayName}");
                 onSelected(current);
             });
