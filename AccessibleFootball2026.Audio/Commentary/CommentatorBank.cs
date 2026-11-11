@@ -37,6 +37,9 @@ public static class CommentatorBank
         p.AddPhrase("FullTime", "صافرة النهاية ونهاية المباراة. شكراً على هذه الوجبة الكروية الممتعة!");
         p.AddPhrase("StoppageTime", "الحكم يشير إلى الوقت المحتسب بدلاً من الضائع.");
         p.AddPhrase("Injury", "سقوط اللاعب على أرضية الميدان وتدخل الجهاز الطبي.");
+        p.AddPhrase("Card", "بطاقة في وجه اللاعب بعد هذا التدخل.");
+        p.AddPhrase("RedCard", "بطاقة حمراء وطرد مباشر للاعب!");
+        p.AddPhrase("Penalty", "ركلة جزاء! الحكم يشير إلى نقطة الجزاء!");
         return p;
     }
 
@@ -62,6 +65,9 @@ public static class CommentatorBank
         p.AddPhrase("FullTime", "صافرة النهاية تأتي لتعلن نهاية المباراة.");
         p.AddPhrase("StoppageTime", "الحكم يشير إلى الوقت المحتسب بدلاً من الضائع.");
         p.AddPhrase("Injury", "سقوط اللاعب على أرضية الملعب وتوقف اللعب.");
+        p.AddPhrase("Card", "الحكم يخرج البطاقة في هذه اللقطة.");
+        p.AddPhrase("RedCard", "بطاقة حمراء! طرد في هذه اللقطة!");
+        p.AddPhrase("Penalty", "ركلة جزاء! الحكم يشير إلى علامة الجزاء!");
         return p;
     }
 }
