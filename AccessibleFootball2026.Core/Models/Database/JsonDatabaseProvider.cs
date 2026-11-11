@@ -39,7 +39,7 @@ public class JsonTeamEntry
 public class JsonPlayerEntry
 {
     public string? name { get; set; }
-    public int age { get; set; }
+    public int? age { get; set; }
     public string? position { get; set; }
     public int power { get; set; }
 }
@@ -231,7 +231,7 @@ public static class JsonDatabaseProvider
 
                         var (specPos, role) = ParsePosition(p.position);
                         int power = Math.Clamp(p.power, 45, 99);
-                        int age = p.age > 0 ? p.age : 25;
+                        int age = p.age is > 0 ? p.age.Value : 25;
 
                         int spd, pas, sho, def, phy;
                         CalculatePlayerAttributes(role, power, out spd, out pas, out sho, out def, out phy);
