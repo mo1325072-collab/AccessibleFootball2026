@@ -20,7 +20,8 @@ public enum UiLanguage
 public enum CommentaryVoiceOption
 {
     RaoufKhlif,
-    Off
+    Off,
+    FaresAwad // يُلحق في النهاية: ملفات الإعدادات القديمة تخزن الرقم (0=رؤوف، 1=صامت)
 }
 
 public static class DifficultyExtensions
@@ -92,8 +93,9 @@ public class MatchSettings
     public bool PenaltyShootoutEnabled { get; set; } = true; // ركلات ترجيح عند استمرار التعادل
 
     // 2. خيارات المعلق الصوتي المعتمد
-    public CommentatorId Commentator { get; set; } = CommentatorId.RaoufKhlif;
-    public CommentaryVoiceOption CommentaryVoice { get; set; } = CommentaryVoiceOption.RaoufKhlif;
+    public CommentatorId Commentator { get; set; } = CommentatorId.FaresAwad;
+    public CommentaryVoiceOption CommentaryVoice { get; set; } = CommentaryVoiceOption.FaresAwad;
+    public int SettingsVersion { get; set; } // 0 في الملفات القديمة؛ 2 بعد ترقية المعلق الافتراضي
     public bool CommentaryEnabled { get; set; } = true;
 
     // 3. التحكم بمستويات الصوت (0 - 100)
@@ -129,8 +131,8 @@ public class MatchSettings
         MatchDurationMinutes = 5;
         ExtraTimeEnabled = true;
         PenaltyShootoutEnabled = true;
-        Commentator = CommentatorId.RaoufKhlif;
-        CommentaryVoice = CommentaryVoiceOption.RaoufKhlif;
+        Commentator = CommentatorId.FaresAwad;
+        CommentaryVoice = CommentaryVoiceOption.FaresAwad;
         CommentaryEnabled = true;
         MasterVolumePercent = 100;
         SfxVolumePercent = 90;
@@ -196,6 +198,18 @@ public class MatchSettings
                     Current.AutoSubstitutionsEnabled = loaded.AutoSubstitutionsEnabled;
                     Current.AutoTacticalAdjustmentsEnabled = loaded.AutoTacticalAdjustmentsEnabled;
                     Current.AiVarEnabled = loaded.AiVarEnabled;
+                    Current.SettingsVersion = loaded.SettingsVersion;
+                    // ترقية لمرة واحدة: اعتماد فارس عوض معلقاً افتراضياً بطلب المستخدم؛
+                    // رؤوف خليف يبقى متاحاً من قائمة اختيار المعلق ولا تتكرر الترقية بعد الإصدار 2
+                    if (Current.SettingsVersion < 2)
+                    {
+                        Current.Commentator = CommentatorId.FaresAwad;
+                        Current.CommentaryVoice = CommentaryVoiceOption.FaresAwad;
+                        Current.CommentaryEnabled = true;
+                        Current.SettingsVersion = 2;
+                        Current.Save();
+                        return;
+                    }
                     Current.ApplyLive();
                 }
             }
