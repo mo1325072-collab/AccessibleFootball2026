@@ -12,6 +12,7 @@ public static class CommentaryLibraryMenuBuilder
         "non_speech_pending"=>"مقاطع غير صفرية لم يتحدد محتواها",
         "non_game_promo"=>"مقدمات ونسب التعليق لصاحبه، لا تستخدم أثناء المباراة",
         "context_asset_pending"=>"تحتاج مؤثرات جماهير أصلية وسياقاً مسموعاً مؤكداً",
+        "context_history_pending"=>"تصف واقعة تاريخية لا تثبتها مباراة عادية",
         "context_emotion_pending"=>"تصف مشاعر لم يثبت سياقها في اللعبة",
         "context_visual_pending"=>"تصف تعبير وجه غير ممثل في اللعبة الحالية",
         "digital_zero"=>"الخانة الصامتة رقمياً وتكراراتها الأصلية",

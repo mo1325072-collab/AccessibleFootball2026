@@ -1775,7 +1775,7 @@
   },
   "reviewStatus": "non_speech_pending",
   "mappings": [],
-  "notes": "Nonzero decoded audio with no reliable speech transcript; retain for listening, never infer silence."
+  "notes": "Nonzero decoded audio with no reliable speech transcript; retain for listening, never infer silence. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
  },
  {
   "slot": "00412",
@@ -2672,14 +2672,14 @@
    "duration_seconds": 5.20127,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "speech_review_pending",
   "mappings": [
    {
     "event": "Save",
     "all": []
    }
   ],
-  "notes": ""
+  "notes": "Goalkeeper phrase supported, but the apparent nationality/adjective remains unresolved. A generic save cannot justify an unknown extra assertion."
  },
  {
   "slot": "00522",
@@ -3851,7 +3851,7 @@
   },
   "reviewStatus": "coach_voice_pending",
   "mappings": [],
-  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate."
+  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "01009",
@@ -3959,7 +3959,7 @@
   },
   "reviewStatus": "coach_voice_pending",
   "mappings": [],
-  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate."
+  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "01030",
@@ -3974,7 +3974,7 @@
   },
   "reviewStatus": "coach_voice_pending",
   "mappings": [],
-  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate."
+  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "01032",
@@ -3989,7 +3989,7 @@
   },
   "reviewStatus": "coach_voice_pending",
   "mappings": [],
-  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate."
+  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "01033",
@@ -4159,7 +4159,7 @@
   },
   "reviewStatus": "coach_voice_pending",
   "mappings": [],
-  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate."
+  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "01062",
@@ -5760,7 +5760,7 @@
     ]
    }
   ],
-  "notes": "Repeated independent readings still unclear; not safe to infer a player or generic intro."
+  "notes": "Repeated independent readings still unclear; not safe to infer a player or generic intro. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "01202",
@@ -7392,7 +7392,7 @@
    "duration_seconds": 34.644172,
    "sample_rate": 22050
   },
-  "reviewStatus": "speech_review_pending",
+  "reviewStatus": "context_history_pending",
   "mappings": [
    {
     "event": "Goal",
@@ -7405,7 +7405,7 @@
     ]
    }
   ],
-  "notes": "Contains historical Blatter provocation in the transcript; normal Ronaldo goal is insufficient. Original preserved for independent semantic review."
+  "notes": "Independent review confirms historical Blatter provocation in the audio. A current Ronaldo goal cannot establish this historical cause; cultural epithets are not an audible full name. Historical content preserved, ordinary-match trigger disabled."
  },
  {
   "slot": "01617",
@@ -7828,7 +7828,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "01760",
@@ -8023,7 +8023,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "01844",
@@ -8074,7 +8074,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "01979",
@@ -8125,7 +8125,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "02000",
@@ -8452,7 +8452,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "02279",
@@ -8467,7 +8467,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "02291",
@@ -8528,7 +8528,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "02470",
@@ -8579,7 +8579,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "02579",
@@ -8640,7 +8640,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "02799",
@@ -8691,7 +8691,7 @@
   },
   "reviewStatus": "identity_pending",
   "mappings": [],
-  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool."
+  "notes": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "02828",
@@ -11532,7 +11532,7 @@
     ]
    }
   ],
-  "notes": ""
+  "notes": "Independent review supports بكل أريحية يتصدى لها الحارس; opening fragment remains a transcript uncertainty, not an added identity."
  },
  {
   "slot": "03224",
@@ -11888,10 +11888,17 @@
   "mappings": [
    {
     "event": "Save",
-    "all": []
+    "all": [
+     {
+      "fact": "save.difficulty",
+      "op": "eq",
+      "value": "easy"
+     }
+    ]
    }
   ],
-  "notes": ""
+  "notes": "Independent review supports the keeper stopping the ball easily, not the first-pass question form.",
+  "verifiedTranscript": "وكرة يوقف الحارس بسهولة."
  },
  {
   "slot": "03246",
@@ -12014,7 +12021,7 @@
   },
   "reviewStatus": "speech_review_pending",
   "mappings": [],
-  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
  },
  {
   "slot": "03283",
@@ -12656,7 +12663,7 @@
   },
   "reviewStatus": "speech_review_pending",
   "mappings": [],
-  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
  },
  {
   "slot": "03330",
@@ -13071,7 +13078,7 @@
   },
   "reviewStatus": "speech_review_pending",
   "mappings": [],
-  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "03355",
@@ -13178,7 +13185,7 @@
   },
   "reviewStatus": "speech_review_pending",
   "mappings": [],
-  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "03363",
@@ -14749,7 +14756,7 @@
   },
   "reviewStatus": "speech_review_pending",
   "mappings": [],
-  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
  },
  {
   "slot": "03585",
@@ -16855,7 +16862,7 @@
   },
   "reviewStatus": "speech_review_pending",
   "mappings": [],
-  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  "notes": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
  },
  {
   "slot": "03969",
@@ -19106,14 +19113,14 @@
    "duration_seconds": 1.486077,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "speech_review_pending",
   "mappings": [
    {
     "event": "BallKicked",
     "all": []
    }
   ],
-  "notes": ""
+  "notes": "Independent review did not recover convergent intelligible content; prior event label is unverifiable. Original preserved, no automatic trigger."
  },
  {
   "slot": "04398",
@@ -19849,7 +19856,7 @@
   },
   "reviewStatus": "non_speech_pending",
   "mappings": [],
-  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed."
+  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
  },
  {
   "slot": "04428",
@@ -19919,7 +19926,7 @@
    "duration_seconds": 1.857596,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "speech_review_pending",
   "mappings": [
    {
     "event": "PossessionPlay",
@@ -19937,7 +19944,7 @@
     ]
    }
   ],
-  "notes": ""
+  "notes": "This is a chance is supported; trailing word may be a name. Dangerous attack alone cannot validate the full recording."
  },
  {
   "slot": "04436",
@@ -20145,7 +20152,7 @@
    "duration_seconds": 2.832834,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "speech_review_pending",
   "mappings": [
    {
     "event": "PossessionPlay",
@@ -20168,7 +20175,7 @@
     ]
    }
   ],
-  "notes": ""
+  "notes": "Wing plus space is supported, but a possible player-name fragment remains unresolved. No identity is bound or omitted from the actual audio."
  },
  {
   "slot": "04448",
@@ -20603,7 +20610,7 @@
    "duration_seconds": 1.486077,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "speech_review_pending",
   "mappings": [
    {
     "event": "PossessionPlay",
@@ -20621,7 +20628,7 @@
     ]
    }
   ],
-  "notes": ""
+  "notes": "Independent review did not recover convergent intelligible content; prior event label is unverifiable. Original preserved, no automatic trigger."
  },
  {
   "slot": "04478",
@@ -20667,7 +20674,7 @@
   },
   "reviewStatus": "coach_voice_pending",
   "mappings": [],
-  "notes": "Non-Arabic coach shouts; preserve with contextual coach lane after review."
+  "notes": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "04488",
@@ -20793,7 +20800,7 @@
   },
   "reviewStatus": "non_speech_pending",
   "mappings": [],
-  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed."
+  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
  },
  {
   "slot": "04506",
@@ -21981,7 +21988,7 @@
   },
   "reviewStatus": "non_speech_pending",
   "mappings": [],
-  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed."
+  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
  },
  {
   "slot": "04609",
@@ -22113,7 +22120,7 @@
   },
   "reviewStatus": "non_speech_pending",
   "mappings": [],
-  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed."
+  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
  },
  {
   "slot": "04616",
@@ -22300,7 +22307,7 @@
   },
   "reviewStatus": "non_speech_pending",
   "mappings": [],
-  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed."
+  "notes": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
  },
  {
   "slot": "04627",
@@ -23014,14 +23021,14 @@
    "duration_seconds": 3.250794,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "speech_review_pending",
   "mappings": [
    {
     "event": "Tackle",
     "all": []
    }
   ],
-  "notes": ""
+  "notes": "Independent review supports praise or opponent intervention only partially; tackle event is merely plausible, not verified from the entire recording."
  },
  {
   "slot": "04667",
@@ -23036,7 +23043,7 @@
   },
   "reviewStatus": "coach_voice_pending",
   "mappings": [],
-  "notes": "Non-Arabic coach shouts; preserve with contextual coach lane after review."
+  "notes": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "04673",
@@ -23260,7 +23267,7 @@
   },
   "reviewStatus": "coach_voice_pending",
   "mappings": [],
-  "notes": "Non-Arabic coach shouts; preserve with contextual coach lane after review."
+  "notes": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "04691",
@@ -23357,7 +23364,7 @@
   },
   "reviewStatus": "coach_voice_pending",
   "mappings": [],
-  "notes": "Non-Arabic coach shouts; preserve with contextual coach lane after review."
+  "notes": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
  },
  {
   "slot": "04699",
@@ -23542,14 +23549,14 @@
    "duration_seconds": 1.904036,
    "sample_rate": 22050
   },
-  "reviewStatus": "reviewed",
+  "reviewStatus": "speech_review_pending",
   "mappings": [
    {
     "event": "Tackle",
     "all": []
    }
   ],
-  "notes": ""
+  "notes": "Independent review supports praise or opponent intervention only partially; tackle event is merely plausible, not verified from the entire recording."
  },
  {
   "slot": "04728",

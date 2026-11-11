@@ -46,3 +46,7 @@ dotnet run --project tests/ChallengerPhysicsHarness
 ```
 
 The catalog harness checks the actual decoded files, all source-slot accounting, positive predicates and missing/conflicting-fact rejection. Those predicate checks are not proof of spoken meaning or producer reachability. The mechanics harness separately checks real restarts, physical actions, offside, attribution, replay capture, final states and audio-completion ordering.
+
+## Bounded independent review reconciliation
+
+The independent 59-recording pass is finished and recorded in `tools/CommentaryCatalog/independent_review.json`. It resolves only the claims supported by its evidence, not the full 933-recording corpus. Unclear names, historical claims, unrepresented expressions and missing genuine crowd responses remain nonautomatic. The staged audio package is a candidate implementation, not full semantic or Windows-runtime approval.

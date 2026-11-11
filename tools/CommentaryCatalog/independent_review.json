@@ -1,0 +1,1073 @@
+{
+ "date": "2026-11-11",
+ "scope": "47 held recordings and 12 candidate recordings, all 59 reviewed",
+ "limitations": "Independent transcription and semantic cross-check, not human listening approval. Partial support cannot establish all words; nonconvergence is not silence or an identified sound effect. Historical assertions are not current match facts. Unresolved recordings remain preserved and nonautomatic.",
+ "recordings": [
+  {
+   "slot": "00368",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.909,
+    "segs": [
+     {
+      "t": "كرب تسلمهم المرماء",
+      "lp": -0.563,
+      "ns": 0.129
+     }
+    ],
+    "sec": 7.1
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "00372",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.904,
+    "segs": [
+     {
+      "t": "هارضي على القائمة ثانية",
+      "lp": -0.339,
+      "ns": 0.107
+     }
+    ],
+    "sec": 7.4
+   },
+   "finalStatus": "reviewed",
+   "decision": ""
+  },
+  {
+   "slot": "00411",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.407,
+    "segs": [],
+    "sec": 6.7
+   },
+   "finalStatus": "non_speech_pending",
+   "decision": "Nonzero decoded audio with no reliable speech transcript; retain for listening, never infer silence. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
+  },
+  {
+   "slot": "00520",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.882,
+    "segs": [
+     {
+      "t": "اوهوهوهوهوهوهوهوهوهوهوهوهوهوهوهوهوههوهوه",
+      "lp": -0.495,
+      "ns": 0.124
+     },
+     {
+      "t": "لاقتلى تنسى لي حرس المرمى",
+      "lp": -0.495,
+      "ns": 0.124
+     }
+    ],
+    "sec": 65.2
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Goalkeeper phrase supported, but the apparent nationality/adjective remains unresolved. A generic save cannot justify an unknown extra assertion."
+  },
+  {
+   "slot": "01007",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.582,
+    "segs": [
+     {
+      "t": "Come on, here without go! Come on without go!",
+      "lp": -0.638,
+      "ns": 0.288
+     },
+     {
+      "t": "Line!",
+      "lp": -0.638,
+      "ns": 0.288
+     }
+    ],
+    "sec": 7.4
+   },
+   "finalStatus": "coach_voice_pending",
+   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "01029",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.492,
+    "segs": [
+     {
+      "t": "Come on!",
+      "lp": -0.892,
+      "ns": 0.245
+     }
+    ],
+    "sec": 6.6
+   },
+   "finalStatus": "coach_voice_pending",
+   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "01030",
+   "independentHypothesis": {
+    "lang": "fr",
+    "lang_p": 0.358,
+    "segs": [
+     {
+      "t": "C'est quand même bien, vite, vite, vite, vite !",
+      "lp": -0.671,
+      "ns": 0.277
+     },
+     {
+      "t": "C'est bon, bouge, bouge-je !",
+      "lp": -0.671,
+      "ns": 0.277
+     }
+    ],
+    "sec": 7.6
+   },
+   "finalStatus": "coach_voice_pending",
+   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "01032",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.442,
+    "segs": [
+     {
+      "t": "Yes, yes, yes, touch the line, back, back!",
+      "lp": -0.491,
+      "ns": 0.286
+     }
+    ],
+    "sec": 6.7
+   },
+   "finalStatus": "coach_voice_pending",
+   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "01060",
+   "independentHypothesis": {
+    "lang": "ru",
+    "lang_p": 0.516,
+    "segs": [
+     {
+      "t": "1, 2, 3, 4",
+      "lp": -0.753,
+      "ns": 0.209
+     }
+    ],
+    "sec": 6.8
+   },
+   "finalStatus": "coach_voice_pending",
+   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "01201",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.975,
+    "segs": [
+     {
+      "t": "يا ربا على هذا الهدف لو لبيه تتحرك لا يستجلها إلا الكبار",
+      "lp": -0.381,
+      "ns": 0.103
+     },
+     {
+      "t": "ضرب مج على الخسم تتخط خط المرماط وتحرك الشباك",
+      "lp": -0.381,
+      "ns": 0.103
+     },
+     {
+      "t": "الله يا لحيم",
+      "lp": -0.381,
+      "ns": 0.103
+     }
+    ],
+    "sec": 8.5
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Repeated independent readings still unclear; not safe to infer a player or generic intro. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "01616",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.939,
+    "segs": [
+     {
+      "t": "يضرب يا ربااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااااا",
+      "lp": -0.069,
+      "ns": 0.442
+     },
+     {
+      "t": "والمسافات انظروا كيف يحفظ الشباك والمرمو",
+      "lp": -0.342,
+      "ns": 0.596
+     }
+    ],
+    "sec": 16.4
+   },
+   "finalStatus": "context_history_pending",
+   "decision": "Independent review confirms historical Blatter provocation in the audio. A current Ronaldo goal cannot establish this historical cause; cultural epithets are not an audible full name. Historical content preserved, ordinary-match trigger disabled."
+  },
+  {
+   "slot": "01703",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.786,
+    "segs": [
+     {
+      "t": "ولا أنا معدوي",
+      "lp": -0.883,
+      "ns": 0.077
+     }
+    ],
+    "sec": 6.5
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "01812",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.427,
+    "segs": [
+     {
+      "t": "County!",
+      "lp": -1.027,
+      "ns": 0.151
+     }
+    ],
+    "sec": 6.9
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "01966",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.338,
+    "segs": [
+     {
+      "t": "Holy sakes!",
+      "lp": -1.117,
+      "ns": 0.149
+     }
+    ],
+    "sec": 6.9
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "01997",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.49,
+    "segs": [
+     {
+      "t": "ايار زبال",
+      "lp": -0.852,
+      "ns": 0.035
+     }
+    ],
+    "sec": 6.4
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "02179",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.445,
+    "segs": [
+     {
+      "t": "Furness!",
+      "lp": -1.533,
+      "ns": 0.085
+     }
+    ],
+    "sec": 6.3
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "02279",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.49,
+    "segs": [
+     {
+      "t": "I'll see you.",
+      "lp": -0.726,
+      "ns": 0.118
+     }
+    ],
+    "sec": 6.5
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "02400",
+   "independentHypothesis": {
+    "lang": "it",
+    "lang_p": 0.479,
+    "segs": [
+     {
+      "t": "T'è alia Fico!",
+      "lp": -1.015,
+      "ns": 0.065
+     }
+    ],
+    "sec": 6.8
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "02574",
+   "independentHypothesis": {
+    "lang": "ja",
+    "lang_p": 0.275,
+    "segs": [
+     {
+      "t": "ゴンザレス",
+      "lp": -0.546,
+      "ns": 0.163
+     }
+    ],
+    "sec": 7.1
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "02666",
+   "independentHypothesis": {
+    "lang": "it",
+    "lang_p": 0.603,
+    "segs": [
+     {
+      "t": "Romero!",
+      "lp": -0.615,
+      "ns": 0.146
+     }
+    ],
+    "sec": 6.8
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "02814",
+   "independentHypothesis": {
+    "lang": "it",
+    "lang_p": 0.55,
+    "segs": [
+     {
+      "t": "Cubarsi!",
+      "lp": -0.838,
+      "ns": 0.112
+     }
+    ],
+    "sec": 6.9
+   },
+   "finalStatus": "identity_pending",
+   "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "02947",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.528,
+    "segs": [
+     {
+      "t": "You",
+      "lp": -1.016,
+      "ns": 0.59
+     }
+    ],
+    "sec": 6.8
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03124",
+   "independentHypothesis": {
+    "lang": "sv",
+    "lang_p": 0.711,
+    "segs": [
+     {
+      "t": "Varbar knia!",
+      "lp": -0.755,
+      "ns": 0.119
+     }
+    ],
+    "sec": 6.9
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03127",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.61,
+    "segs": [
+     {
+      "t": "Just tough!",
+      "lp": -1.386,
+      "ns": 0.398
+     },
+     {
+      "t": "We'll burn!",
+      "lp": -1.386,
+      "ns": 0.398
+     }
+    ],
+    "sec": 7.1
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03177",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.919,
+    "segs": [
+     {
+      "t": "بيواتف يا المرما",
+      "lp": -0.607,
+      "ns": 0.043
+     }
+    ],
+    "sec": 7.1
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03223",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.906,
+    "segs": [
+     {
+      "t": "مكان الصعبة بكل ريحية تصدى لها الحرس",
+      "lp": -0.411,
+      "ns": 0.219
+     }
+    ],
+    "sec": 6.3
+   },
+   "finalStatus": "reviewed",
+   "decision": "Independent review supports بكل أريحية يتصدى لها الحارس; opening fragment remains a transcript uncertainty, not an added identity."
+  },
+  {
+   "slot": "03245",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.962,
+    "segs": [
+     {
+      "t": "وكرة يوقف الحارس بسهولة",
+      "lp": -0.346,
+      "ns": 0.046
+     }
+    ],
+    "sec": 6.2
+   },
+   "finalStatus": "reviewed",
+   "decision": "Independent review supports the keeper stopping the ball easily, not the first-pass question form."
+  },
+  {
+   "slot": "03253",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.665,
+    "segs": [
+     {
+      "t": "Ah!",
+      "lp": -0.98,
+      "ns": 0.538
+     }
+    ],
+    "sec": 7.0
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03254",
+   "independentHypothesis": {
+    "lang": "nn",
+    "lang_p": 0.367,
+    "segs": [
+     {
+      "t": "ʕ ʕ ʔ",
+      "lp": -0.968,
+      "ns": 0.675
+     }
+    ],
+    "sec": 7.1
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
+  },
+  {
+   "slot": "03329",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.205,
+    "segs": [
+     {
+      "t": "John!",
+      "lp": -0.925,
+      "ns": 0.555
+     },
+     {
+      "t": "We follow John!",
+      "lp": -0.925,
+      "ns": 0.555
+     }
+    ],
+    "sec": 7.1
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+  },
+  {
+   "slot": "03340",
+   "independentHypothesis": {
+    "lang": "es",
+    "lang_p": 0.475,
+    "segs": [
+     {
+      "t": "¡Sama! ¡Siempre ando!",
+      "lp": -1.127,
+      "ns": 0.316
+     }
+    ],
+    "sec": 7.1
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03354",
+   "independentHypothesis": {
+    "lang": "es",
+    "lang_p": 0.473,
+    "segs": [
+     {
+      "t": "4, 3, 2, 1...",
+      "lp": -0.616,
+      "ns": 0.429
+     }
+    ],
+    "sec": 7.0
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "03362",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.584,
+    "segs": [
+     {
+      "t": "I'm back, I'm back, I'm back!",
+      "lp": -0.501,
+      "ns": 0.274
+     }
+    ],
+    "sec": 7.3
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "03363",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.747,
+    "segs": [
+     {
+      "t": "Go Ligga!",
+      "lp": -1.298,
+      "ns": 0.429
+     }
+    ],
+    "sec": 7.0
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03386",
+   "independentHypothesis": {
+    "lang": "ro",
+    "lang_p": 0.191,
+    "segs": [
+     {
+      "t": "Cura multe zahm!",
+      "lp": -0.815,
+      "ns": 0.177
+     }
+    ],
+    "sec": 6.9
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03400",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.275,
+    "segs": [
+     {
+      "t": "زارب راسية بتدي!",
+      "lp": -1.002,
+      "ns": 0.145
+     }
+    ],
+    "sec": 7.0
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03426",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.256,
+    "segs": [
+     {
+      "t": "جاستيت يا يا ربا",
+      "lp": -0.599,
+      "ns": 0.072
+     }
+    ],
+    "sec": 7.2
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Cross-check still differs between shot/clearance; original retained pending resolution."
+  },
+  {
+   "slot": "03573",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.678,
+    "segs": [
+     {
+      "t": "HELLO!",
+      "lp": -1.167,
+      "ns": 0.492
+     }
+    ],
+    "sec": 7.0
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03574",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.416,
+    "segs": [],
+    "sec": 7.0
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
+  },
+  {
+   "slot": "03585",
+   "independentHypothesis": {
+    "lang": "it",
+    "lang_p": 0.104,
+    "segs": [
+     {
+      "t": "C'è stia, io roba!",
+      "lp": -1.072,
+      "ns": 0.285
+     }
+    ],
+    "sec": 6.8
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Cross-check still differs between shot/clearance; original retained pending resolution."
+  },
+  {
+   "slot": "03826",
+   "independentHypothesis": {
+    "lang": "zh",
+    "lang_p": 0.401,
+    "segs": [
+     {
+      "t": "來啦!",
+      "lp": -1.295,
+      "ns": 0.335
+     }
+    ],
+    "sec": 6.9
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check."
+  },
+  {
+   "slot": "03924",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.342,
+    "segs": [
+     {
+      "t": "Thank you for watching!",
+      "lp": -1.07,
+      "ns": 0.475
+     }
+    ],
+    "sec": 7.0
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Nonzero original retained; short or unreliable transcription needs listening/cross-check. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
+  },
+  {
+   "slot": "03971",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.597,
+    "segs": [
+     {
+      "t": "كرا صابي تلاة مور",
+      "lp": -0.861,
+      "ns": 0.222
+     }
+    ],
+    "sec": 6.1
+   },
+   "finalStatus": "reviewed",
+   "decision": "The statement is a set-piece pass, not a generic shot."
+  },
+  {
+   "slot": "04397",
+   "independentHypothesis": {
+    "lang": "ru",
+    "lang_p": 0.135,
+    "segs": [
+     {
+      "t": "Пирси на куроуууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууууу",
+      "lp": -0.063,
+      "ns": 0.212
+     }
+    ],
+    "sec": 11.4
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Independent review did not recover convergent intelligible content; prior event label is unverifiable. Original preserved, no automatic trigger."
+  },
+  {
+   "slot": "04427",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.221,
+    "segs": [
+     {
+      "t": "Thank you.",
+      "lp": -1.275,
+      "ns": 0.532
+     }
+    ],
+    "sec": 7.0
+   },
+   "finalStatus": "non_speech_pending",
+   "decision": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
+  },
+  {
+   "slot": "04431",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.965,
+    "segs": [
+     {
+      "t": "هذه فرصة تعوض",
+      "lp": -0.357,
+      "ns": 0.093
+     }
+    ],
+    "sec": 6.1
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "This is a chance is supported; trailing word may be a name. Dangerous attack alone cannot validate the full recording."
+  },
+  {
+   "slot": "04446",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.923,
+    "segs": [
+     {
+      "t": "مساحة كبيرة لام فاضي على طرف الملعب",
+      "lp": -0.35,
+      "ns": 0.197
+     }
+    ],
+    "sec": 6.7
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Wing plus space is supported, but a possible player-name fragment remains unresolved. No identity is bound or omitted from the actual audio."
+  },
+  {
+   "slot": "04472",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.503,
+    "segs": [
+     {
+      "t": "كنا من ذات مستمره",
+      "lp": -0.93,
+      "ns": 0.064
+     }
+    ],
+    "sec": 6.9
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Independent review did not recover convergent intelligible content; prior event label is unverifiable. Original preserved, no automatic trigger."
+  },
+  {
+   "slot": "04487",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.431,
+    "segs": [
+     {
+      "t": "Go, go, go, go, go, go!",
+      "lp": -0.558,
+      "ns": 0.347
+     },
+     {
+      "t": "Very good, guys.",
+      "lp": -0.558,
+      "ns": 0.347
+     },
+     {
+      "t": "Nice.",
+      "lp": -0.558,
+      "ns": 0.347
+     }
+    ],
+    "sec": 7.5
+   },
+   "finalStatus": "coach_voice_pending",
+   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "04502",
+   "independentHypothesis": {
+    "lang": "es",
+    "lang_p": 0.588,
+    "segs": [
+     {
+      "t": "¡Llamo la vida!",
+      "lp": -0.949,
+      "ns": 0.351
+     },
+     {
+      "t": "¡Mierda se!",
+      "lp": -0.949,
+      "ns": 0.351
+     }
+    ],
+    "sec": 6.9
+   },
+   "finalStatus": "non_speech_pending",
+   "decision": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
+  },
+  {
+   "slot": "04608",
+   "independentHypothesis": {
+    "lang": "nn",
+    "lang_p": 0.306,
+    "segs": [
+     {
+      "t": "ლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლლ�",
+      "lp": -0.096,
+      "ns": 0.53
+     }
+    ],
+    "sec": 12.8
+   },
+   "finalStatus": "non_speech_pending",
+   "decision": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
+  },
+  {
+   "slot": "04615",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.583,
+    "segs": [
+     {
+      "t": "Oh, come on.",
+      "lp": -0.775,
+      "ns": 0.546
+     }
+    ],
+    "sec": 6.0
+   },
+   "finalStatus": "non_speech_pending",
+   "decision": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
+  },
+  {
+   "slot": "04625",
+   "independentHypothesis": {
+    "lang": "en",
+    "lang_p": 0.477,
+    "segs": [
+     {
+      "t": "Oh, come on.",
+      "lp": -0.842,
+      "ns": 0.562
+     }
+    ],
+    "sec": 6.2
+   },
+   "finalStatus": "non_speech_pending",
+   "decision": "Nonzero signal retained; no reliable speech transcript, listening needed. Independent review remains inconclusive about exact speech/content; no ambient, silence or genuine-effect identity is inferred from no-speech output."
+  },
+  {
+   "slot": "04665",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.943,
+    "segs": [
+     {
+      "t": "تركت تقطع بعد عمل جيد حقيقة",
+      "lp": -0.484,
+      "ns": 0.217
+     }
+    ],
+    "sec": 7.0
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Independent review supports praise or opponent intervention only partially; tackle event is merely plausible, not verified from the entire recording."
+  },
+  {
+   "slot": "04667",
+   "independentHypothesis": {
+    "lang": "es",
+    "lang_p": 0.771,
+    "segs": [
+     {
+      "t": "¡Vamos, segunda! ¡Vamos!",
+      "lp": -0.544,
+      "ns": 0.248
+     },
+     {
+      "t": "¡Bravo, Ten! ¡Bravo, Ten!",
+      "lp": -0.544,
+      "ns": 0.248
+     }
+    ],
+    "sec": 6.5
+   },
+   "finalStatus": "coach_voice_pending",
+   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "04690",
+   "independentHypothesis": {
+    "lang": "es",
+    "lang_p": 0.679,
+    "segs": [
+     {
+      "t": "¡Vamos! ¡Viva! ¡Viva! ¡Vamos, carva!",
+      "lp": -0.492,
+      "ns": 0.358
+     },
+     {
+      "t": "Va por ahí, va por ahí.",
+      "lp": -0.492,
+      "ns": 0.358
+     },
+     {
+      "t": "¡Va por ahí!",
+      "lp": -0.492,
+      "ns": 0.358
+     },
+     {
+      "t": "¡Aguanta, la aguanta, la aguanta!",
+      "lp": -0.492,
+      "ns": 0.358
+     }
+    ],
+    "sec": 7.0
+   },
+   "finalStatus": "coach_voice_pending",
+   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "04698",
+   "independentHypothesis": {
+    "lang": "es",
+    "lang_p": 0.242,
+    "segs": [
+     {
+      "t": "¡Llega saber! ¡Llega! ¡Llega!",
+      "lp": -0.474,
+      "ns": 0.265
+     }
+    ],
+    "sec": 6.1
+   },
+   "finalStatus": "coach_voice_pending",
+   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  },
+  {
+   "slot": "04721",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.969,
+    "segs": [
+     {
+      "t": "كريف قد يبعت دخل خصم",
+      "lp": -0.339,
+      "ns": 0.095
+     }
+    ],
+    "sec": 7.2
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Independent review supports praise or opponent intervention only partially; tackle event is merely plausible, not verified from the entire recording."
+  },
+  {
+   "slot": "04896",
+   "independentHypothesis": {
+    "lang": "ar",
+    "lang_p": 0.758,
+    "segs": [
+     {
+      "t": "والكرب اتجاهي بادري",
+      "lp": -0.651,
+      "ns": 0.127
+     }
+    ],
+    "sec": 6.0
+   },
+   "finalStatus": "speech_review_pending",
+   "decision": "Short unreliable transcript; retain original for independent listening."
+  }
+ ]
+}

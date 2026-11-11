@@ -93,6 +93,15 @@ if (args.Length>0)
  Check(slots.Length==4918&&slots.Distinct().Count()==4918,"All4918 original slots accounted exactly once");
  Check(library.Recordings.Count(r=>r.ReviewStatus=="digital_zero")==1&&library.Recordings.Count(r=>r.ReviewStatus=="nonzero_fragment")==2,"Stereo silent encoding and two nonzero fragments remain separate from mono commentary");
  Check(!document.Clips.Any(c=>library.Recordings.Single(r=>r.File==c.File).ReviewStatus!="reviewed"),"Review holds and promos cannot leak into automatic selection");
+ var reviewHolds=new[]{"00520","01201","01616","02009","04397","04431","04446","04472","04665","04721"};
+ Check(!document.Clips.Any(c=>reviewHolds.Contains(c.Id.Split('-')[0])),"Independent-review unknown words, names and historical cause cannot leak into automatic matches");
+ Check(library.Recordings.Single(r=>r.Slot=="01616").ReviewStatus=="context_history_pending","Genuine historical speech remains historical, not a current Ronaldo goal");
+ var easySave=document.Clips.Single(c=>c.Id=="03245");
+ Check(!easySave.All.All(r=>r.Matches(empty.With(("save.difficulty","hard"))))&&easySave.All.All(r=>r.Matches(empty.With(("save.difficulty","easy")))),"Independent easy-save meaning excludes hard saves");
+ var farPost=document.Clips.Single(c=>c.Id=="00372");
+ Check(farPost.All.All(r=>r.Matches(empty.With(("action.kind","cross"),("cross.target","farPost"),("cross.height","ground"))))&&!farPost.All.All(r=>r.Matches(empty.With(("action.kind","cross"),("cross.target","farPost"),("cross.height","high")))),"Independent ground far-post delivery excludes aerial cross");
+ var setPiecePass=document.Clips.Single(c=>c.Id=="03971");
+ Check(setPiecePass.Event=="FreeKickTaken"&&setPiecePass.All.All(r=>r.Matches(empty.With(("action.kind","pass"))))&&!setPiecePass.All.All(r=>r.Matches(empty.With(("action.kind","shot")))),"Independent set-piece pass cannot trigger for a shot");
  int positive=0,missing=0,negative=0;
  foreach(var entry in document.Clips)
  {

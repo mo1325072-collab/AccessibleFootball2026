@@ -1508,15 +1508,6 @@
       "priority": 0
     },
     {
-      "id": "00520",
-      "file": "Library/00520.mp3",
-      "event": "Save",
-      "transcript": "أوه هو، لقطة تونسية لحارس المرمى.",
-      "review": "verified",
-      "all": [],
-      "priority": 0
-    },
-    {
       "id": "00522",
       "file": "Library/00522.mp3",
       "event": "Save",
@@ -6744,9 +6735,15 @@
       "id": "03245",
       "file": "Library/03245.mp3",
       "event": "Save",
-      "transcript": "من الذي يوقف الحارس بسهولة؟",
+      "transcript": "وكرة يوقف الحارس بسهولة.",
       "review": "verified",
-      "all": [],
+      "all": [
+        {
+          "fact": "save.difficulty",
+          "op": "eq",
+          "value": "easy"
+        }
+      ],
       "priority": 0
     },
     {
@@ -10587,15 +10584,6 @@
       "priority": 0
     },
     {
-      "id": "04397",
-      "file": "Library/04397.mp3",
-      "event": "BallKicked",
-      "transcript": "बिल्सीला कुरा",
-      "review": "verified",
-      "all": [],
-      "priority": 0
-    },
-    {
       "id": "04398",
       "file": "Library/04398.mp3",
       "event": "BallKicked",
@@ -11077,26 +11065,6 @@
       "priority": 0
     },
     {
-      "id": "04431",
-      "file": "Library/04431.mp3",
-      "event": "PossessionPlay",
-      "transcript": "هذه فرصة لعوض.",
-      "review": "verified",
-      "all": [
-        {
-          "fact": "attack.dangerous",
-          "op": "eq",
-          "value": "true"
-        },
-        {
-          "fact": "analysis.hasPossession",
-          "op": "eq",
-          "value": "true"
-        }
-      ],
-      "priority": 0
-    },
-    {
       "id": "04436",
       "file": "Library/04436.mp3",
       "event": "PossessionPlay",
@@ -11205,31 +11173,6 @@
       "file": "Library/04445.mp3",
       "event": "PossessionPlay",
       "transcript": "كرة في الجناح",
-      "review": "verified",
-      "all": [
-        {
-          "fact": "attack.wing",
-          "op": "eq",
-          "value": "true"
-        },
-        {
-          "fact": "attack.spaceAhead",
-          "op": "eq",
-          "value": "true"
-        },
-        {
-          "fact": "analysis.hasPossession",
-          "op": "eq",
-          "value": "true"
-        }
-      ],
-      "priority": 0
-    },
-    {
-      "id": "04446",
-      "file": "Library/04446.mp3",
-      "event": "PossessionPlay",
-      "transcript": "مساحة كبيرة لإنفاردي على طرف الملعب.",
       "review": "verified",
       "all": [
         {
@@ -11516,26 +11459,6 @@
       "transcript": "شوف المهارة، بيعدي فيها، انطلاقة باتجاه الهجوم.",
       "review": "verified",
       "all": [],
-      "priority": 0
-    },
-    {
-      "id": "04472",
-      "file": "Library/04472.mp3",
-      "event": "PossessionPlay",
-      "transcript": "كل عام وأنتم مستمرة.",
-      "review": "verified",
-      "all": [
-        {
-          "fact": "attack.dangerous",
-          "op": "eq",
-          "value": "true"
-        },
-        {
-          "fact": "analysis.hasPossession",
-          "op": "eq",
-          "value": "true"
-        }
-      ],
       "priority": 0
     },
     {
@@ -12799,15 +12722,6 @@
       "priority": 0
     },
     {
-      "id": "04665",
-      "file": "Library/04665.mp3",
-      "event": "Tackle",
-      "transcript": "مبروك دبا بعد عمل جيد حقيقة.",
-      "review": "verified",
-      "all": [],
-      "priority": 0
-    },
-    {
       "id": "04673",
       "file": "Library/04673.mp3",
       "event": "Tackle",
@@ -13059,15 +12973,6 @@
           "value": "false"
         }
       ],
-      "priority": 0
-    },
-    {
-      "id": "04721",
-      "file": "Library/04721.mp3",
-      "event": "Tackle",
-      "transcript": "كيف كتبت تدخل خصم؟",
-      "review": "verified",
-      "all": [],
       "priority": 0
     },
     {
