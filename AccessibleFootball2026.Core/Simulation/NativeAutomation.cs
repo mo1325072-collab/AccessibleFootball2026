@@ -29,6 +29,7 @@ public partial class MatchEngine
     /// <summary>Native rules, not Qwen. Never changes the user's opt-in settings.</summary>
     public void RunNativeAutomation()
     {
+        if (PendingInjuryPlayer != null) return;
         if (State is MatchState.GameOver or MatchState.PenaltyShootout or MatchState.GoalCelebration or MatchState.Paused) return;
         bool naturalStop = State == MatchState.HalfTime || (AwaitingStoppageConfirmation && State != MatchState.Paused);
         if (naturalStop)
