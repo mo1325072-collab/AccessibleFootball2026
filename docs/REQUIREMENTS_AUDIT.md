@@ -115,9 +115,21 @@ Implementation and evidence: Radar uses the selected UI language, identifies the
 
 Remaining limitation: Recorded Arabic commentary remains Arabic; no translated recordings are claimed.
 
+### Native verification preparation
+
+Implementation and evidence: The Windows-only test suite now uses the current S=pass/D=cross/Q=lofted-through-ball controls, supplies current optional match-start parameters, isolates menu key-routing tests from destructive selections, and invokes the real game timer instead of duplicating obsolete telemetry behavior. New native settings tests cover both language directions, accessible names and retention of unsaved selections. The suite cross-builds with zero errors.
+
+Remaining limitation: It has not run on Windows. These are prepared tests, not passing runtime evidence. No native Windows executor is available in the current authorized environment; no emulator, service enrollment or security change was used to pretend otherwise.
+
+### Production simulation diagnostics
+
+Implementation and evidence: The --test path now bypasses audio initialization and runs seven deterministic engine checks for the interval, switched goal, explicit resume, correct kickoff, held restart, incident confirmation, measured statistics and full time. The same production method is executed successfully by MatchFlowRegression.
+
+Remaining limitation: The actual Windows executable --test command still needs a Windows run. Diagnostic fixture teams do not verify source-roster accuracy or sound playback.
+
 ## Checks for this checkpoint
 
-- MatchFlowRegression: 164 assertions, including 33 added since the 131-assertion checkpoint. These exercise actual bilingual menu navigation/actions, source-name preservation, no-mirror selection, and explicit restart/goal-side radar. Run with the real database argument below.
+- MatchFlowRegression: 165 assertions, including 34 added since the 131-assertion checkpoint. These exercise actual bilingual menu navigation/actions, source-name preservation, no-mirror selection, and explicit restart/goal-side radar. Run with the real database argument below.
 - Existing ContextualMechanicsHarness: 146 assertions. Its tests now explicitly dismiss held restarts and resume the added interval; CPU readiness time starts only after dismissal.
 - ContextualCommentaryHarness: 65 assertions passed. ChallengerPhysicsHarness source: 19 assertions passed through a temporary .NET8 runner linked to its unchanged Program.cs. Its checked-in legacy project targets .NET9; the bare project command does not run with the available .NET8 SDK.
 - Before/after evidence: the forced-goalkeeper-injury test fails against the pre-audit MatchEngine and passes with the repair. The new English-category test also fails against the prior TeamSelectionManager and passes after localization. Adding tests did not merely restate successful old behavior.
