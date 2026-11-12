@@ -79,6 +79,7 @@ public static class Program
             TestBilingualSettingsPreserveControls();
             TestSettingsSaveReloadCancelAndFailure();
             TestInjuryChoiceWindowRouting();
+            TestPauseSubmenuDoesNotStartMenuMusic();
             TestKeyEventArgsSuppressKeyPressMechanics();
             TestFormLevelMatchKeysSuppression();
             TestFormLevelMenuKeysSuppression();
@@ -185,6 +186,30 @@ public static class Program
             }
         }
         finally { MatchSettings.CustomSettingsFilePath=oldPath;MatchSettings.Current.CopyFrom(backup);MatchSettings.Current.ApplyLive(); }
+    }
+
+    private static void TestPauseSubmenuDoesNotStartMenuMusic()
+    {
+        var commands = new List<string>();
+        MciPlayback.TestCommand = (command, buffer) => { commands.Add(command); buffer?.Append("stopped"); return 0; };
+        try
+        {
+            using var window = CreateTestWindow(out var input);
+            window.Show();
+            typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
+            var timer = Field<System.Windows.Forms.Timer>(window, "_gameLoopTimer"); timer.Stop();
+            var key = typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyDown", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            key.Invoke(window, new object[] { window, new KeyEventArgs(Keys.Escape) });
+            var pause = Field<AccessibleFootball2026.App.Menus.AccessibleMenu>(window, "_currentMenu");
+            window.PushMenu(new AccessibleFootball2026.App.Menus.AccessibleMenu("Nested pause test", new RecordingReader()));
+            commands.Clear();
+            key.Invoke(window, new object[] { window, new KeyEventArgs(Keys.Escape) });
+            Assert(ReferenceEquals(pause, Field<AccessibleFootball2026.App.Menus.AccessibleMenu>(window, "_currentMenu")), "Back from nested pause returns to the actual pause root");
+            Assert(!commands.Any(c => c.StartsWith("play bgm_menu")), "Back from nested pause never starts menu music or stops match crowd");
+            key.Invoke(window, new object[] { window, new KeyEventArgs(Keys.Escape) }); timer.Stop();
+            Assert(Field<MatchEngine>(window, "_activeMatch").State == MatchState.InPlay && !commands.Any(c => c.StartsWith("play bgm_menu")), "Resume after nested pause stays in match audio context");
+        }
+        finally { MciPlayback.TestCommand = null; }
     }
 
     private static void TestInjuryChoiceWindowRouting()
