@@ -40,6 +40,11 @@ public partial class MatchEngine
         _ballFreeTimer = 0;
         PreviousKicker = null;
         LastKicker = null;
+        _advantage = null;
+        _pendingClearance = null;
+        _runUpPlayer = null;
+        _runUpRemaining = 0;
+        _executingRunUp = null;
     }
 
     private void PlaceKickoff(Team team, Player? preferredKicker = null)
