@@ -137,8 +137,7 @@ public class AccessibleFootballWindow : Form
         // ربط الخفض الصوتي لصوت الجماهير عند تحدث قارئ الشاشة أو المعلق
         _coordinator.OnCrowdVolumeDucking += factor =>
         {
-            if (SoundEffectsPlayer.GetEffectiveCrowdVolume() <= 0.001f) return;
-            SoundEffectsPlayer.SetCrowdVolume((int)(factor * 350));
+            SoundEffectsPlayer.SetCrowdDucking(factor);
         };
 
         _stadiumSoundEngine.OnDiscontentWhistlePlayed += team =>
@@ -789,6 +788,30 @@ public class AccessibleFootballWindow : Form
     // محرك المباراة التفاعلي (Interactive Real-Time Match Engine)
     // =========================================================================
 
+    private bool ShowPendingInjuryMenu()
+    {
+        if (_activeMatch?.PendingInjuryPlayer == null) return false;
+        var match = _activeMatch;
+        _gameLoopTimer?.Stop();
+        _replayDismissRequested = false;
+        _inputHandler.Reset();
+        GoalBeaconPlayer.Stop();
+        SoundEffectsPlayer.PauseCrowdAmbiance();
+        _menuHistory.Clear();
+        SetActiveMenu(GamePlanMenuBuilder.CreateInjurySubstitutionMenu(match, _screenReader, () =>
+        {
+            _inputHandler.Reset();
+            _currentMenu = null;
+            if (ShowPendingInjuryMenu()) return;
+            SetupMatchDisplayListBox(match.HomeTeam, match.AwayTeam);
+            if (match.State == MatchState.InPlay) SoundEffectsPlayer.ResumeCrowdAmbiance();
+            _lastFrameTime = DateTime.UtcNow;
+            _gameLoopTimer?.Start();
+            // A held free kick/penalty/replay still requires its separate Enter confirmation.
+        }));
+        return true;
+    }
+
     private void StartInteractiveMatch(Team homeTeam, Team awayTeam, bool cupFinal = false, bool rivalry = false)
     {
         string? lineupIssue = homeTeam.GetMatchStartIssue() ?? awayTeam.GetMatchStartIssue();
@@ -885,6 +908,7 @@ public class AccessibleFootballWindow : Form
                 }
             }
             _activeMatch.Update(dt);
+            if (ShowPendingInjuryMenu()) return;
 
             // منارة صوت المرمى ثلاثية الأبعاد (3D Spatial Goal Beacon)
             if (_activeMatch.State == MatchState.InPlay)
@@ -1254,6 +1278,12 @@ public class AccessibleFootballWindow : Form
             }
             if (e.KeyCode == Keys.Escape)
             {
+                if (_activeMatch?.PendingInjuryPlayer != null)
+                {
+                    e.Handled = true; e.SuppressKeyPress = true;
+                    _screenReader.Speak(T("اختر بديلاً للمصاب أو اختر الاستمرار دون بديل.", "Choose a substitute or choose to continue without one."));
+                    return;
+                }
                 e.Handled = true;
                 e.SuppressKeyPress = true;
                 SoundEffectsPlayer.PlayMenuBack();
