@@ -7,6 +7,7 @@ using AccessibleFootball2026.Core.Simulation;
 using AccessibleFootball2026.Audio;
 using AccessibleFootball2026.Audio.Commentary;
 using AccessibleFootball2026.App.Menus;
+using AccessibleFootball2026.Core.Tactics;
 
 MatchSettings.Current.ExtraTimeEnabled = false;
 MatchSettings.Current.PenaltyShootoutEnabled = false;
@@ -268,6 +269,12 @@ if(dbArgument >= 0)
         allDraftsComplete &= d.UserDreamTeam.Players.Count==11 && d.CpuDreamTeam.Players.Count==11;
     }
     Check(allDraftsComplete,"100 seeded real-database drafts produce complete starting elevens");
+var groupedNational=Enum.GetValues<ContinentType>().SelectMany(NationalTeamDatabase.GetNationalTeamsByContinent).ToArray();
+Check(groupedNational.Length==211&&groupedNational.Select(t=>t.Id).Distinct().Count()==211,"all 211 source national teams occur exactly once across six confederation menus");
+Check(NationalTeamDatabase.GetNationalTeamsByContinent(ContinentType.Africa).Count==54&&NationalTeamDatabase.GetNationalTeamsByContinent(ContinentType.Europe).Count==55,"Africa and Europe categories match verified FIFA membership counts without changing source rosters");
+Check(NationalTeamDatabase.GetNationalTeamsByContinent(ContinentType.Asia).Count==46&&NationalTeamDatabase.GetNationalTeamsByContinent(ContinentType.Oceania).Count==11,"Australia belongs to AFC and American Samoa belongs to OFC, not a guessed geographic grouping");
+Check(NationalTeamConfederations.GetContinent("Australia")==ContinentType.Asia&&NationalTeamConfederations.GetContinent("American Samoa")==ContinentType.Oceania,"cross-geography football association membership uses official FIFA source");
+
 }
 
 string dbPath = Path.Combine(Path.GetTempPath(),Guid.NewGuid()+"-teams.json");
@@ -330,6 +337,71 @@ Check(SoundEffectsPlayer.ResolveBestAudioBaseDirectory(portable,legacy)==legacy,
 Directory.CreateDirectory(Path.Combine(portable,"Commentary","FaresAwad"));File.WriteAllText(Path.Combine(portable,"Commentary","FaresAwad","commentary_context.json"),"{}");
 Check(SoundEffectsPlayer.ResolveBestAudioBaseDirectory(portable,legacy)==portable,"portable packaged commentary takes priority over an older D-drive library");
 Directory.Delete(audioFixture,true);
+
+
+// Requirements audit: regressions found by comparing source behavior with ORIGINAL_REQUEST and tactical specs.
+m=New();var injured=m.HomeTeam.Players[0];var wrong=new Player(900,"Wrong forward",12,SpecificPosition.ST,99,99,99,99,99);
+var injuryReserveKeeper=new Player(901,"Reserve keeper",13,SpecificPosition.GK,65,65,65,65,65);
+m.HomeTeam.Bench.AddRange(new[]{wrong,injuryReserveKeeper});m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);
+Check(m.HomeTeam.Players.Contains(injuryReserveKeeper)&&!m.HomeTeam.Players.Contains(wrong),"forced goalkeeper injury substitution chooses a genuine position match, not first bench entry");
+Check(m.HomeTeam.SubstitutionsUsed==1&&m.HomeTeam.StoppageWindowsUsed==1,"forced injury change consumes one legal substitution opportunity");
+m=New();injured=m.HomeTeam.Players[0];m.HomeTeam.Bench.Add(wrong);m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);
+Check(injured.IsOffPitch&&!injured.IsSentOff&&m.HomeTeam.SubstitutionsUsed==0,"unreplaceable injured keeper leaves without inventing an incompatible goalkeeper or a red card");
+m=New();var severelyInjured=m.HomeTeam.Players[9];severelyInjured.Position2D=new Vector2(100,34);m.HomeTeam.PenaltyTaker=severelyInjured;
+var replacement=new Player(902,"Replacement striker",14,SpecificPosition.ST,80,80,80,80,80);m.HomeTeam.Bench.Add(replacement);
+var offender=m.AwayTeam.Players[2];offender.Position2D=new Vector2(99,34);m.AwayTeam.Tactics.Tackling=TacklingAggression.Reckless;
+m.HandleFoulSanction(offender,severelyInjured,true,true);
+Check(severelyInjured.InjuryStatus==PlayerInjuryStatus.SevereInjury&&m.HomeTeam.Players.Contains(replacement),"real reckless sliding foul from behind can trigger severe injury and forced substitution");
+Check(m.Restart?.Kind==RestartKind.Penalty&&m.Restart.Team==m.HomeTeam&&m.Restart.Taker==replacement&&m.Ball.Owner==replacement,"injured victim substitution preserves actual penalty and reassigns its taker");
+m=New();severelyInjured=m.HomeTeam.Players[9];severelyInjured.Position2D=new Vector2(70,34);m.HomeTeam.FreeKickTaker=severelyInjured;m.HomeTeam.SubstitutionsUsed=5;
+m.AwardFoulRestart(severelyInjured);m.ApplyInjury(severelyInjured,PlayerInjuryStatus.SevereInjury);
+Check(m.Restart?.Taker.IsActiveOnPitch==true&&m.Restart.Taker!=severelyInjured&&m.Ball.Owner==m.Restart.Taker,"no-substitution injury cannot strand restart or possession on an off-pitch victim");
+Check(m.HomeTeam.Players.Count(p=>p.IsActiveOnPitch)==10,"severe injury with exhausted replacements produces actual ten-player side");
+var crowdA=New();int volumeA=0;crowdA.OnCrowdVolumeChanged+=v=>volumeA=v;crowdA.Ball.Owner=null;crowdA.Ball.Position=new Vector3(95,34,0);Invoke(crowdA,"UpdateCrowdProximity",.1f);
+var crowdB=New();crowdB.TriggerHalfTime();int volumeB=0;crowdB.OnCrowdVolumeChanged+=v=>volumeB=v;crowdB.Ball.Owner=null;crowdB.Ball.Position=new Vector3(10,34,0);Invoke(crowdB,"UpdateCrowdProximity",.1f);
+Check(volumeA==volumeB&&volumeA>500,"crowd proximity uses switched opponent goal, with symmetric first/second-half attacks");
+var crowdC=New();int volumeC=0;crowdC.OnCrowdVolumeChanged+=v=>volumeC=v;crowdC.Ball.CatchOrTackle(crowdC.AwayTeam.Players[9]);crowdC.Ball.Position=new Vector3(10,34,0);Invoke(crowdC,"UpdateCrowdProximity",.1f);
+Check(volumeC==volumeA,"crowd escalation follows the actual away team's attacking goal too");
+m=New();var tackler=m.AwayTeam.Players[2];var carrier=m.HomeTeam.Players[9];tackler.Position2D=new Vector2(60,34);carrier.Position2D=new Vector2(61,34);
+var duelSamples=Enumerable.Range(0,300).Select(_=>MatchEngine.EvaluateTackleDuel(tackler,carrier,new Vector2(61.4f,34),m.AwayTeam,m.HomeTeam,DifficultyLevel.Normal)).ToArray();
+Check(duelSamples.Select(d=>(d.TacklerWon,d.IsFoul,d.IsSevereInjuryRisk)).Distinct().Count()==1,"same tackle geometry attributes and tactics are deterministic, without a random die");
+reader=new Reader();var radarCoordinator=new SmartAudioCoordinator(reader);SmartAudioCoordinator.SilenceLiveMatchSpeech=true;
+radarCoordinator.HandleMatchEvent(new MatchEvent(MatchEventType.TacticalRadarInfo,"الكرة مع Saint-Maximin - جناح"));
+Check(reader.Spoken.Count==1,"explicit requested radar is not silenced because a player name contains a hyphen");
+radarCoordinator.HandleMatchEvent(new MatchEvent(MatchEventType.TacticalRadarInfo,"Player switch") {Context=AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty.With(("radar.reason","playerSwitch"))});
+Check(reader.Spoken.Count==1,"semantic player-switch event remains silent in live match");
+m=New();var priorSpeed=m.ActiveUserPlayer.Speed;var priorStamina=m.ActiveUserPlayer.Stamina;m.ApplyInjury(m.ActiveUserPlayer,PlayerInjuryStatus.MinorKnock);
+Check(m.ActiveUserPlayer.Speed==priorSpeed*.8f&&m.ActiveUserPlayer.Stamina==priorStamina*.8f,"minor knock applies requested 20 percent speed and stamina reduction");
+Check(TacticalAiAdvisor.GenerateTacticalReport(m).Contains("وليس نموذج Qwen"),"missing model fallback explicitly labels native rules instead of claiming Qwen inference");
+
+m=New();var runUpActor=m.ActiveUserPlayer;Check(m.BeginSlowRunUp(),"slow approach can begin before interval fixture");m.TriggerHalfTime();
+Check(typeof(MatchEngine).GetField("_runUpPlayer",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(m)==null,"new period clears an unfinished prior-period run-up");
+m=New();carrier=m.ActiveUserPlayer;carrier.Position2D=new Vector2(80,34);m.Ball.CatchOrTackle(carrier);
+Check((bool)Invoke(m,"TryPlayAdvantage",carrier,false,false)!,"advantage fixture starts from a real retained attacking possession");
+m.TriggerHalfTime();Check(typeof(MatchEngine).GetField("_advantage",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(m)==null,"new period clears an actual prior advantage incident");
+m=New();m.ExecuteClearance();m.TriggerHalfTime();
+Check(typeof(MatchEngine).GetField("_pendingClearance",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(m)==null,"new period cannot emit a stale prior-period clearance outcome");
+var unsupportedReview=VarAiReferee.ReviewOffside("fixture player",true);
+Check(!unsupportedReview.EvidenceAvailable&&!unsupportedReview.Overturned&&float.IsNaN(unsupportedReview.DecisionMarginCm),"name-only legacy VAR helper cannot fabricate a positional margin or overturn a call");
+m=New();injured=m.HomeTeam.Players[9];replacement=new Player(903,"Injury replacement",14,SpecificPosition.ST,80,80,80,80,80);m.HomeTeam.Bench.Add(replacement);
+m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);int injurySubs=m.HomeTeam.SubstitutionsUsed;m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);
+Check(m.HomeTeam.SubstitutionsUsed==injurySubs&&m.AwayTeam.SubstitutionsUsed==0,"repeated injury to a substituted-off player cannot change the other team or consume another substitution");
+if(!OperatingSystem.IsWindows())
+{
+    string fixture=Path.Combine(Path.GetTempPath(),Guid.NewGuid()+"-model-fixture");Directory.CreateDirectory(fixture);
+    string fake=Path.Combine(fixture,"fake-cli");
+    string Call(string program,string prompt,int seconds=2)=>(string)typeof(TacticalAiAdvisor).GetMethod("RunModelProcess",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{program,"model with spaces.gguf",prompt,30,seconds})!;
+    void Script(string body){File.WriteAllText(fake,"#!/bin/sh\n"+body+"\n");File.SetUnixFileMode(fake,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute);}
+    Script("printf 'fixture output only'; exit 7");Check(Call(fake,"test")=="","failed model process cannot be reported as successful inference");
+    Script("i=0; while [ $i -lt 5000 ]; do echo diagnostic >&2; i=$((i+1)); done; printf 'fixture result'");
+    Check(Call(fake,"name with \"quotes\" and spaces")=="fixture result","model process drains stderr alongside stdout without pipe deadlock");
+    Script("while [ \"$1\" != '-p' ]; do shift; done; shift; printf '%s' \"$1\"");
+    Check(Call(fake,"line one\nname with \"quotes\" and spaces")=="line one name with \"quotes\" and spaces","model prompt uses one argument preserving quotes spaces and line breaks");
+    Script("sleep 12; printf 'late result'");var timer=System.Diagnostics.Stopwatch.StartNew();
+    Check(Call(fake,"test",1)==""&&timer.Elapsed.TotalSeconds<5,"model timeout terminates process tree instead of leaving hanging inference");
+    Directory.Delete(fixture,true);
+}
+
 Console.WriteLine($"{passed} assertions passed. No Windows/MCI/NVDA runtime was exercised.");
 
 sealed class Input : IInputHandler
