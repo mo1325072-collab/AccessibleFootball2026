@@ -76,10 +76,13 @@ internal static class Program
         SoundEffectsPlayer.Initialize(baseAudioDir);
         GoalBeaconPlayer.Initialize(baseAudioDir);
 
-        var screenReader = new NvdaScreenReader();
+        var nativeScreenReader = new NvdaScreenReader();
         var eventBus = new MatchEventBus();
         var inputHandler = new KeyboardInputHandler();
         var commentaryEngine = new CommentaryEngine(MatchSettings.Current.Commentator, baseAudioDir);
+        var screenReader = new PriorityScreenReader(nativeScreenReader, () => commentaryEngine.IsRecordedChannelBusy, commentaryEngine.SpeechGate);
+        commentaryEngine.IsReaderSpeaking = () => screenReader.IsSpeaking;
+        commentaryEngine.OnUrgentInterruption += screenReader.CancelSpeech;
         var coordinator = new SmartAudioCoordinator(screenReader, () => commentaryEngine.IsIdle);
         var anthemEngine = new AnthemEngine(screenReader, Path.Combine(baseAudioDir, "Anthems"));
 
@@ -165,4 +168,3 @@ internal static class Program
         Console.WriteLine("  * المؤثرات الصوتية ثلاثية الأبعاد للركلات (Kick_Left, Kick_Center, Kick_Right): مفعلة وجاهزة. ✅");
     }
 }
-
