@@ -1,30 +1,66 @@
-# E2E Test Infra: AccessibleFootball2026
+# Testing AccessibleFootball2026
 
-## Test Philosophy
-- Opaque-box, requirement-driven.
-- Automated simulation suite verification (`--test`), headless simulation loop, event tracing.
-- Covers R1 through R5: input edge-triggering, pass reception, defensive switching & tackling, audio confirmation, and clean build/deployment.
+## Test entry points
 
-## Feature Inventory Mapping
-| # | Feature | Source | Tier 1 | Tier 2 | Tier 3 |
-|---|---------|--------|:------:|:------:|:------:|
-| F1 | Edge-Triggered Action Queue | ORIGINAL_REQUEST R1 | 5 | 5 | ✓ |
-| F2 | Continuous Movement & Sprint | ORIGINAL_REQUEST R1 | 5 | 5 | ✓ |
-| F3 | Form KeyDown/KeyUp KeyPreview | ORIGINAL_REQUEST R1 | 5 | 5 | ✓ |
-| F4 | NVDA Focus Mode Retention | ORIGINAL_REQUEST R1 | 5 | 5 | ✓ |
-| F5 | Ball Ground Friction Deceleration | ORIGINAL_REQUEST R2 | 5 | 5 | ✓ |
-| F6 | Pass Transit State Tracking | ORIGINAL_REQUEST R2 | 5 | 5 | ✓ |
-| F7 | Active Receiver Intercept Physics | ORIGINAL_REQUEST R2 | 5 | 5 | ✓ |
-| F8 | Instant Ball Reception Handoff | ORIGINAL_REQUEST R2 | 5 | 5 | ✓ |
-| F9 | Debounced Player Switching | ORIGINAL_REQUEST R3 | 5 | 5 | ✓ |
-| F10 | Distinct Standing vs Slide Tackle | ORIGINAL_REQUEST R3 | 5 | 5 | ✓ |
-| F11 | Spoken Tackle Distance Announcements | ORIGINAL_REQUEST R3 | 5 | 5 | ✓ |
-| F12 | Instant Auditory Action Confirmation | ORIGINAL_REQUEST R4 | 5 | 5 | ✓ |
-| F13 | Solution Compilation & Zero Errors | ORIGINAL_REQUEST R5 | 5 | 5 | ✓ |
-| F14 | Headless Simulation Verification | ORIGINAL_REQUEST R5 | 5 | 5 | ✓ |
-| F15 | Desktop Release Deployment | ORIGINAL_REQUEST R5 | 5 | 5 | ✓ |
+Run from the repository root with the .NET 8 SDK.
 
-## Test Architecture
-- Test runner: `AccessibleFootball2026.exe --test`
-- Build verification: `$env:DOTNET_ROOT = "$env:LOCALAPPDATA\Microsoft\dotnet"; dotnet build -c Release`
-- Output verification: exit code 0, check log for draft, audio, simulation checks.
+### Portable match-flow regression
+
+```sh
+dotnet run --project tests/MatchFlowRegression -c Release
+```
+
+To include the real source database audit:
+
+```sh
+dotnet run --project tests/MatchFlowRegression -c Release -- --database AccessibleFootball2026.Core/Data/players_database.json
+```
+
+The suite throws and exits nonzero on a failed assertion. The November 12, 2026 source-repair checkpoint passed 100 assertions with the database option. This is a bounded test result, not a whole-game readiness rating.
+
+Covered behavior includes:
+
+- Measured per-team statistics and keyboard navigation of the statistics menu.
+- Regulation halves, switched ends, formation preservation, interval actions and extra-time boundaries.
+- Kickoff placement, held restarts and explicit dismissal, actual restart team/taker state, and pause/resume state preservation.
+- Latest-only pending reader updates, waiting for commentary, and goal/penalty-only urgent interruption signals using test readers.
+- Five substitutions/three opportunities and the configured sixth/extra opportunity in extra time, interval exemptions, no re-entry and no sent-off replacement.
+- Optional native auto-substitution and tactics, fatigue/card risk, strongest compatible position selection and goalkeeper inclusion.
+- Input edges, held-key repeat suppression, movement/sprint and reset.
+- Settings save/load through a temporary file.
+- JSON player identity, draft completeness and no duplicate draft selections.
+- Complete-match simulation smoke paths and finite positions.
+- Actual database audit: 522 usable teams start and update; 100 seeded drafts create complete starting elevens.
+
+The database option reads the supplied JSON. It does not certify real-world roster accuracy or recover missing roster data.
+
+### Windows UI regression
+
+On Windows 10/11 x64:
+
+```sh
+dotnet run --project AccessibleFootball2026.Tests -c Release
+```
+
+This project targets the same .NET 8 Windows framework as the app. It checks WinForms key suppression and focus behavior. A cross-build is not a run of these tests. The November 12 source-repair session cross-built the project but did not run it on Windows.
+
+### Game diagnostic option
+
+`AccessibleFootball2026.exe --test` runs roster/draft diagnostics. It is not the portable regression suite and does not prove sound playback, NVDA completion or a successful desktop deployment. It returns a failing status if its draft is incomplete or contains duplicate player IDs.
+
+## Known validation gaps
+
+- Native WinForms interaction, NVDA synchronous/older-API completion, SAPI fallback, MCI playback and actual audio overlap still require Windows execution.
+- The recorded commentary catalog, audio assets, menu music and startup anthem must be present in a real release. Source compilation does not verify their presence, audibility or licensing. These repairs did not change the commentary catalog, mappings or audio assets.
+- The current 529-team source JSON has seven records blocked by preflight: FC Aiglons (Tchad), Medina United FA, AS Port-Louis 2000, Panthere Sportive du Nde, AS ZAM, Uniao Bissau and DC Virunga. Six have fewer than seven players; Medina United FA has no assigned goalkeeper. The game explains the issue instead of fabricating players. Other squads with 7-10 players can start if they have a keeper.
+- The JSON has no global player identifier. Normalized exact name plus age is used to share an identity across rows and avoid unrelated squad-row collisions. Real homonyms or spelling/age discrepancies need source-data review.
+- This pass did not implement a new model runtime, download or model distribution policy. Native automatic assistance and optional model-backed reports remain distinct.
+
+## Release validation still required
+
+1. Build and publish a Windows x64 release with the actual native controller DLL, database and intended audio assets.
+2. Run the Windows UI suite and play through startup, settings, team selection, pre-match plan, both halves, substitutions, extra time, shootout and return to menu.
+3. Listen with NVDA enabled and disabled. Check that commentary finishes before ordinary reader updates, goals/penalties preempt as intended, and held incidents do not restart before Enter.
+4. Confirm all required assets and mappings are present and that music/anthem playback matches the chosen release.
+
+Do not replace these checks with prefilled success messages or a claimed fixed number of tests from an older README.
