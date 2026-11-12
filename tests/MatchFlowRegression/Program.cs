@@ -463,6 +463,17 @@ radarMatch.TriggerHalfTime();radarMatch.ResumeMatch();radarMatch.Ball.CatchOrTac
 Check(radarEvent!.Description.Contains($"goal {(int)Vector2.Distance(radarMatch.Ball.Position2D,radarMatch.Pitch.LeftGoalCenter)} m"),"on-demand radar follows switched second-half goal");
 radarMatch.AwardFoulRestart(radarMatch.HomeTeam.Players[9],new Vector2(70,34));radarMatch.ReportTacticalRadar();
 Check(radarEvent!.Description.StartsWith("Free kick,")&&radarEvent.Description.Contains(radarMatch.Restart!.Taker.Name),"set-piece radar names actual restart and current taker");
+var heldKeyboard=new AccessibleFootball2026.Input.KeyboardInputHandler();var heldBus=new MatchEventBus();var heldEvents=new List<MatchEvent>();heldBus.OnMatchEvent+=heldEvents.Add;
+var heldMatch=new MatchEngine(Make("Held home",TeamSide.Home),Make("Held away",TeamSide.Away),heldBus,heldKeyboard);
+heldMatch.AwardFoulRestart(heldMatch.HomeTeam.Players[9],new Vector2(60,34));
+float heldTime=heldMatch.MatchTimeMinutes;var heldBall=heldMatch.Ball.Position;
+heldKeyboard.HandleKeyDown(0x20,true);heldMatch.Update(.02f);
+Check(heldEvents.Any(e=>e.Type==MatchEventType.TacticalRadarInfo&&e.Description.StartsWith("Free kick,")),"actual Space input works during held restart, not only direct radar method calls");
+heldKeyboard.HandleKeyUp(0x20);heldKeyboard.HandleKeyDown(0x54,true);heldKeyboard.HandleKeyDown(0x57,true);heldMatch.Update(.02f);
+Check(heldEvents.Any(e=>e.Type==MatchEventType.LineupRequested&&!ArabicUi(e.Description)),"explicit English lineup input remains available during held incidents");
+Check(heldMatch.MatchTimeMinutes==heldTime&&heldMatch.Ball.Position==heldBall&&!heldEvents.Any(e=>e.Type==MatchEventType.ShotTaken),"held information requests cannot move play or execute a queued shot");
+heldKeyboard.HandleKeyUp(0x54);heldKeyboard.HandleKeyUp(0x57);heldMatch.DismissStoppageReplay();heldMatch.Update(.02f);
+Check(heldMatch.Restart!=null&&!heldEvents.Any(e=>e.Type==MatchEventType.ShotTaken),"shot tapped during held narration is consumed rather than firing after confirmation");
 MatchSettings.Current.Language=UiLanguage.Arabic;radarMatch.ReportTacticalRadar();
 Check(radarEvent!.Description.StartsWith("ركلة حرة"),"explicit radar switches back to Arabic");
 MatchSettings.Current.Language=UiLanguage.English;
