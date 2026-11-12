@@ -487,6 +487,24 @@ MatchSettings.Current.Language=UiLanguage.Arabic;
 Check(GamePlanMenuBuilder.CreateTacticsMenu(uiTeam,uiReader,()=>{}).MenuTitle.StartsWith("الأسلوب"),"switching back rebuilds Arabic tactics menu");
 MatchSettings.Current.Language=languageBefore;
 
+// Exercise shooting at both real goal ends and repeated discipline calls.
+var shotMatch=New();var shooter=shotMatch.ActiveUserPlayer;shooter.Position2D=new Vector2(80,34);shotMatch.Ball.CatchOrTackle(shooter);
+shooter.FacingDirection=new Vector2(1,0);shotMatch.AdjustAimingAngle(-.35f);
+Check(shooter.FacingDirection.X>0&&shooter.FacingDirection.Y<0&&Math.Abs(shooter.FacingDirection.Length()-1)<.001f,"upward aiming preserves normalized first-half forward direction");
+shotMatch.ExecuteShot();Check(shotMatch.Ball.Owner==null&&shotMatch.Ball.Velocity.X>0,"first-half actual shot physically travels toward the right goal");
+shotMatch.TriggerHalfTime();shotMatch.ResumeMatch();shooter=shotMatch.HomeTeam.Players[9];Set(shotMatch,"<ActiveUserPlayer>k__BackingField",shooter);
+shooter.Position2D=new Vector2(25,34);shooter.FacingDirection=new Vector2(-1,0);shotMatch.Ball.CatchOrTackle(shooter);shotMatch.AdjustAimingAngle(.35f);
+Check(shooter.FacingDirection.X<0&&shooter.FacingDirection.Y>0,"downward aiming preserves second-half leftward attack");
+shotMatch.ExecuteShot();Check(shotMatch.Ball.Owner==null&&shotMatch.Ball.Velocity.X<0,"second-half actual shot physically travels toward the left goal");
+var disciplineBus=new MatchEventBus();var disciplineEvents=new List<MatchEvent>();disciplineBus.OnMatchEvent+=disciplineEvents.Add;
+var discipline=new MatchEngine(Make("Card home",TeamSide.Home),Make("Card away",TeamSide.Away),disciplineBus,new Input());
+var booked=discipline.HomeTeam.Players[2];discipline.IssueCard(booked,false);discipline.IssueCard(booked,false);
+Check(booked.YellowCards==2&&booked.IsSentOff&&!booked.IsActiveOnPitch&&discipline.HomeTeam.Players.Count(p=>p.IsActiveOnPitch)==10,"second yellow dismisses exactly one player and opens a real vacancy");
+int cardsBefore=disciplineEvents.Count(e=>e.Type is MatchEventType.YellowCard or MatchEventType.RedCard);discipline.IssueCard(booked,true);discipline.IssueCard(booked,false);
+Check(disciplineEvents.Count(e=>e.Type is MatchEventType.YellowCard or MatchEventType.RedCard)==cardsBefore&&booked.YellowCards==2,"repeated sanctions on an already-dismissed player cannot duplicate cards or stats");
+var outsider=Make("Other",TeamSide.Home).Players[3];discipline.IssueCard(outsider,true);
+Check(!outsider.IsSentOff&&discipline.StatisticsFor(discipline.AwayTeam).RedCards==0&&discipline.AwayTeam.Players.Count(p=>p.IsActiveOnPitch)==11,"off-roster sanction cannot be attributed to the opposing team");
+
 using(var smokeOutput = new StringWriter())
 {
     Check(SimulationDiagnostics.Run(smokeOutput) == 0 && smokeOutput.ToString().Contains("0 failure(s)"), "production --test engine smoke checks run without Windows or audio startup");
