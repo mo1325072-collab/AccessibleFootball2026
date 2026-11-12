@@ -58,8 +58,9 @@ Check(!s.CommentaryEnabled&&s.CommentaryVoice==CommentaryVoiceOption.Off,"legacy
 Check(File.ReadAllText(file)==previousFile,"explicit legacy load does not write a different settings file");
 Defaults();
 Fixture("SFX/Crowd/CrowdAmbiance.wav");Fixture("stadium.wav");Fixture("chant.wav");Fixture("Anthems/ChampionsLeague.wav");Fixture("Commentary/FaresAwad/Intro/intro.wav");Fixture("Commentary/RaoufKhlif/Intro/intro.wav");
+s.CrowdVolumePercent=17;s.MasterVolumePercent=52; // Non-default loaded values must win over static audio defaults.
 SoundEffectsPlayer.Initialize(root);GoalBeaconPlayer.Initialize(root);commands.Clear();
-Check(SoundEffectsPlayer.CrowdVolumeSetting==s.CrowdVolumePercent,"audio initialization synchronizes the already-loaded settings");
+Check(SoundEffectsPlayer.CrowdVolumeSetting==17&&SoundEffectsPlayer.MasterVolumeSetting==52,"audio initialization synchronizes the already-loaded settings");
 // Starting a match is the actual stadium-acoustics path, not only StartCrowdAmbiance.
 s.CrowdVolumePercent=0;Apply();SoundEffectsPlayer.SetStadiumAcoustics(Path.Combine(root,"stadium.wav"));SoundEffectsPlayer.StartCrowdAmbiance();SoundEffectsPlayer.SetCrowdVolume(1000,true);SoundEffectsPlayer.PlayOneShotChant(Path.Combine(root,"chant.wav"));SoundEffectsPlayer.PlayCrowdGoal();
 Check(!commands.Any(c=>c.StartsWith("play ")),"crowd zero prevents stadium, ambience, reaction and chant playback");
