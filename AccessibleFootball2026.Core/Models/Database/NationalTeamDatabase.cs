@@ -8,6 +8,10 @@ public static class NationalTeamDatabase
 {
     public static List<Team> GetNationalTeamsByContinent(ContinentType continent)
     {
+        var current = JsonDatabaseProvider.GetAllNationalTeams();
+        if (current.Count > 0)
+            return current.Where(t => NationalTeamConfederations.GetContinent(t.Name) == continent)
+                .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList();
         return continent switch
         {
             ContinentType.Africa => AfricanNationalTeams.GetAllNationalTeams(),
