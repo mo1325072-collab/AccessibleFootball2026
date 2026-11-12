@@ -155,7 +155,7 @@ public class AccessibleFootballWindow : Form
                 evt.Context.TryGet("substitution.playerRating", out var ovationRating) &&
                 double.TryParse(ovationRating, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rating) && rating >= 8)
                 evt.Context = evt.Context.With(("applause.played", SoundEffectsPlayer.PlayCrowdApplause()));
-            _commentaryEngine.TryCommentOnEvent(evt,force:evt.Type==MatchEventType.CoachPraise);
+            _commentaryEngine.TryCommentOnEvent(evt,force:evt.Type is MatchEventType.CoachPraise or MatchEventType.CoachWideInstruction);
             if (evt.Type == MatchEventType.GoalScored && _activeMatch?.LastGoalReplay is { } replay)
                 _commentaryEngine.QueueGoalReplay(replay);
             _coordinator.HandleMatchEvent(evt);
@@ -830,6 +830,7 @@ public class AccessibleFootballWindow : Form
             SoundEffectsPlayer.SetCrowdVolume(vol);
         };
 
+        if(_commentaryEngine.ActiveCommentator.Id==CommentatorId.FaresAwad)match.RequestCoachWideInstruction(match.HomeTeam);
         bool introPlayed = _commentaryEngine.TryPlayMatchIntro(match.GetCommentarySnapshot().With(("crowd.active",SoundEffectsPlayer.IsCrowdActive)));
         if (!introPlayed)
         {

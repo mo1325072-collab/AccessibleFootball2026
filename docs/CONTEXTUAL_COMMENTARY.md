@@ -52,3 +52,7 @@ The catalog harness checks the actual decoded files, all source-slot accounting,
 The independent 59-recording pass is finished and recorded in `tools/CommentaryCatalog/independent_review.json`. It resolves only the claims supported by its evidence, not the full 933-recording corpus. Unclear names, historical claims, unrepresented expressions and missing genuine crowd responses remain nonautomatic. The staged audio package is a candidate implementation, not full semantic or Windows-runtime approval.
 
 Fully corroborated English coach praise (04487) is a direct response to an actual valid teammate-assisted non-own goal. It is queued after the official announcement, once per goal, and the match waits for its completion before restarting. It is not narration claiming an inferred facial expression. `remaining_route.json` names every unresolved recording and the exact evidence or meaningful feature it still needs.
+
+## Wide-player instruction (01032)
+
+With the Wings attacking focus (`أجناب وعرضيات`) the engine now applies a real wide-player rule (`WideDiscipline.cs`): wide players (LM, RM, LW, RW, LWB, RWB) go to the touchline while their team has the ball, and drop 12 m toward their own goal when the opponent has it. The Fares Awad coach recording 01032 ("Yes, yes, yes. Touch the line. Back, back.") plays once each time that focus is put in force (at kickoff or when play resumes from the pause or half-time menu), and only if the team has a wide player on the pitch. It is not played for any other focus. Windows playback is untested.

@@ -344,6 +344,28 @@ foreach(bool onTarget in new[]{true,false})
  var sub=ev.Last(e=>e.Type==MatchEventType.SubstitutionMade);
  Check(double.Parse(sub.Context.Facts["substitution.playerRating"],System.Globalization.CultureInfo.InvariantCulture)>=8,"Star exit carries his actual high match rating for the ovation decision");
 }
+{
+ var(m,ev,input)=Fresh();
+ var wide=m.HomeTeam.Players[3];wide.Position=SpecificPosition.LW;wide.HomePosition=new Vector2(40,6);
+ var apply=typeof(MatchEngine).GetMethod("ApplyWideDiscipline",BindingFlags.NonPublic|BindingFlags.Instance)!;
+ Vector2 Target(Player p,Team t,Vector2 v)=>(Vector2)apply.Invoke(m,new object[]{p,t,v})!;
+ var basePos=new Vector2(40,6);
+ Check(!m.RequestCoachWideInstruction(m.HomeTeam)&&!ev.Any(e=>e.Type==MatchEventType.CoachWideInstruction),"Wide coach word is not given unless Wings focus is in force");
+ m.HomeTeam.Tactics.Focus=AttackingFocus.Wings;
+ m.Ball.Owner=wide;Check(Target(wide,m.HomeTeam,basePos).Y<2&&Target(wide,m.HomeTeam,new Vector2(40,20)).Y<2,"With the ball, a left wide player is sent to the touchline");
+ var other=m.HomeTeam.Players[5];Check(Target(other,m.HomeTeam,new Vector2(40,20))==new Vector2(40,20),"A non-wide player is not moved by the wide instruction");
+ m.Ball.Owner=m.AwayTeam.Players[3];var back=Target(wide,m.HomeTeam,basePos);
+ Check(Math.Abs(Math.Abs(back.X-basePos.X)-12)<0.01&&back.Y==basePos.Y,"Without the ball, the wide player drops 12 m toward own goal");
+ m.Ball.Owner=null;Check(Target(wide,m.HomeTeam,basePos)==basePos,"Loose ball applies neither half of the instruction");
+ m.HomeTeam.Tactics.Focus=AttackingFocus.Central;m.Ball.Owner=wide;Check(Target(wide,m.HomeTeam,basePos)==basePos,"No touchline rule outside Wings focus");
+ m.HomeTeam.Tactics.Focus=AttackingFocus.Wings;
+ Check(m.RequestCoachWideInstruction(m.HomeTeam)&&ev.Last().Type==MatchEventType.CoachWideInstruction&&ev.Last().Context.Facts["coach.instruction"]=="wideHoldThenRecover"&&ev.Last().Context.Facts["wide.discipline.active"]=="true","Wings focus with a wide player publishes the actual coach word with its mechanic fact");
+ Check(!m.RequestCoachWideInstruction(m.HomeTeam),"Coach word is once per time the instruction is put in force");
+ m.HomeTeam.Tactics.Focus=AttackingFocus.Balanced;m.RequestCoachWideInstruction(m.HomeTeam);m.HomeTeam.Tactics.Focus=AttackingFocus.Wings;
+ Check(m.RequestCoachWideInstruction(m.HomeTeam),"Coach word can be given again after the focus is changed away and back");
+ var(m2,ev2,_)=Fresh();m2.HomeTeam.Tactics.Focus=AttackingFocus.Wings;
+ Check(!m2.RequestCoachWideInstruction(m2.HomeTeam)&&!ev2.Any(e=>e.Type==MatchEventType.CoachWideInstruction),"Wings focus without any wide player on the pitch gives no wide coach word");
+}
 Console.WriteLine($"RESULT {passed} passed, {failed} failed");return failed==0?0:1;
 class Input:IInputHandler{ public HashSet<GameAction> Actions=new();public HashSet<GameAction> PollCurrentActions(bool p)=>Actions;public bool IsActionTriggered(GameAction a,bool p)=>Actions.Contains(a);}
 

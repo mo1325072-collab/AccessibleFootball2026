@@ -3997,9 +3997,31 @@
    "duration_seconds": 3.761633,
    "sample_rate": 22050
   },
-  "reviewStatus": "coach_voice_pending",
-  "mappings": [],
-  "notes": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+  "reviewStatus": "reviewed",
+  "mappings": [
+   {
+    "event": "CoachWideInstruction",
+    "all": [
+     {
+      "fact": "coach.instruction",
+      "op": "eq",
+      "value": "wideHoldThenRecover"
+     },
+     {
+      "fact": "tactics.focus",
+      "op": "eq",
+      "value": "Wings"
+     },
+     {
+      "fact": "wide.discipline.active",
+      "op": "eq",
+      "value": "true"
+     }
+    ]
+   }
+  ],
+  "notes": "Two independent decoders (primary pass and independent pass) return the same full phrase: Yes, yes, yes, touch the line, back, back. A complete football instruction to a wide player: hug the touchline, then drop back. Bound to a real engine mechanic (WideDiscipline.cs): with Wings attacking focus, wide players (LM/RM/LW/RW/LWB/RWB) move to the touchline while their team has the ball and drop 12 m toward their own goal when the opponent has it. The recording plays once per time the Wings focus is put in force (match start or resume) and only if a wide player is on the pitch. It is not narration of a visual and not a generic coach shout. Speaker identity and language beyond the phrase were not independently established.",
+  "verifiedTranscript": "Yes, yes, yes. Touch the line. Back, back."
  },
  {
   "slot": "01033",

@@ -2285,6 +2285,31 @@
    "priority": 0
   },
   {
+   "id": "01032",
+   "file": "Library/01032.mp3",
+   "event": "CoachWideInstruction",
+   "transcript": "Yes, yes, yes. Touch the line. Back, back.",
+   "review": "verified",
+   "all": [
+    {
+     "fact": "coach.instruction",
+     "op": "eq",
+     "value": "wideHoldThenRecover"
+    },
+    {
+     "fact": "tactics.focus",
+     "op": "eq",
+     "value": "Wings"
+    },
+    {
+     "fact": "wide.discipline.active",
+     "op": "eq",
+     "value": "true"
+    }
+   ],
+   "priority": 0
+  },
+  {
    "id": "01033",
    "file": "Library/01033.mp3",
    "event": "MatchAnalysis",

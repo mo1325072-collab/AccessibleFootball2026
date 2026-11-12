@@ -95,6 +95,8 @@ if (args.Length>0)
  Check(!document.Clips.Any(c=>library.Recordings.Single(r=>r.File==c.File).ReviewStatus!="reviewed"),"Review holds and promos cannot leak into automatic selection");
  var coachPraise=document.Clips.Single(c=>c.Id=="04487");
  Check(coachPraise.Event=="CoachPraise"&&coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",true),("goal.own",false))))&&!coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",false),("goal.own",false)))),"Direct coach praise requires actual assisted team-goal response, not a generic goal or inferred mood");
+ var wideCoach=document.Clips.Single(c=>c.Id=="01032");
+ Check(wideCoach.Event=="CoachWideInstruction"&&wideCoach.All.All(r=>r.Matches(empty.With(("coach.instruction","wideHoldThenRecover"),("tactics.focus","Wings"),("wide.discipline.active",true))))&&!wideCoach.All.All(r=>r.Matches(empty.With(("coach.instruction","wideHoldThenRecover"),("tactics.focus","Central"),("wide.discipline.active",true))))&&!wideCoach.All.All(r=>r.Matches(empty.With(("analysis.coachInstructionSpoken",true)))),"Wide touchline recording requires the real wide instruction, Wings focus and active mechanic");
  var reviewHolds=new[]{"00520","01201","01616","02009","04397","04431","04446","04665","04721"};
  Check(!document.Clips.Any(c=>reviewHolds.Contains(c.Id.Split('-')[0])),"Independent-review unknown words, names and historical cause cannot leak into automatic matches");
  var ballContinues=document.Clips.Single(c=>c.Id=="04472");

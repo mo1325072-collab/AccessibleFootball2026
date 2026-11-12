@@ -1934,7 +1934,7 @@ public partial class MatchEngine
             }
             else
             {
-                opponent.Position2D = Vector2.Lerp(opponent.Position2D, opponent.HomePosition, deltaTime * 0.8f);
+                opponent.Position2D = Vector2.Lerp(opponent.Position2D, ApplyWideDiscipline(opponent, AwayTeam, opponent.HomePosition), deltaTime * 0.8f);
             }
         }
 
@@ -1996,7 +1996,7 @@ public partial class MatchEngine
                 continue;
             }
 
-            Vector2 shiftedHome = teammate.HomePosition + new Vector2((ball2D.X - 52.5f) * 0.4f, 0);
+            Vector2 shiftedHome = ApplyWideDiscipline(teammate, HomeTeam, teammate.HomePosition + new Vector2((ball2D.X - 52.5f) * 0.4f, 0));
             teammate.Position2D = Vector2.Lerp(teammate.Position2D, shiftedHome, deltaTime * DefensiveReactionMultiplier(teammate));
 
             if (Ball.State == BallState.Free && Ball.Position.Z <= 1.5f && !IsPassInTransit && Vector2.Distance(teammate.Position2D, ball2D) < 1.8f)

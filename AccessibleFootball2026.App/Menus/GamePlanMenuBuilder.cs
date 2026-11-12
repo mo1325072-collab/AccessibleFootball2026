@@ -542,6 +542,8 @@ public static class GamePlanMenuBuilder
             bool wasHalfTime = match.State == MatchState.HalfTime;
             match.ResumeMatch();
             screenReader.Speak(wasHalfTime ? "انطلاق الشوط الثاني" : "استئناف اللقاء");
+            // كلمة المدرب للأجنحة تُسمع فقط إن كانت تعليمة الأجناب مفعّلة فعلاً (مرة لكل تفعيل)
+            if (commentaryEngine.ActiveCommentator.Id == CommentatorId.FaresAwad) match.RequestCoachWideInstruction(match.HomeTeam);
             onResumeMatch();
         });
 
