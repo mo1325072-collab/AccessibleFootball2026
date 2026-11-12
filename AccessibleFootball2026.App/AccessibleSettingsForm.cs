@@ -182,7 +182,7 @@ public class AccessibleSettingsForm : Form
             BackColor = Color.FromArgb(36, 42, 56),
             ForeColor = Color.White
         };
-        _cmbDifficulty.Items.AddRange(isArabic ? ["سهل (Easy)", "متوسط (Normal)", "محترف (Hard)"] : ["Easy", "Normal", "Hard"]);
+        _cmbDifficulty.Items.AddRange(isArabic ? ["سهل (Easy)", "متوسط (Normal)", "محترف (Hard)", "أسطوري (Legendary)"] : ["Easy", "Normal", "Hard", "Legendary"]);
         mainPanel.Controls.Add(lblDiff, 0, row);
         mainPanel.Controls.Add(_cmbDifficulty, 1, row++);
 
@@ -242,7 +242,7 @@ public class AccessibleSettingsForm : Form
         row++;
 
         // 15. حكم الفيديو المساعد بالذكاء الاصطناعي (AI VAR CheckBox)
-        _chkAiVar = CreateCheckBox(isArabic ? "تقنية حكم الفيديو المساعد بالذكاء الاصطناعي (AI VAR Referee)" : "AI VAR Referee Technology");
+        _chkAiVar = CreateCheckBox(isArabic ? "مراجعة التسلل المتقارب بالقواعد المحلية" : "Native-rule close offside review");
         mainPanel.Controls.Add(_chkAiVar, 0, row);
         mainPanel.SetColumnSpan(_chkAiVar, 2);
         row++;
@@ -361,7 +361,7 @@ public class AccessibleSettingsForm : Form
             _tbBeaconVolume.Value = Math.Clamp(s.GoalBeaconVolumePercent, 0, 100);
             _tbMusicVolume.Value = Math.Clamp(s.MusicVolumePercent, 0, 100);
 
-            _cmbDifficulty.SelectedIndex = Math.Clamp((int)s.Difficulty, 0, 2);
+            _cmbDifficulty.SelectedIndex = Math.Clamp((int)s.Difficulty, 0, _cmbDifficulty.Items.Count - 1);
 
             int durIdx = Array.IndexOf(_durations, s.MatchDurationMinutes);
             _cmbDuration.SelectedIndex = durIdx >= 0 ? durIdx : 1;
