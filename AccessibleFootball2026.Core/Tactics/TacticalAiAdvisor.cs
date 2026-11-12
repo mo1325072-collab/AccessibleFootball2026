@@ -390,7 +390,7 @@ public class TacticalAiAdvisor
     public static bool TryPerformAutoSubstitution(MatchEngine match, out string announcement)
     {
         announcement = string.Empty;
-        if (!MatchSettings.Current.AutoSubstitutionsEnabled) return false;
+        if (match.PendingInjuryPlayer != null || !MatchSettings.Current.AutoSubstitutionsEnabled) return false;
         if (!match.CanMakeSubstitution(match.HomeTeam)) return false;
 
         // Meaningful fatigue uses the existing 70% boundary, relative to the player's own capacity.
