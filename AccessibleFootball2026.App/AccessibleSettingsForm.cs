@@ -230,13 +230,13 @@ public class AccessibleSettingsForm : Form
         row++;
 
         // 13. التبديلات التلقائية بالذكاء الاصطناعي (Auto-Subs CheckBox)
-        _chkAutoSubs = CreateCheckBox(isArabic ? "التبديلات التلقائية الذكية للاعبين المجهدين (AI Auto-Substitutions)" : "AI Auto-Substitutions for Fatigued Players");
+        _chkAutoSubs = CreateCheckBox(isArabic ? "تبديلات تلقائية حسب اللياقة وخطر الطرد" : "Automatic substitutions for fatigue or dismissal risk");
         mainPanel.Controls.Add(_chkAutoSubs, 0, row);
         mainPanel.SetColumnSpan(_chkAutoSubs, 2);
         row++;
 
         // 14. التعديلات التكتيكية التلقائية بالذكاء الاصطناعي (Auto-Tactics CheckBox)
-        _chkAutoTactics = CreateCheckBox(isArabic ? "التعديلات التكتيكية التلقائية الذكية حسب مجريات وسير اللعب (AI Dynamic Tactics)" : "AI Dynamic Tactical Adjustments on Game Flow");
+        _chkAutoTactics = CreateCheckBox(isArabic ? "تعديلات تكتيكية تلقائية بقواعد اللعبة" : "Native-rule automatic tactical adjustments");
         mainPanel.Controls.Add(_chkAutoTactics, 0, row);
         mainPanel.SetColumnSpan(_chkAutoTactics, 2);
         row++;
@@ -381,12 +381,81 @@ public class AccessibleSettingsForm : Form
         }
     }
 
+    private void RefreshLanguageLabels()
+    {
+        var pairs = new (string Arabic, string English)[]
+        {
+            ("إعدادات اللعبة والصوت", "Game & Audio Settings"),
+            ("اللغة (Language):", "Language:"),
+            ("اللغة", "Language"),
+            ("مستوى الصوت العام:", "Master Volume:"),
+            ("مستوى الصوت العام", "Master Volume"),
+            ("مؤثرات اللعب والنغمات:", "SFX & Earcons Volume:"),
+            ("مؤثرات اللعب والنغمات", "SFX Volume"),
+            ("صوت التعليق:", "Commentary Volume:"),
+            ("صوت التعليق", "Commentary Volume"),
+            ("صوت الجماهير في الملعب:", "Stadium Crowd Volume:"),
+            ("صوت الجماهير في الملعب", "Crowd Volume"),
+            ("منارة المرمى المجسمة 3D:", "3D Goal Beacon Volume:"),
+            ("منارة المرمى المجسمة 3D", "Goal Beacon Volume"),
+            ("موسيقى القوائم والخلفية:", "Menu Music Volume:"),
+            ("موسيقى القوائم والخلفية", "Menu Music Volume"),
+            ("مستوى الصعوبة:", "Difficulty Level:"),
+            ("مستوى الصعوبة", "Difficulty Level"),
+            ("مدة المباراة الحقيقية:", "Match Duration:"),
+            ("مدة المباراة الحقيقية", "Match Duration"),
+            ("المعلق الصوتي المعتمد:", "Commentary Voice:"),
+            ("المعلق الصوتي المعتمد", "Commentary Voice"),
+            ("الأشواط الإضافية عند التعادل في مباريات الكؤوس", "Extra Time on Draw"),
+            ("ركلات الترجيح عند استمرار التعادل", "Penalty Shootouts on Draw"),
+            ("تبديلات تلقائية حسب اللياقة وخطر الطرد", "Automatic substitutions for fatigue or dismissal risk"),
+            ("تعديلات تكتيكية تلقائية بقواعد اللعبة", "Native-rule automatic tactical adjustments"),
+            ("مراجعة التسلل المتقارب بالقواعد المحلية", "Native-rule close offside review"),
+            ("إغلاق (Esc)", "Close (Esc)"),
+            ("استعادة الافتراضيات", "Reset Defaults"),
+            ("حفظ الإعدادات", "Save Settings"),
+        };
+        string Localize(string? text)
+        {
+            foreach (var pair in pairs)
+                if (text == pair.Arabic || text == pair.English)
+                    return LocalizationService.Text(pair.Arabic, pair.English);
+            return text ?? string.Empty;
+        }
+        void Visit(Control control)
+        {
+            control.Text = Localize(control.Text);
+            if (control.AccessibleName != null) control.AccessibleName = Localize(control.AccessibleName);
+            foreach (Control child in control.Controls) Visit(child);
+        }
+        bool loadingBefore = _isLoadingSettings;
+        _isLoadingSettings = true;
+        try
+        {
+            Visit(this);
+            int difficulty = _cmbDifficulty.SelectedIndex, duration = _cmbDuration.SelectedIndex, voice = _cmbCommentaryVoice.SelectedIndex;
+            bool arabic = MatchSettings.Current.Language == UiLanguage.Arabic;
+            _cmbDifficulty.Items.Clear();
+            _cmbDifficulty.Items.AddRange(arabic ? ["سهل (Easy)", "متوسط (Normal)", "محترف (Hard)", "أسطوري (Legendary)"] : ["Easy", "Normal", "Hard", "Legendary"]);
+            _cmbDuration.Items.Clear();
+            foreach (int minutes in _durations) _cmbDuration.Items.Add(LocalizationService.FormatDuration(minutes));
+            _cmbCommentaryVoice.Items.Clear();
+            _cmbCommentaryVoice.Items.AddRange(arabic ? ["فارس عوض (Fares Awad)", "رؤوف خليف (Raouf Khlif)", "صامت (بدون تعليق)"] : ["Fares Awad", "Raouf Khlif", "Off (Silent)"]);
+            _cmbDifficulty.SelectedIndex = difficulty;
+            _cmbDuration.SelectedIndex = duration;
+            _cmbCommentaryVoice.SelectedIndex = voice;
+        }
+        finally { _isLoadingSettings = loadingBefore; }
+    }
+
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
+        if (_isLoadingSettings) return;
         var selectedLang = _cmbLanguage.SelectedIndex == 1 ? UiLanguage.English : UiLanguage.Arabic;
         if (selectedLang != MatchSettings.Current.Language)
         {
             MatchSettings.Current.Language = selectedLang;
+            RefreshLanguageLabels();
             _screenReader.Speak(selectedLang == UiLanguage.English ? "Language changed to English." : "تم تغيير لغة اللعبة إلى العربية.");
         }
     }
@@ -403,6 +472,7 @@ public class AccessibleSettingsForm : Form
         SoundEffectsPlayer.ApplyMusicVolume();
 
         LoadCurrentSettings();
+        RefreshLanguageLabels();
         SoundEffectsPlayer.PlayMenuSelect();
         _screenReader.Speak(MatchSettings.Current.Language == UiLanguage.Arabic
             ? "تمت استعادة الإعدادات الافتراضية بنجاح"
