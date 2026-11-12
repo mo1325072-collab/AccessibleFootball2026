@@ -476,6 +476,10 @@ MatchSettings.Current.Language=UiLanguage.Arabic;
 Check(GamePlanMenuBuilder.CreateTacticsMenu(uiTeam,uiReader,()=>{}).MenuTitle.StartsWith("الأسلوب"),"switching back rebuilds Arabic tactics menu");
 MatchSettings.Current.Language=languageBefore;
 
+using(var smokeOutput = new StringWriter())
+{
+    Check(SimulationDiagnostics.Run(smokeOutput) == 0 && smokeOutput.ToString().Contains("0 failure(s)"), "production --test engine smoke checks run without Windows or audio startup");
+}
 Console.WriteLine($"{passed} assertions passed. No Windows/MCI/NVDA runtime was exercised.");
 
 sealed class Input : IInputHandler
