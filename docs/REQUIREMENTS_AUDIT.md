@@ -127,9 +127,21 @@ Implementation and evidence: The --test path now bypasses audio initialization a
 
 Remaining limitation: The actual Windows executable --test command still needs a Windows run. Diagnostic fixture teams do not verify source-roster accuracy or sound playback.
 
+### Actual shot direction and aiming
+
+Implementation and evidence: Four direct behavior checks verify normalized up/down aiming and actual ball velocity toward the first-half right goal and the switched second-half left goal.
+
+Remaining limitation: Native keyboard focus and audible goal-beacon direction remain unverified on Windows.
+
+### Repeated and off-roster discipline
+
+Implementation and evidence: Card sanctions now require membership in the match and an active on-pitch player. A dismissed player cannot accumulate duplicate sanctions/statistics, and an outsider cannot be silently attributed to the away team. The repeated-card assertion fails against the previous engine. A second yellow still removes exactly one active player.
+
+Remaining limitation: This does not claim exhaustive coverage of all football disciplinary cases.
+
 ## Checks for this checkpoint
 
-- MatchFlowRegression: 169 assertions, including 38 added since the 131-assertion checkpoint. These exercise actual bilingual menu navigation/actions, source-name preservation, no-mirror selection, and explicit restart/goal-side radar. Run with the real database argument below.
+- MatchFlowRegression: 176 assertions, including 45 added since the 131-assertion checkpoint. These exercise actual bilingual menu navigation/actions, source-name preservation, no-mirror selection, and explicit restart/goal-side radar. Run with the real database argument below.
 - Existing ContextualMechanicsHarness: 146 assertions. Its tests now explicitly dismiss held restarts and resume the added interval; CPU readiness time starts only after dismissal.
 - ContextualCommentaryHarness: 65 assertions passed. ChallengerPhysicsHarness source: 19 assertions passed through a temporary .NET8 runner linked to its unchanged Program.cs. Its checked-in legacy project targets .NET9; the bare project command does not run with the available .NET8 SDK.
 - Before/after evidence: the forced-goalkeeper-injury test fails against the pre-audit MatchEngine and passes with the repair. The new English-category test also fails against the prior TeamSelectionManager and passes after localization. The held-restart Space test fails against the previous engine and passes only after the held-input repair. Adding tests did not merely restate successful old behavior.
