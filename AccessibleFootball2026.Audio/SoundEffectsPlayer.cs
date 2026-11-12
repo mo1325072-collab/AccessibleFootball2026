@@ -49,6 +49,7 @@ public static class SoundEffectsPlayer
     private static float _crowdDucking = 1f;
     private static bool _commentaryEnabled = true;
     private static readonly Dictionary<string, float> _activeOneShots = new();
+    private static readonly Dictionary<string, float> _activeOneShotPans = new();
     private static float ChannelVolume(string alias) => alias == "comm_voice" ? (_commentaryEnabled ? GetEffectiveCommentaryVolume() : 0)
         : alias == "chant_ch" || alias.StartsWith("crowd_", StringComparison.Ordinal) ? GetEffectiveCrowdVolume() : GetEffectiveSfxVolume();
     public static bool IsCrowdActive => _crowdPlaying && !_crowdPaused && GetEffectiveCrowdVolume() > .001f;
@@ -136,8 +137,8 @@ public static class SoundEffectsPlayer
             foreach (var alias in _activeOneShots.Keys.ToArray())
             {
                 int volume = (int)(ChannelVolume(alias) * _activeOneShots[alias] * 1000);
-                SendMci($"setaudio {alias} volume to {volume}");
-                if (volume == 0) { SendMci($"stop {alias}"); SendMci($"close {alias}"); _activeOneShots.Remove(alias); }
+                bool applied = ApplyOneShotVolume(alias, volume, _activeOneShotPans.TryGetValue(alias, out var pan) ? pan : null);
+                if (volume == 0 || !applied) { SendMci($"stop {alias}"); SendMci($"close {alias}"); _activeOneShots.Remove(alias); _activeOneShotPans.Remove(alias); }
             }
         }
         if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f) StopCommentaryAudio();
@@ -509,86 +510,72 @@ public static class SoundEffectsPlayer
     // =========================================================================
     public static void PlayKick(float pan = 0.0f)
     {
-        LastPlayedPan = pan;
-        string fileName = pan switch
-        {
-            < -0.25f => "Kick_Left",
-            > 0.25f => "Kick_Right",
-            _ => "Kick_Center"
-        };
+        LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
+        pan = LastPlayedPan;
+        string fileName = "Kick_Center";
         string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
                  ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick")
                  ?? ResolveAudioPath("SFX", "Kicks", "Pass");
-        if (p != null) PlayOneShot(p, "kick");
+        if (p != null) PlayOneShot(p, "kick", pan: pan);
     }
 
     public static void PlayShotKick(float pan = 0.0f)
     {
-        LastPlayedPan = pan;
-        string fileName = pan switch
-        {
-            < -0.25f => "Shot_Left",
-            > 0.25f => "Shot_Right",
-            _ => "Shot_Center"
-        };
+        LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
+        pan = LastPlayedPan;
+        string fileName = "Shot_Center";
         string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
                  ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Shot") 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick_Center");
-        if (p != null) PlayOneShot(p, "shot_kick");
+        if (p != null) PlayOneShot(p, "shot_kick", pan: pan);
     }
 
     public static void PlayPassKick(float pan = 0.0f)
     {
-        LastPlayedPan = pan;
-        string fileName = pan switch
-        {
-            < -0.25f => "Pass_Left",
-            > 0.25f => "Pass_Right",
-            _ => "Pass_Center"
-        };
+        LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
+        pan = LastPlayedPan;
+        string fileName = "Pass_Center";
         string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
                  ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Pass") 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick_Center");
-        if (p != null) PlayOneShot(p, "pass_kick");
+        if (p != null) PlayOneShot(p, "pass_kick", pan: pan);
     }
 
     public static void PlayCrossKick(float pan = 0.0f)
     {
-        LastPlayedPan = pan;
-        string fileName = pan switch
-        {
-            < -0.25f => "Cross_Left",
-            > 0.25f => "Cross_Right",
-            _ => "Cross_Center"
-        };
+        LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
+        pan = LastPlayedPan;
+        string fileName = "Cross_Center";
         string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
                  ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Cross") 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick_Center");
-        if (p != null) PlayOneShot(p, "cross_kick");
+        if (p != null) PlayOneShot(p, "cross_kick", pan: pan);
     }
 
     public static void PlayStandTackle(float pan = 0.0f)
     {
-        LastPlayedPan = pan;
+        LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
+        pan = LastPlayedPan;
         string? p = ResolveAudioPath("SFX", "Tackles", "StandTackle")
                  ?? ResolveAudioPath("SFX", "Tackles", "Tackle")
                  ?? ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Impact", "Kick")
                  ?? ResolveAudioPath("SFX", "Kicks", "Pass");
-        if (p != null) PlayOneShot(p, "stand_tackle");
+        if (p != null) PlayOneShot(p, "stand_tackle", pan: pan);
     }
 
     public static void PlaySlideTackle(float pan = 0.0f)
     {
-        LastPlayedPan = pan;
+        LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
+        pan = LastPlayedPan;
         string? p = ResolveAudioPath("SFX", "Tackles", "SlideTackle")
                  ?? ResolveAudioPath("SFX", "Tackles", "Tackle")
                  ?? ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Impact", "Kick")
                  ?? ResolveAudioPath("SFX", "Kicks", "Shot");
-        if (p != null) PlayOneShot(p, "slide_tackle");
+        if (p != null) PlayOneShot(p, "slide_tackle", pan: pan);
     }
 
     public static void PlayWhistle()
@@ -734,7 +721,7 @@ public static class SoundEffectsPlayer
         GoalBeaconPlayer.PlayBeaconPulse(1f, 0.0f);
     }
 
-    private static bool PlayOneShot(string filePath, string alias, string? soundName = null, float? customVolume = null)
+    private static bool PlayOneShot(string filePath, string alias, string? soundName = null, float? customVolume = null, float? pan = null)
     {
         LastPlayedSound = soundName ?? alias; LastPlayedFilePath = filePath; TotalSoundsPlayedCount++;
         float volume = customVolume ?? ChannelVolume(alias);
@@ -744,11 +731,23 @@ public static class SoundEffectsPlayer
             string type = alias is "comm_voice" or "chant_ch" ? "mpegvideo" : GetMciType(filePath);
             SendMci($"close {alias}");
             if (MciPlayback.SendString($"open \"{filePath}\" type {type} alias {alias}", null, 0, IntPtr.Zero) != 0) return false;
-            if (MciPlayback.SendString($"setaudio {alias} volume to {Math.Clamp((int)(volume * 1000), 0, 1000)}", null, 0, IntPtr.Zero) != 0 ||
+            if (!ApplyOneShotVolume(alias, Math.Clamp((int)(volume * 1000), 0, 1000), pan) ||
                 MciPlayback.SendString($"play {alias} from 0", null, 0, IntPtr.Zero) != 0) { SendMci($"close {alias}"); return false; }
             _activeOneShots[alias] = 1f;
+            if (pan.HasValue) _activeOneShotPans[alias] = pan.Value;
+            else _activeOneShotPans.Remove(alias);
             return true;
         }
+    }
+
+    private static bool ApplyOneShotVolume(string alias, int volume, float? pan)
+    {
+        if (MciPlayback.SendString($"setaudio {alias} volume to {volume}", null, 0, IntPtr.Zero) != 0) return false;
+        if (!pan.HasValue) return true;
+        int left = (int)(volume * (pan.Value > 0 ? 1 - pan.Value : 1));
+        int right = (int)(volume * (pan.Value < 0 ? 1 + pan.Value : 1));
+        return MciPlayback.SendString($"setaudio {alias} left volume to {left}", null, 0, IntPtr.Zero) == 0 &&
+            MciPlayback.SendString($"setaudio {alias} right volume to {right}", null, 0, IntPtr.Zero) == 0;
     }
 
     // =========================================================================
@@ -1051,5 +1050,6 @@ public static class SoundEffectsPlayer
         StopMenuMusic();
         StopCrowdAmbiance();
         SendMci("close all");
+        lock (_lock) { _activeOneShots.Clear(); _activeOneShotPans.Clear(); }
     }
 }
