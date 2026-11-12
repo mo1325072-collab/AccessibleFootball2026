@@ -40,7 +40,8 @@ public partial class MatchEngine
 
     public void RequestLineup()
     {
-        string lineup=string.Join("، ",HomeTeam.Players.Where(p=>p.IsActiveOnPitch).Select(p=>$"{p.Name} رقم {p.ShirtNumber}"));
-        Publish(new MatchEvent(MatchEventType.LineupRequested,$"تشكيلة {HomeTeam.Name}: {lineup}"));
+        string lineup=string.Join(LocalizationService.Text("، ", ", "),HomeTeam.Players.Where(p=>p.IsActiveOnPitch)
+            .Select(p=>LocalizationService.Text($"{p.Name} رقم {p.ShirtNumber}", $"{p.Name}, number {p.ShirtNumber}")));
+        Publish(new MatchEvent(MatchEventType.LineupRequested,LocalizationService.Text($"تشكيلة {HomeTeam.Name}: {lineup}", $"{HomeTeam.Name} lineup: {lineup}")));
     }
 }
