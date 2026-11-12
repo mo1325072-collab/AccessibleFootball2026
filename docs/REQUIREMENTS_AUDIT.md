@@ -111,7 +111,7 @@ Remaining limitation: Native keyboard and reader interaction still needs a Windo
 
 ### Explicit tactical radar
 
-Implementation and evidence: Radar uses the selected UI language, identifies the current restart/taker, and measures geometric distance to the current attacking goal, including the switched second-half goal. Four new event-output checks cover these paths.
+Implementation and evidence: Radar uses the selected UI language, identifies the current restart/taker, and measures geometric distance to the current attacking goal, including the switched second-half goal. Four event-output checks cover these paths. Four further keyboard-to-engine checks prove Space and explicit lineup requests remain available while an incident is held, without moving the ball/clock or firing a shot queued during narration.
 
 Remaining limitation: Recorded Arabic commentary remains Arabic; no translated recordings are claimed.
 
@@ -129,10 +129,10 @@ Remaining limitation: The actual Windows executable --test command still needs a
 
 ## Checks for this checkpoint
 
-- MatchFlowRegression: 165 assertions, including 34 added since the 131-assertion checkpoint. These exercise actual bilingual menu navigation/actions, source-name preservation, no-mirror selection, and explicit restart/goal-side radar. Run with the real database argument below.
+- MatchFlowRegression: 169 assertions, including 38 added since the 131-assertion checkpoint. These exercise actual bilingual menu navigation/actions, source-name preservation, no-mirror selection, and explicit restart/goal-side radar. Run with the real database argument below.
 - Existing ContextualMechanicsHarness: 146 assertions. Its tests now explicitly dismiss held restarts and resume the added interval; CPU readiness time starts only after dismissal.
 - ContextualCommentaryHarness: 65 assertions passed. ChallengerPhysicsHarness source: 19 assertions passed through a temporary .NET8 runner linked to its unchanged Program.cs. Its checked-in legacy project targets .NET9; the bare project command does not run with the available .NET8 SDK.
-- Before/after evidence: the forced-goalkeeper-injury test fails against the pre-audit MatchEngine and passes with the repair. The new English-category test also fails against the prior TeamSelectionManager and passes after localization. Adding tests did not merely restate successful old behavior.
+- Before/after evidence: the forced-goalkeeper-injury test fails against the pre-audit MatchEngine and passes with the repair. The new English-category test also fails against the prior TeamSelectionManager and passes after localization. The held-restart Space test fails against the previous engine and passes only after the held-input repair. Adding tests did not merely restate successful old behavior.
 - Older database harness has stale fixed census, bench-depth and center-spot assumptions, plus real unresolved source-policy/roster failures. Its 3/13 result is not reported as passing.
 - Older audio harness cannot begin without original TackleWon.wav. No audio pass or native playback pass is claimed.
 
