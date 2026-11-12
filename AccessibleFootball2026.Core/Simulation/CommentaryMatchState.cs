@@ -183,6 +183,8 @@ public partial class MatchEngine
             _goalHistory.Add(LastGoalReplay);
             _replayFrames.Clear();
         }
+        RecordMatchStatistics(e, facts);
+        HoldForStoppage(e);
         EventBus.Publish(e);
         if (e.Type == MatchEventType.FullTime) ReviewFinalMatch();
         if (e.Type is MatchEventType.CornerKick or MatchEventType.GoalKick or MatchEventType.ThrowIn or MatchEventType.HalfTime or MatchEventType.FullTime)
