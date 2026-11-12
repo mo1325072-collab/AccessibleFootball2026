@@ -14,7 +14,7 @@ Remaining limitation: Native keyboard layout, NVDA focus and real WinForms handl
 
 ### Pass reception, physical shots and defending
 
-Implementation and evidence: Existing physics harness 19/19; mechanics harness 146/146, with explicit incident dismissal and pre-extra-time resume
+Implementation and evidence: Physics harness source 19/19 via a temporary .NET8 runner; mechanics harness 146/146, with explicit incident dismissal and pre-extra-time resume
 
 Remaining limitation: Windows interaction not verified
 
@@ -76,13 +76,13 @@ Remaining limitation: No source roster, inclusion policy or team name changed
 
 Implementation and evidence: User chooses both participating teams; no longer silently starts first two entries
 
-Remaining limitation: Full bracket/season progression is not implemented
+Remaining limitation: Full bracket/season progression is not implemented. The reviewed originals do not specify progression formats or season saves, so this is unconfirmed scope, not a missing required feature.
 
 ### Settings
 
-Implementation and evidence: Legendary difficulty preserved instead of downgraded to Hard
+Implementation and evidence: Legendary difficulty preserved instead of downgraded to Hard. English pre-match, lineup, bench, roles, formation, tactics, pause, statistics and team-selection paths have direct menu/action tests. Window, draft, shootout and library labels use explicit language pairs. The settings language switch relabels controls in place without dropping current selections; the main menu rebuilds after switching.
 
-Remaining limitation: Full English UI coverage still missing; many menus remain Arabic
+Remaining limitation: Native language-switch behavior is not executed on Windows. English menu/action paths are exercised by the source harness; original Arabic team/player names and recording transcripts remain source content.
 
 ### Optional advisory CLI
 
@@ -103,12 +103,24 @@ Implementation and evidence: Release cross-build; actual DB external to single-f
 Remaining limitation: Current target is .NET8, unlike the old .NET9 request. Desktop deployment, native Windows/NVDA/SAPI/MCI execution and complete asset assembly are not verified
 
 
+### Team-selection callback routing
+
+Implementation and evidence: Per-call navigation callbacks now reach the six-confederation submenu instead of silently falling back to a flat national-team list. Tests navigate the actual categories, confederations, teams and opponent exclusion.
+
+Remaining limitation: Native keyboard and reader interaction still needs a Windows run.
+
+### Explicit tactical radar
+
+Implementation and evidence: Radar uses the selected UI language, identifies the current restart/taker, and measures geometric distance to the current attacking goal, including the switched second-half goal. Four new event-output checks cover these paths.
+
+Remaining limitation: Recorded Arabic commentary remains Arabic; no translated recordings are claimed.
+
 ## Checks for this checkpoint
 
-- MatchFlowRegression: 131 assertions, including 29 added since the 102-assertion checkpoint. Run with the real database argument below.
+- MatchFlowRegression: 164 assertions, including 33 added since the 131-assertion checkpoint. These exercise actual bilingual menu navigation/actions, source-name preservation, no-mirror selection, and explicit restart/goal-side radar. Run with the real database argument below.
 - Existing ContextualMechanicsHarness: 146 assertions. Its tests now explicitly dismiss held restarts and resume the added interval; CPU readiness time starts only after dismissal.
-- ContextualCommentaryHarness: 65 assertions passed. FootballPhysicsTestHarness: 19 assertions passed, rerun against these source changes.
-- Before/after evidence: the new forced-goalkeeper-injury test fails against the pre-audit MatchEngine and passes with the repair. Adding tests did not merely restate successful old behavior.
+- ContextualCommentaryHarness: 65 assertions passed. ChallengerPhysicsHarness source: 19 assertions passed through a temporary .NET8 runner linked to its unchanged Program.cs. Its checked-in legacy project targets .NET9; the bare project command does not run with the available .NET8 SDK.
+- Before/after evidence: the forced-goalkeeper-injury test fails against the pre-audit MatchEngine and passes with the repair. The new English-category test also fails against the prior TeamSelectionManager and passes after localization. Adding tests did not merely restate successful old behavior.
 - Older database harness has stale fixed census, bench-depth and center-spot assumptions, plus real unresolved source-policy/roster failures. Its 3/13 result is not reported as passing.
 - Older audio harness cannot begin without original TackleWon.wav. No audio pass or native playback pass is claimed.
 
@@ -120,8 +132,8 @@ dotnet build -c Release -p:EnableWindowsTargeting=true
 
 ## Open implementation work, not user testing homework
 
-- Finish English menu/announcement coverage and native accessible settings verification.
-- Full tournament/season progression remains absent. A matchup browser is not a tournament engine.
+- Verify native bilingual settings, keyboard focus and screen-reader behavior on Windows. Menu/action source tests are not a substitute for that runtime check.
+- Tournament/season progression is unconfirmed scope. The reviewed originals require competition categories but do not specify fixtures, standings, bracket formats or season saves. Do not invent official formats; recover an attributed original instruction before treating progression as required.
 - Review remaining original acceptance criteria and add behavioral tests where absent.
 - Recover original general effects, finish package integrity checks, then run native Windows accessibility/audio verification without asking the user to discover source defects.
 - Source roster gaps, inclusion-policy conflict, actual optional-model decision and literal .NET target/deployment differences remain explicit. Do not delete source teams or invent players to satisfy old tests.
