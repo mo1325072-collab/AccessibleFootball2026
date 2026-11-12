@@ -18,7 +18,7 @@ public partial class MatchEngine
         if (State != MatchState.PenaltyShootout || homeGoals == awayGoals) return;
         State = MatchState.GameOver;
         Publish(new MatchEvent(MatchEventType.ShootoutFinished,"نهاية ركلات الترجيح"),
-            ("match.finished",true),("shootout.homeScore",homeGoals),("shootout.awayScore",awayGoals),("shootout.decided",true));
+            ("match.finished",true),("shootout.homeScore",homeGoals),("shootout.awayScore",awayGoals),("shootout.decided",true),("shootout.winner",homeGoals>awayGoals?"home":"away"));
         AwardFinalTrophy(homeGoals>awayGoals?HomeTeam:AwayTeam);
     }
 
