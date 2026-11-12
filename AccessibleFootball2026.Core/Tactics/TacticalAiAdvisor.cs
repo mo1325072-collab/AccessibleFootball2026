@@ -293,7 +293,7 @@ public class TacticalAiAdvisor
                 ApplyAction = () =>
                 {
                     match.HomeTeam.CurrentFormation = suggestedFormation;
-                    FormationManager.ApplyFormation(match.HomeTeam, suggestedFormation);
+                    FormationManager.ApplyFormation(match.HomeTeam, suggestedFormation, assignPositions: true);
                     onApplied();
                 }
             });
@@ -308,7 +308,7 @@ public class TacticalAiAdvisor
                 ApplyAction = () =>
                 {
                     match.HomeTeam.CurrentFormation = FormationType.Formation532_Counter;
-                    FormationManager.ApplyFormation(match.HomeTeam, FormationType.Formation532_Counter);
+                    FormationManager.ApplyFormation(match.HomeTeam, FormationType.Formation532_Counter, assignPositions: true);
                     onApplied();
                 }
             });
@@ -323,7 +323,7 @@ public class TacticalAiAdvisor
                 ApplyAction = () =>
                 {
                     match.HomeTeam.CurrentFormation = FormationType.Formation4231_Wide;
-                    FormationManager.ApplyFormation(match.HomeTeam, FormationType.Formation4231_Wide);
+                    FormationManager.ApplyFormation(match.HomeTeam, FormationType.Formation4231_Wide, assignPositions: true);
                     onApplied();
                 }
             });
