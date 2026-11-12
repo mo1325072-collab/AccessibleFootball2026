@@ -173,7 +173,14 @@ public class Player
         _ => 1.0f
     };
 
-    public string ConditionDescription => Condition switch
+    public string ConditionDescription => LocalizationService.CurrentLanguage == UiLanguage.English ? Condition switch
+    {
+        PlayerCondition.Excellent => "Excellent condition (+10%)",
+        PlayerCondition.Good => "Good condition (+5%)",
+        PlayerCondition.Poor => "Poor condition (-5%)",
+        PlayerCondition.Terrible => "Terrible condition (-15%)",
+        _ => "Normal condition"
+    } : Condition switch
     {
         PlayerCondition.Excellent => "سهم أزرق مرتفع (حالة ممتازة +10%)",
         PlayerCondition.Good => "سهم أخضر (حالة جيدة +5%)",
@@ -231,6 +238,12 @@ public class Player
     {
         get
         {
+            if (LocalizationService.CurrentLanguage == UiLanguage.English)
+            {
+                string fit = CurrentAssignedPosition == PrimaryPosition ? "Primary position"
+                    : SecondaryPositions.Contains(CurrentAssignedPosition) ? "Secondary position" : "Out of position";
+                return $"{fit} ({CurrentAssignedPosition}), rating {EffectiveOverallRating} of {BaseOverallRating}. {ConditionDescription}";
+            }
             if (CurrentAssignedPosition == PrimaryPosition)
                 return $"في مركزه الأساسي ({CurrentAssignedPosition}) بطاقة كاملة {EffectiveOverallRating} - {ConditionDescription}";
             
