@@ -273,8 +273,8 @@ public partial class MatchEngine
         FormationManager.ApplyFormation(HomeTeam, HomeTeam.CurrentFormation);
         FormationManager.ApplyFormation(AwayTeam, AwayTeam.CurrentFormation);
 
-        if (HomeTeam.Players.Count(p => p.IsActiveOnPitch) < 7 || AwayTeam.Players.Count(p => p.IsActiveOnPitch) < 7)
-            throw new ArgumentException("Each team needs at least seven active players to start a match.");
+        string? lineupIssue = HomeTeam.GetMatchStartIssue() ?? AwayTeam.GetMatchStartIssue();
+        if (lineupIssue != null) throw new ArgumentException(lineupIssue);
         ActiveUserPlayer = HomeTeam.Players.First(p => p.IsActiveOnPitch);
         PlaceKickoff(HomeTeam, HomeTeam.Players.ElementAtOrDefault(9));
 
