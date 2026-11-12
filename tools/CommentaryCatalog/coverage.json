@@ -5,10 +5,10 @@
  "monoReviewStatusCounts": {
   "reviewed": 878,
   "speech_review_pending": 28,
-  "non_speech_pending": 6,
+  "non_speech_pending": 0,
   "non_game_promo": 3,
   "identity_pending": 11,
-  "user_excluded": 7
+  "user_excluded": 13
  },
  "automaticMappings": 911,
  "independentReview": "completed for all 59 assigned recordings; reconciled conservatively; unresolved holds remain",
