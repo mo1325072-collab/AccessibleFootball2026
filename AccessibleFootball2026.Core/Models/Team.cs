@@ -13,6 +13,7 @@ public class Team
     public string Id { get; set; }
     public string Name { get; set; }
     public TeamSide Side { get; set; }
+    public bool? MatchAttackingRight { get; set; }
     public bool IsNationalTeam { get; set; } = false; // تمييز المنتخبات عن الأندية للسلام الوطني ومنع المنتخبات في وضع الـ 4 فرق
     public List<Player> Players { get; set; } = new(); // التشكيل الأساسي الـ 11
     public List<Player> Bench { get; set; } = new();   // دكة البدلاء
@@ -29,6 +30,10 @@ public class Team
     public int RemainingSubstitutions => Math.Max(0, MaxSubstitutions - SubstitutionsUsed);
     public int RemainingStoppageWindows => Math.Max(0, MaxStoppageWindows - StoppageWindowsUsed);
     public bool WindowConsumedThisStoppage { get; set; } = false;
+
+    private readonly HashSet<Player> _substitutedOff = new();
+    public bool CanEnterAsSubstitute(Player player) => Bench.Contains(player) && !player.IsSentOff &&
+        !player.IsOffPitch && player.InjuryStatus != PlayerInjuryStatus.SevereInjury && !_substitutedOff.Contains(player);
 
     public bool CanMakeSubstitution(bool isHalfTime = false)
     {
@@ -166,7 +171,7 @@ public class Team
             return false;
         }
 
-        if (isMatchActive && !CanMakeSubstitution(isHalfTime))
+        if (isMatchActive && (!CanMakeSubstitution(isHalfTime) || !CanEnterAsSubstitute(playerIn)))
         {
             return false;
         }
@@ -181,6 +186,10 @@ public class Team
             playerIn.Position2D = playerOut.Position2D;
             playerIn.HomePosition = playerOut.HomePosition;
             playerIn.HasBall = playerOut.HasBall;
+            playerIn.FacingDirection = playerOut.FacingDirection;
+            playerIn.Velocity = playerOut.Velocity;
+            playerOut.HasBall = false;
+            if (isMatchActive) _substitutedOff.Add(playerOut);
 
             Players[outIndex] = playerIn;
             Bench[inIndex] = playerOut;
