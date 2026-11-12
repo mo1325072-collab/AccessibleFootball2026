@@ -239,6 +239,37 @@ MatchSettings.Load(settingsPath);
 Check(MatchSettings.Current.AutoSubstitutionsEnabled && MatchSettings.Current.AutoTacticalAdjustmentsEnabled && MatchSettings.Current.MusicVolumePercent == 27, "settings save/load preserves opt-ins and volume through a real temporary file");
 File.Delete(settingsPath); MatchSettings.Current.AutoSubstitutionsEnabled = false; MatchSettings.Current.AutoTacticalAdjustmentsEnabled = false;
 
+// Optional production database audit uses the supplied file, never a fabricated roster.
+int dbArgument = Array.IndexOf(args,"--database");
+if(dbArgument >= 0)
+{
+    if(dbArgument+1 >= args.Length)throw new ArgumentException("--database needs a file path");
+    var databaseType=typeof(JsonDatabaseProvider);
+    databaseType.GetMethod("ClearLoadedTeams",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,null);
+    databaseType.GetMethod("LoadDatabaseFromFile",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{args[dbArgument+1]});
+    databaseType.GetField("_isInitialized",BindingFlags.Static|BindingFlags.NonPublic)!.SetValue(null,true);
+    var production=JsonDatabaseProvider.AllTeams.ToArray();
+    Check(production.Length>0,"production database parses and exposes real teams");
+    var usable=production.Where(t=>t.GetMatchStartIssue()==null).ToArray();
+    int started=0;foreach(var t in usable)
+    {
+        var game=new MatchEngine(t.Clone(TeamSide.Home),usable.First(x=>x.Id!=t.Id).Clone(TeamSide.Away),new MatchEventBus(),new Input());
+        game.Update(.02f);started++;
+    }
+    Check(started==usable.Length,"all usable production teams start and update: "+started);
+    var unusable=production.Where(t=>t.GetMatchStartIssue()!=null).ToArray();
+    Check(unusable.All(t=>!string.IsNullOrWhiteSpace(t.GetMatchStartIssue())),"unusable production teams report a concrete roster/keeper issue: "+unusable.Length);
+    Console.WriteLine("Production roster gaps: "+string.Join("; ",unusable.Select(t=>t.Name+" ("+t.Players.Count+" starters)")));
+    var productionClubs=production.Where(t=>!t.IsNationalTeam).ToArray();bool allDraftsComplete=true;
+    for(int seed=0;seed<100;seed++)
+    {
+        var rng=new Random(seed);var pool=productionClubs.OrderBy(_=>rng.Next()).Take(8).ToArray();var d=new DreamTeamBuilder();
+        foreach(var t in pool.Take(4))d.AddUserSourceClub(t);foreach(var t in pool.Skip(4))d.AddCpuSourceClub(t);d.DraftBothTeams(rng);
+        allDraftsComplete &= d.UserDreamTeam.Players.Count==11 && d.CpuDreamTeam.Players.Count==11;
+    }
+    Check(allDraftsComplete,"100 seeded real-database drafts produce complete starting elevens");
+}
+
 string dbPath = Path.Combine(Path.GetTempPath(),Guid.NewGuid()+"-teams.json");
 var fixtureTeams = Enumerable.Range(0,8).Select(t => new {team="fixture club "+t, group="test",type="club",players=Enumerable.Range(0,24).Select(i=>new {name="player "+t+"-"+i, age=24,position=i<2?"GK":i<10?"CB":i<17?"CM":"ST",power=80}).ToArray()}).ToArray();
 File.WriteAllText(dbPath,System.Text.Json.JsonSerializer.Serialize(new {teams=fixtureTeams}));
@@ -287,6 +318,10 @@ for(int scenario=0;scenario<3;scenario++)
     Check(finite && m.State is MatchState.GameOver or MatchState.PenaltyShootout, "whole-match smoke path completes with finite physics scenario "+scenario);
 }
 MatchSettings.Current.ExtraTimeEnabled=false;MatchSettings.Current.PenaltyShootoutEnabled=false;
+m=New();m.HomeTeam.Players[0].CurrentAssignedPosition=SpecificPosition.CB;
+Check(m.HomeTeam.GetMatchStartIssue()!=null,"missing goalkeeper produces a usable start-block reason");
+m.HomeTeam.Players[1].CurrentAssignedPosition=SpecificPosition.GK;
+Check(m.HomeTeam.GetMatchStartIssue()==null,"outfield reassigned as goalkeeper can satisfy lineup validation without adding a player");
 Console.WriteLine($"{passed} assertions passed. No Windows/MCI/NVDA runtime was exercised.");
 
 sealed class Input : IInputHandler
