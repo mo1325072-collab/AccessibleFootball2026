@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
+using System.Text.Json;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -76,6 +77,8 @@ public static class Program
         try
         {
             TestBilingualSettingsPreserveControls();
+            TestSettingsSaveReloadCancelAndFailure();
+            TestInjuryChoiceWindowRouting();
             TestKeyEventArgsSuppressKeyPressMechanics();
             TestFormLevelMatchKeysSuppression();
             TestFormLevelMenuKeysSuppression();
@@ -138,6 +141,72 @@ public static class Program
             form.Close();
         }
         finally { MatchSettings.Current.Language = previous; }
+    }
+
+    private static void TestSettingsSaveReloadCancelAndFailure()
+    {
+        var backup = JsonSerializer.Deserialize<MatchSettings>(JsonSerializer.Serialize(MatchSettings.Current))!;
+        string oldPath = MatchSettings.CustomSettingsFilePath;
+        string directory = Path.Combine(Path.GetTempPath(), "native-settings-" + Guid.NewGuid());
+        Directory.CreateDirectory(directory);
+        MatchSettings.CustomSettingsFilePath = Path.Combine(directory, "settings.json");
+        try
+        {
+            var reader = new RecordingReader();
+            using (var form = new AccessibleSettingsForm(reader))
+            {
+                form.Show();
+                foreach (var name in new[] {"_tbMasterVolume", "_tbSfxVolume", "_tbCommentaryVolume", "_tbCrowdVolume", "_tbBeaconVolume", "_tbMusicVolume"}) Field<TrackBar>(form, name).Value = 0;
+                Field<ComboBox>(form, "_cmbDifficulty").SelectedIndex = 3;
+                Field<ComboBox>(form, "_cmbDuration").SelectedIndex = 4;
+                Field<ComboBox>(form, "_cmbCommentaryVoice").SelectedIndex = 2;
+                Field<ComboBox>(form, "_cmbLanguage").SelectedIndex = 1;
+                foreach(var name in new[]{"_chkExtraTime","_chkPenalties","_chkAutoSubs","_chkAutoTactics","_chkAiVar"}) Field<CheckBox>(form,name).Checked = false;
+                Field<Button>(form, "_btnSave").PerformClick();
+                Assert(!form.Visible && File.Exists(MatchSettings.ActiveSettingsFilePath), "Native Save closes only after a persistent write");
+            }
+            MatchSettings.Current.ResetToDefaults(); MatchSettings.Load();
+            using(var reopened = new AccessibleSettingsForm(reader))
+            {
+                reopened.Show();
+                Assert(Field<ComboBox>(reopened,"_cmbDifficulty").SelectedIndex==3 && Field<ComboBox>(reopened,"_cmbDuration").SelectedIndex==4 && Field<ComboBox>(reopened,"_cmbCommentaryVoice").SelectedIndex==2, "Reopened native dialog retains saved Legendary, duration and commentary Off");
+                Assert(new[]{"_tbMasterVolume","_tbSfxVolume","_tbCommentaryVolume","_tbCrowdVolume","_tbBeaconVolume","_tbMusicVolume"}.All(n=>Field<TrackBar>(reopened,n).Value==0), "Reopened native dialog retains zero on every volume slider");
+                Assert(new[]{"_chkExtraTime","_chkPenalties","_chkAutoSubs","_chkAutoTactics","_chkAiVar"}.All(n=>!Field<CheckBox>(reopened,n).Checked), "All saved native checkbox choices survive reopening");
+                Field<TrackBar>(reopened,"_tbMasterVolume").Value=73;
+                Field<ComboBox>(reopened,"_cmbLanguage").SelectedIndex=0;
+                reopened.Close();
+            }
+            Assert(MatchSettings.Current.MasterVolumePercent==0 && MatchSettings.Current.Language==UiLanguage.English && SoundEffectsPlayer.MasterVolumeSetting==0, "Close without Save cancels previews in settings and playback consumers");
+            string blocker=Path.Combine(directory,"file");File.WriteAllText(blocker,"fixture");MatchSettings.CustomSettingsFilePath=Path.Combine(blocker,"settings.json");
+            using(var failed = new AccessibleSettingsForm(reader))
+            {
+                failed.Show();Field<TrackBar>(failed,"_tbMasterVolume").Value=45;int before=reader.Spoken.Count;Field<Button>(failed,"_btnSave").PerformClick();
+                Assert(failed.Visible && reader.Spoken.Skip(before).Any(t=>t.Contains("could not be saved")) && !reader.Spoken.Skip(before).Any(t=>t.Contains("successfully saved")), "Failed native Save stays open and announces failure, never success");failed.Close();
+            }
+        }
+        finally { MatchSettings.CustomSettingsFilePath=oldPath;MatchSettings.Current.CopyFrom(backup);MatchSettings.Current.ApplyLive(); }
+    }
+
+    private static void TestInjuryChoiceWindowRouting()
+    {
+        using var window=CreateTestWindow(out var input);
+        window.Show();
+        var start=typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch",BindingFlags.NonPublic|BindingFlags.Instance)!;
+        start.Invoke(window,new object[]{TeamDatabase.CreateAlAhly(),TeamDatabase.CreateZamalek(),false,false});
+        var match=Field<MatchEngine>(window,"_activeMatch");var timer=Field<System.Windows.Forms.Timer>(window,"_gameLoopTimer");timer.Stop();
+        var injured=match.HomeTeam.Players[9];match.HomeTeam.Bench.Clear();
+        var first=new Player(9501,"First reserve",51,SpecificPosition.ST,99,99,99,99,99);var chosen=new Player(9502,"Chosen reserve",52,SpecificPosition.ST,60,60,60,60,60);match.HomeTeam.Bench.AddRange(new[]{first,chosen});
+        match.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);
+        // Invoke the real production timer callback, which must open the pending injury menu.
+        typeof(System.Windows.Forms.Timer).GetMethod("OnTick",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(timer,new object[]{EventArgs.Empty});
+        var menu=Field<AccessibleFootball2026.App.Menus.AccessibleMenu>(window,"_currentMenu");
+        Assert(menu.MenuTitle.Contains(injured.Name) && !timer.Enabled && match.HomeTeam.SubstitutionsUsed==0, "Real timer opens named injury menu before any automatic replacement and stops ticking");
+        var key=typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyDown",BindingFlags.NonPublic|BindingFlags.Instance)!;
+        key.Invoke(window,new object[]{window,new KeyEventArgs(Keys.Escape)});
+        Assert(match.PendingInjuryPlayer==injured && ReferenceEquals(menu,Field<AccessibleFootball2026.App.Menus.AccessibleMenu>(window,"_currentMenu")), "Escape cannot dismiss injury choice and resume an injured player");
+        key.Invoke(window,new object[]{window,new KeyEventArgs(Keys.Down)});key.Invoke(window,new object[]{window,new KeyEventArgs(Keys.Enter)});timer.Stop();
+        Assert(match.PendingInjuryPlayer==null && match.HomeTeam.Players.Contains(chosen) && match.HomeTeam.Bench.Contains(first), "Native Down/Enter path commits the chosen reserve, not strongest-first");
+        var list=Field<ListBox>(window,"_displayListBox");Assert(list.Visible && list.Enabled && list.Focused, "Match list focus is restored after the manual injury choice");
     }
 
     private static void Assert(bool condition, string testName, string details = "")
