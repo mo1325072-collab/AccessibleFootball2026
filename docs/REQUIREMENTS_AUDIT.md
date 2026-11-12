@@ -6,24 +6,102 @@ Later corrections win over older text: S passes and D crosses; Fares Awad is the
 
 ## Tested source behavior
 
-| Requirement | Implementation and evidence | Remaining limitation |
-| --- | --- | --- |
-| Edge-triggered controls and continuous movement | KeyboardInputHandler and MatchFlowRegression exercise press/hold/release, Ctrl variants and reset | Native keyboard layout, NVDA focus and real WinForms handling not executed on Windows |
-| Pass reception, physical shots and defending | Existing physics harness 19/19; mechanics harness 146/146, with explicit incident dismissal and pre-extra-time resume | Windows interaction not verified |
-| Two halves and switched goals | PeriodTransitions and regression check kickoffs, directions, intervals and extra time | Native menu interaction unverified |
-| Measured statistics | 25 comparative rows, navigation and producer tests | Visual/native reader interaction unverified |
-| Substitutions and opportunities | 5/3, sixth/fourth in extra time, interval-free opportunities, no return after substitution or sent-off vacancy | Seven source roster gaps remain separate |
-| Severe injuries and forced replacement | Reckless sliding fouls from behind can produce severe injury; compatible replacement selected; unreplaced player leaves; actual restart and taker survive | Injury tuning is a deterministic game rule, not a medical prediction |
-| Temporary-period state | Run-up, advantage and pending clearance cleared before new-period kickoff | Further whole-game scenario review remains open |
-| Tactical zero-dice design | Production tackle-duel result is deterministic from attributes, position, pressure and tactics; optional legacy forced rolls are test fixtures only | Other physical spread/shot random variation is separate from the duel rule |
-| Crowd proximity | Follows the actual attacking team's current goal, including second-half reversal | Original effects transfer and Windows playback blocked |
-| Radar and concise live speech | Both radar keys reach the engine query; semantic switch/missed-tackle tags replace unsafe substring detection; no tutorial in restart or replay announcements | Native audible behavior still unverified |
-| National teams by confederation | All 211 source teams partition exactly once into six categories; memberships checked against official FIFA lists | No source roster, inclusion policy or team name changed |
-| Tournament matchup choice | User chooses both participating teams; no longer silently starts first two entries | Full bracket/season progression is not implemented |
-| Settings | Legendary difficulty preserved instead of downgraded to Hard | Full English UI coverage still missing; many menus remain Arabic |
-| Optional advisory CLI | Portable Models lookup, safe argument boundaries, concurrent stderr/stdout reads, failed-exit rejection and process-tree timeout; query moved off UI thread | Tests use fake process fixtures, not actual model inference. No model/runtime downloaded |
-| Referee/VAR truthfulness | Active offside and restarts use native geometry/rules; unused name-only VAR preview no longer fabricates random centimeters or decisions | Qwen is not the match referee. Installing/choosing a model is a separate unresolved task |
-| Build and packaging | Release cross-build; actual DB external to single-file EXE; real native controller recovered | Current target is .NET8, unlike the old .NET9 request. Desktop deployment, native Windows/NVDA/SAPI/MCI execution and complete asset assembly are not verified |
+### Edge-triggered controls and continuous movement
+
+Implementation and evidence: KeyboardInputHandler and MatchFlowRegression exercise press/hold/release, Ctrl variants and reset
+
+Remaining limitation: Native keyboard layout, NVDA focus and real WinForms handling not executed on Windows
+
+### Pass reception, physical shots and defending
+
+Implementation and evidence: Existing physics harness 19/19; mechanics harness 146/146, with explicit incident dismissal and pre-extra-time resume
+
+Remaining limitation: Windows interaction not verified
+
+### Two halves and switched goals
+
+Implementation and evidence: PeriodTransitions and regression check kickoffs, directions, intervals and extra time
+
+Remaining limitation: Native menu interaction unverified
+
+### Measured statistics
+
+Implementation and evidence: 25 comparative rows, navigation and producer tests
+
+Remaining limitation: Visual/native reader interaction unverified
+
+### Substitutions and opportunities
+
+Implementation and evidence: 5/3, sixth/fourth in extra time, interval-free opportunities, no return after substitution or sent-off vacancy
+
+Remaining limitation: Seven source roster gaps remain separate
+
+### Severe injuries and forced replacement
+
+Implementation and evidence: Reckless sliding fouls from behind can produce severe injury; compatible replacement selected; unreplaced player leaves; actual restart and taker survive
+
+Remaining limitation: Injury tuning is a deterministic game rule, not a medical prediction
+
+### Temporary-period state
+
+Implementation and evidence: Run-up, advantage and pending clearance cleared before new-period kickoff
+
+Remaining limitation: Further whole-game scenario review remains open
+
+### Tactical zero-dice design
+
+Implementation and evidence: Production tackle-duel result is deterministic from attributes, position, pressure and tactics; optional legacy forced rolls are test fixtures only
+
+Remaining limitation: Other physical spread/shot random variation is separate from the duel rule
+
+### Crowd proximity
+
+Implementation and evidence: Follows the actual attacking team's current goal, including second-half reversal
+
+Remaining limitation: Original effects transfer and Windows playback blocked
+
+### Radar and concise live speech
+
+Implementation and evidence: Both radar keys reach the engine query; semantic switch/missed-tackle tags replace unsafe substring detection; no tutorial in restart or replay announcements
+
+Remaining limitation: Native audible behavior still unverified
+
+### National teams by confederation
+
+Implementation and evidence: All 211 source teams partition exactly once into six categories; memberships checked against official FIFA lists
+
+Remaining limitation: No source roster, inclusion policy or team name changed
+
+### Tournament matchup choice
+
+Implementation and evidence: User chooses both participating teams; no longer silently starts first two entries
+
+Remaining limitation: Full bracket/season progression is not implemented
+
+### Settings
+
+Implementation and evidence: Legendary difficulty preserved instead of downgraded to Hard
+
+Remaining limitation: Full English UI coverage still missing; many menus remain Arabic
+
+### Optional advisory CLI
+
+Implementation and evidence: Portable Models lookup, safe argument boundaries, concurrent stderr/stdout reads, failed-exit rejection and process-tree timeout; query moved off UI thread
+
+Remaining limitation: Tests use fake process fixtures, not actual model inference. No model/runtime downloaded
+
+### Referee/VAR truthfulness
+
+Implementation and evidence: Active offside and restarts use native geometry/rules; unused name-only VAR preview no longer fabricates random centimeters or decisions
+
+Remaining limitation: Qwen is not the match referee. Installing/choosing a model is a separate unresolved task
+
+### Build and packaging
+
+Implementation and evidence: Release cross-build; actual DB external to single-file EXE; real native controller recovered
+
+Remaining limitation: Current target is .NET8, unlike the old .NET9 request. Desktop deployment, native Windows/NVDA/SAPI/MCI execution and complete asset assembly are not verified
+
 
 ## Checks for this checkpoint
 
