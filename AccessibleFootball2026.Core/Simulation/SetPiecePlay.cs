@@ -4,7 +4,7 @@ using AccessibleFootball2026.Core.Models;
 
 namespace AccessibleFootball2026.Core.Simulation;
 
-public enum RestartKind { FreeKick, Penalty, IndirectFreeKick, Corner }
+public enum RestartKind { FreeKick, Penalty, IndirectFreeKick, Corner, ThrowIn, GoalKick }
 public sealed record PendingRestart(RestartKind Kind, Team Team, Player Taker, Vector2 Spot);
 
 public partial class MatchEngine
@@ -59,10 +59,26 @@ public partial class MatchEngine
     {
         if (Restart is not { } restart) return false;
         _restartReadySeconds += dt;
+        if (restart.Kind is RestartKind.ThrowIn or RestartKind.GoalKick)
+        {
+            if (restart.Team == HomeTeam) { Restart = null; return false; }
+            if (_restartReadySeconds < 2.5f) return true;
+            var receiver = restart.Team.Players.FirstOrDefault(p => p.IsActiveOnPitch && p != restart.Taker && p.Role != PlayerRole.Goalkeeper);
+            if (receiver != null)
+            {
+                Restart = null;
+                RecordBallTouch(restart.Taker);
+                SnapshotOffsideAtKick(restart.Taker);
+                Ball.Kick(receiver.Position2D - restart.Spot, 18, restart.Kind == RestartKind.ThrowIn ? 1 : 2, restart.Taker);
+                BeginCommentaryPass(restart.Taker, receiver, receiver.Position2D, "short", "high");
+                Publish(new MatchEvent(MatchEventType.BallKicked, "تنفيذ استئناف اللعب", CurrentZone, subjectPlayer: restart.Taker));
+            }
+            return true;
+        }
         if (restart.Team == HomeTeam)
         {
             var actions = _inputHandler.PollCurrentActions(true);
-            if (actions.Contains(GameAction.Pause)) { State = MatchState.Paused; return true; }
+            if (actions.Contains(GameAction.Pause)) { PauseMatch(); return true; }
             if (actions.Contains(GameAction.MoveUp)) AdjustAimingAngle(-dt);
             if (actions.Contains(GameAction.MoveDown)) AdjustAimingAngle(dt);
             if(restart.Kind==RestartKind.Corner)
