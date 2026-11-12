@@ -312,6 +312,7 @@ public partial class MatchEngine
 
     public void Update(float deltaTime)
     {
+        if (!float.IsFinite(deltaTime) || deltaTime <= 0) return;
         if (PendingInjuryPlayer != null)
         {
             _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
