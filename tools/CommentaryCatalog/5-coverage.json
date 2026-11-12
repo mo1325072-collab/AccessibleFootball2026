@@ -1,0 +1,16 @@
+{
+ "originalSlots": 4918,
+ "distinctMonoRecordings": 933,
+ "distinctStereoEncodings": 3,
+ "monoReviewStatusCounts": {
+  "reviewed": 879,
+  "speech_review_pending": 28,
+  "non_speech_pending": 0,
+  "non_game_promo": 3,
+  "identity_pending": 10,
+  "user_excluded": 13
+ },
+ "automaticMappings": 912,
+ "independentReview": "completed for all 59 assigned recordings; reconciled conservatively; unresolved holds remain",
+ "windowsRuntimeVerified": false
+}
