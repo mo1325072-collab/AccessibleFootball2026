@@ -14,6 +14,8 @@ namespace AccessibleFootball2026.App.Menus;
 /// </summary>
 public static class GamePlanMenuBuilder
 {
+    private static string T(string ar, string en) => LocalizationService.Text(ar, en);
+
     public static AccessibleMenu CreatePreMatchMenu(
         Team userTeam, 
         IScreenReader screenReader, 
@@ -21,55 +23,54 @@ public static class GamePlanMenuBuilder
         Action popMenu, 
         Action onStartMatch)
     {
-        var menu = new AccessibleMenu($"خطة لعب {userTeam.Name}", screenReader);
+        var menu = new AccessibleMenu(T($"خطة لعب {userTeam.Name}", $"Game plan: {userTeam.Name}"), screenReader);
 
-        menu.AddItem("بدء المباراة", () =>
+        menu.AddItem(T("بدء المباراة", "Start match"), () =>
         {
-            screenReader.Speak("انطلاق المباراة بالتشكيلة والخيارات المعتمدة");
+            screenReader.Speak(T("انطلاق المباراة بالتشكيلة والخيارات المعتمدة", "Match starting"));
             onStartMatch();
         });
 
-        menu.AddItem("التشكيلة الأساسية", () =>
+        menu.AddItem(T("التشكيلة الأساسية", "Starting lineup"), () =>
         {
             var lineupMenu = CreateLineupMenu(userTeam, screenReader, pushMenu, popMenu);
             pushMenu(lineupMenu);
         });
 
-        menu.AddItem("دكة البدلاء", () =>
+        menu.AddItem(T("دكة البدلاء", "Bench"), () =>
         {
             var benchMenu = CreateBenchMenu(userTeam, screenReader, pushMenu, popMenu);
             pushMenu(benchMenu);
         });
 
-        menu.AddItem("أدوار المتخصصين", () =>
+        menu.AddItem(T("أدوار المتخصصين", "Specialist roles"), () =>
         {
             var specMenu = CreateSpecialistsMenu(userTeam, screenReader, pushMenu, popMenu);
             pushMenu(specMenu);
         });
 
-        menu.AddItem("تغيير الخطة التكتيكية", () =>
+        menu.AddItem(T("تغيير الخطة التكتيكية", "Change formation"), () =>
         {
             var formMenu = CreateFormationMenu(userTeam, screenReader, popMenu);
             pushMenu(formMenu);
         });
 
-        menu.AddItem("الأسلوب والتكتيك (الشرايط وطريقة الدفاع)", () =>
+        menu.AddItem(T("الأسلوب والتكتيك (الشرايط وطريقة الدفاع)", "Playing style and tactics"), () =>
         {
             var tactMenu = CreateTacticsMenu(userTeam, screenReader, popMenu);
             pushMenu(tactMenu);
         });
 
-        menu.AddItem("تقرير الفريق", () =>
+        menu.AddItem(T("تقرير الفريق", "Team report"), () =>
         {
-            string cap = userTeam.Captain?.Name ?? (userTeam.Players.Count > 0 ? userTeam.Players[0].Name : "غير محدد");
-            string pen = userTeam.PenaltyTaker?.Name ?? (userTeam.Players.Count > 9 ? userTeam.Players[9].Name : "غير محدد");
-            string report = $"تقرير فريق {userTeam.Name}: الخطة التكتيكية: {userTeam.CurrentFormation.ToArabicName()}. " +
-                           $"القائد: {cap}. مسدد ضربات الجزاء: {pen}. " +
-                           $"عدد اللاعبين الأساسيين: {userTeam.Players.Count}، وعدد البدلاء: {userTeam.Bench.Count}.";
+            string cap = userTeam.Captain?.Name ?? (userTeam.Players.Count > 0 ? userTeam.Players[0].Name : T("غير محدد", "Unassigned"));
+            string pen = userTeam.PenaltyTaker?.Name ?? (userTeam.Players.Count > 9 ? userTeam.Players[9].Name : T("غير محدد", "Unassigned"));
+            string report = T($"تقرير فريق {userTeam.Name}. الخطة: {userTeam.CurrentFormation.ToArabicName()}. القائد: {cap}. الجزاء: {pen}. الأساسيون: {userTeam.Players.Count}. البدلاء: {userTeam.Bench.Count}.",
+                $"{userTeam.Name}. Formation: {userTeam.CurrentFormation.ToEnglishName()}. Captain: {cap}. Penalty taker: {pen}. Starters: {userTeam.Players.Count}. Bench: {userTeam.Bench.Count}.");
             screenReader.Speak(report);
         });
 
-        menu.AddItem("رجوع", () => popMenu());
+        menu.AddItem(T("رجوع", "Back"), () => popMenu());
 
         return menu;
     }
@@ -81,13 +82,13 @@ public static class GamePlanMenuBuilder
         Action popMenu,
         MatchEngine? match = null)
     {
-        var menu = new AccessibleMenu("التشكيلة الأساسية", screenReader);
+        var menu = new AccessibleMenu(T("التشكيلة الأساسية", "Starting lineup"), screenReader);
 
         for (int i = 0; i < userTeam.Players.Count; i++)
         {
             int playerIndex = i;
             var p = userTeam.Players[playerIndex];
-            string itemTitle = $"{playerIndex + 1}. {p.Name}، {p.CurrentAssignedPosition}، طاقة {p.EffectiveOverallRating}، {p.ConditionDescription}";
+            string itemTitle = T($"{playerIndex + 1}. {p.Name}، {p.CurrentAssignedPosition}، طاقة {p.EffectiveOverallRating}، {p.ConditionDescription}", $"{playerIndex + 1}. {p.Name}, {p.CurrentAssignedPosition}, rating {p.EffectiveOverallRating}, {p.ConditionDescription}");
 
             menu.AddItem(itemTitle, () =>
             {
@@ -96,18 +97,18 @@ public static class GamePlanMenuBuilder
             });
         }
 
-        menu.AddItem("سماع كامل التشكيلة الأساسية دفعة واحدة", () =>
+        menu.AddItem(T("سماع كامل التشكيلة الأساسية دفعة واحدة", "Read starting lineup"), () =>
         {
-            string summary = "التشكيلة الأساسية: ";
+            string summary = T("التشكيلة الأساسية: ", "Starting lineup: ");
             for (int i = 0; i < userTeam.Players.Count; i++)
             {
                 var p = userTeam.Players[i];
-                summary += $"{i + 1}: {p.Name} في مركز {p.CurrentAssignedPosition}. ";
+                summary += T($"{i + 1}: {p.Name} في مركز {p.CurrentAssignedPosition}. ", $"{i + 1}: {p.Name}, {p.CurrentAssignedPosition}. ");
             }
             screenReader.Speak(summary);
         });
 
-        menu.AddItem("رجوع", () => popMenu());
+        menu.AddItem(T("رجوع", "Back"), () => popMenu());
 
         return menu;
     }
@@ -123,31 +124,31 @@ public static class GamePlanMenuBuilder
         var player = userTeam.Players[playerIndex];
         var menu = new AccessibleMenu(player.Name, screenReader);
 
-        menu.AddItem("تبديل الموضع", () =>
+        menu.AddItem(T("تبديل الموضع", "Swap positions"), () =>
         {
-            var swapMenu = new AccessibleMenu("اختر اللاعب المراد التبديل معه", screenReader);
+            var swapMenu = new AccessibleMenu(T("اختر اللاعب المراد التبديل معه", "Swap with player"), screenReader);
             for (int j = 0; j < userTeam.Players.Count; j++)
             {
                 if (j == playerIndex) continue;
                 int targetIdx = j;
                 var targetP = userTeam.Players[targetIdx];
-                swapMenu.AddItem($"{targetP.Name}، مركز {targetP.CurrentAssignedPosition}، طاقة {targetP.EffectiveOverallRating}", () =>
+                swapMenu.AddItem(T($"{targetP.Name}، مركز {targetP.CurrentAssignedPosition}، طاقة {targetP.EffectiveOverallRating}", $"{targetP.Name}, {targetP.CurrentAssignedPosition}, rating {targetP.EffectiveOverallRating}"), () =>
                 {
                     userTeam.SwapPositions(playerIndex, targetIdx);
-                    screenReader.Speak($"تم تبديل الموضعين بنجاح بين {player.Name} و {targetP.Name}.");
+                    screenReader.Speak(T($"تم تبديل الموضعين بنجاح بين {player.Name} و {targetP.Name}.", $"{player.Name} and {targetP.Name} swapped positions."));
                     popMenu(); // back to options
                     popMenu(); // back to lineup
                 });
             }
-            swapMenu.AddItem("إلغاء", () => popMenu());
+            swapMenu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
             pushMenu(swapMenu);
         });
 
-        menu.AddItem("استبدال بلاعب بديل", () =>
+        menu.AddItem(T("استبدال بلاعب بديل", "Substitute player"), () =>
         {
             if (userTeam.Bench.Count == 0)
             {
-                screenReader.Speak("لا يوجد أي بديل متاح على الدكة!");
+                screenReader.Speak(T("لا يوجد أي بديل متاح على الدكة!", "No substitute available"));
                 return;
             }
 
@@ -155,21 +156,21 @@ public static class GamePlanMenuBuilder
             {
                 if (userTeam.SubstitutionsUsed >= userTeam.MaxSubstitutions)
                 {
-                    screenReader.Speak($"تم استنفاد جميع التبديلات المسموحة ({userTeam.MaxSubstitutions} تبديلات)!");
+                    screenReader.Speak(T($"تم استنفاد جميع التبديلات المسموحة ({userTeam.MaxSubstitutions} تبديلات)!", $"All {userTeam.MaxSubstitutions} substitutions used"));
                 }
                 else
                 {
-                    screenReader.Speak($"تم استنفاد جميع فترات التوقف المسموحة ({userTeam.MaxStoppageWindows} فترات توقف)!");
+                    screenReader.Speak(T($"تم استنفاد جميع فترات التوقف المسموحة ({userTeam.MaxStoppageWindows} فترات توقف)!", $"All {userTeam.MaxStoppageWindows} substitution opportunities used"));
                 }
                 return;
             }
 
-            var subMenu = new AccessibleMenu($"اختر البديل لـ {player.Name}", screenReader);
+            var subMenu = new AccessibleMenu(T($"اختر البديل لـ {player.Name}", $"Substitute for {player.Name}"), screenReader);
             for (int b = 0; b < userTeam.Bench.Count; b++)
             {
                 var benchPlayer = userTeam.Bench[b];
                 if (match != null && !userTeam.CanEnterAsSubstitute(benchPlayer)) continue;
-                subMenu.AddItem($"{benchPlayer.Name}، مركزه المفضل {benchPlayer.PrimaryPosition}، طاقة {benchPlayer.EffectiveOverallRating}", () =>
+                subMenu.AddItem(T($"{benchPlayer.Name}، مركزه المفضل {benchPlayer.PrimaryPosition}، طاقة {benchPlayer.EffectiveOverallRating}", $"{benchPlayer.Name}, primary position {benchPlayer.PrimaryPosition}, rating {benchPlayer.EffectiveOverallRating}"), () =>
                 {
                     bool ok = match != null 
                         ? match.MakeSubstitution(userTeam, player, benchPlayer)
@@ -177,23 +178,23 @@ public static class GamePlanMenuBuilder
 
                     if (ok)
                     {
-                        screenReader.Speak($"تم التبديل بنجاح: خروج {player.Name} ودخول {benchPlayer.Name} في مركز {benchPlayer.CurrentAssignedPosition}. (التبديلات: {userTeam.SubstitutionsUsed}/{userTeam.MaxSubstitutions})");
+                        screenReader.Speak(T($"تم التبديل بنجاح: خروج {player.Name} ودخول {benchPlayer.Name} في مركز {benchPlayer.CurrentAssignedPosition}. (التبديلات: {userTeam.SubstitutionsUsed}/{userTeam.MaxSubstitutions})", $"{player.Name} off, {benchPlayer.Name} on at {benchPlayer.CurrentAssignedPosition}. Substitutions {userTeam.SubstitutionsUsed}/{userTeam.MaxSubstitutions}"));
                     }
                     else
                     {
-                        screenReader.Speak("تعذر إجراء التبديل: استنفدت التبديلات أو فترات التوقف المسموحة!");
+                        screenReader.Speak(T("تعذر إجراء التبديل: استنفدت التبديلات أو فترات التوقف المسموحة!", "Substitution unavailable: count or opportunity limit reached"));
                     }
                     popMenu();
                     popMenu();
                 });
             }
-            subMenu.AddItem("إلغاء", () => popMenu());
+            subMenu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
             pushMenu(subMenu);
         });
 
-        menu.AddItem("تغيير المركز", () =>
+        menu.AddItem(T("تغيير المركز", "Change position"), () =>
         {
-            var posMenu = new AccessibleMenu($"اختر المركز الجديد لـ {player.Name}", screenReader);
+            var posMenu = new AccessibleMenu(T($"اختر المركز الجديد لـ {player.Name}", $"Position for {player.Name}"), screenReader);
             var positions = new[] 
             { 
                 SpecificPosition.GK, SpecificPosition.CB, SpecificPosition.LB, SpecificPosition.RB,
@@ -204,29 +205,26 @@ public static class GamePlanMenuBuilder
             foreach (var pos in positions)
             {
                 var targetPos = pos;
-                posMenu.AddItem($"مركز {targetPos}", () =>
+                posMenu.AddItem(T($"مركز {targetPos}", $"{targetPos}"), () =>
                 {
                     player.CurrentAssignedPosition = targetPos;
-                    screenReader.Speak($"تم تعيين {player.Name} في مركز {targetPos}، طاقته الحالية {player.EffectiveOverallRating}، {player.PositionSuitabilityMessage}");
+                    screenReader.Speak(T($"تم تعيين {player.Name} في مركز {targetPos}، طاقته الحالية {player.EffectiveOverallRating}، {player.PositionSuitabilityMessage}", $"{player.Name}, {targetPos}, rating {player.EffectiveOverallRating}. {player.PositionSuitabilityMessage}"));
                     popMenu();
                     popMenu();
                 });
             }
-            posMenu.AddItem("إلغاء", () => popMenu());
+            posMenu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
             pushMenu(posMenu);
         });
 
-        menu.AddItem("تقرير المهارات", () =>
+        menu.AddItem(T("تقرير المهارات", "Player attributes"), () =>
         {
-            string details = $"اللاعب {player.Name}، رقم القميص {player.ShirtNumber}. " +
-                            $"المركز الأساسي {player.PrimaryPosition}، يلعب حالياً كـ {player.CurrentAssignedPosition}. " +
-                            $"السرعة {player.Speed}، التسديد {player.Shooting}، التمرير {player.Passing}، " +
-                            $"المراوغة {player.Dribbling}، الدفاع {player.Defending}، القوة البدنية {player.Physical}. " +
-                            $"التقييم الفعلي {player.EffectiveOverallRating}، الحالة البدنية {player.ConditionDescription}.";
+            string details = T($"{player.Name}، رقم {player.ShirtNumber}. الأساسي {player.PrimaryPosition}، الحالي {player.CurrentAssignedPosition}. السرعة {player.Speed}، التسديد {player.Shooting}، التمرير {player.Passing}، المراوغة {player.Dribbling}، الدفاع {player.Defending}، القوة {player.Physical}. التقييم {player.EffectiveOverallRating}، {player.ConditionDescription}.",
+                $"{player.Name}, shirt {player.ShirtNumber}. Primary {player.PrimaryPosition}, assigned {player.CurrentAssignedPosition}. Speed {player.Speed}, shooting {player.Shooting}, passing {player.Passing}, dribbling {player.Dribbling}, defending {player.Defending}, physical {player.Physical}. Rating {player.EffectiveOverallRating}, {player.ConditionDescription}.");
             screenReader.Speak(details);
         });
 
-        menu.AddItem("رجوع", () => popMenu());
+        menu.AddItem(T("رجوع", "Back"), () => popMenu());
 
         return menu;
     }
@@ -238,14 +236,14 @@ public static class GamePlanMenuBuilder
         Action popMenu,
         MatchEngine? match = null)
     {
-        var menu = new AccessibleMenu("دكة البدلاء", screenReader);
+        var menu = new AccessibleMenu(T("دكة البدلاء", "Bench"), screenReader);
 
         for (int i = 0; i < userTeam.Bench.Count; i++)
         {
             int benchIdx = i;
             var sub = userTeam.Bench[benchIdx];
             if (match != null && !userTeam.CanEnterAsSubstitute(sub)) continue;
-            string itemTitle = $"{benchIdx + 1}. {sub.Name}، {sub.PrimaryPosition}، طاقة {sub.EffectiveOverallRating}، {sub.ConditionDescription}";
+            string itemTitle = T($"{benchIdx + 1}. {sub.Name}، {sub.PrimaryPosition}، طاقة {sub.EffectiveOverallRating}، {sub.ConditionDescription}", $"{benchIdx + 1}. {sub.Name}, {sub.PrimaryPosition}, rating {sub.EffectiveOverallRating}, {sub.ConditionDescription}");
 
             menu.AddItem(itemTitle, () =>
             {
@@ -253,20 +251,20 @@ public static class GamePlanMenuBuilder
                 {
                     if (userTeam.SubstitutionsUsed >= userTeam.MaxSubstitutions)
                     {
-                        screenReader.Speak($"تم استنفاد جميع التبديلات المسموحة ({userTeam.MaxSubstitutions} تبديلات)!");
+                        screenReader.Speak(T($"تم استنفاد جميع التبديلات المسموحة ({userTeam.MaxSubstitutions} تبديلات)!", $"All {userTeam.MaxSubstitutions} substitutions used"));
                     }
                     else
                     {
-                        screenReader.Speak($"تم استنفاد جميع فترات التوقف المسموحة ({userTeam.MaxStoppageWindows} فترات توقف)!");
+                        screenReader.Speak(T($"تم استنفاد جميع فترات التوقف المسموحة ({userTeam.MaxStoppageWindows} فترات توقف)!", $"All {userTeam.MaxStoppageWindows} substitution opportunities used"));
                     }
                     return;
                 }
 
-                var replaceMenu = new AccessibleMenu($"اختر اللاعب الأساسي المراد خروجه ليدخل {sub.Name}", screenReader);
+                var replaceMenu = new AccessibleMenu(T($"اختر اللاعب الأساسي المراد خروجه ليدخل {sub.Name}", $"Player to replace with {sub.Name}"), screenReader);
                 for (int s = 0; s < userTeam.Players.Count; s++)
                 {
                     var starter = userTeam.Players[s];
-                    replaceMenu.AddItem($"{starter.Name}، مركز {starter.CurrentAssignedPosition}، طاقة {starter.EffectiveOverallRating}", () =>
+                    replaceMenu.AddItem(T($"{starter.Name}، مركز {starter.CurrentAssignedPosition}، طاقة {starter.EffectiveOverallRating}", $"{starter.Name}, {starter.CurrentAssignedPosition}, rating {starter.EffectiveOverallRating}"), () =>
                     {
                         bool ok = match != null 
                             ? match.MakeSubstitution(userTeam, starter, sub)
@@ -274,24 +272,24 @@ public static class GamePlanMenuBuilder
 
                         if (ok)
                         {
-                            screenReader.Speak($"تم التبديل بنجاح: خروج {starter.Name} ودخول {sub.Name} كـ {sub.CurrentAssignedPosition}. (التبديلات: {userTeam.SubstitutionsUsed}/{userTeam.MaxSubstitutions})");
+                            screenReader.Speak(T($"تم التبديل بنجاح: خروج {starter.Name} ودخول {sub.Name} كـ {sub.CurrentAssignedPosition}. (التبديلات: {userTeam.SubstitutionsUsed}/{userTeam.MaxSubstitutions})", $"{starter.Name} off, {sub.Name} on at {sub.CurrentAssignedPosition}. Substitutions {userTeam.SubstitutionsUsed}/{userTeam.MaxSubstitutions}"));
                         }
                         else
                         {
-                            screenReader.Speak("تعذر إجراء التبديل: استنفدت التبديلات أو فترات التوقف المسموحة!");
+                            screenReader.Speak(T("تعذر إجراء التبديل: استنفدت التبديلات أو فترات التوقف المسموحة!", "Substitution unavailable: count or opportunity limit reached"));
                         }
                         popMenu();
                         popMenu();
                     });
                 }
-                replaceMenu.AddItem("إلغاء", () => popMenu());
+                replaceMenu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
                 pushMenu(replaceMenu);
             });
         }
 
-        menu.AddItem("سماع دكة البدلاء", () =>
+        menu.AddItem(T("سماع دكة البدلاء", "Read bench"), () =>
         {
-            string summary = "دكة البدلاء: ";
+            string summary = T("دكة البدلاء: ", "Bench: ");
             for (int i = 0; i < userTeam.Bench.Count; i++)
             {
                 var p = userTeam.Bench[i];
@@ -300,7 +298,7 @@ public static class GamePlanMenuBuilder
             screenReader.Speak(summary);
         });
 
-        menu.AddItem("رجوع", () => popMenu());
+        menu.AddItem(T("رجوع", "Back"), () => popMenu());
 
         return menu;
     }
@@ -312,81 +310,81 @@ public static class GamePlanMenuBuilder
         Action popMenu)
     {
         userTeam.AssignDefaultRoles();
-        var menu = new AccessibleMenu("أدوار المتخصصين", screenReader);
+        var menu = new AccessibleMenu(T("أدوار المتخصصين", "Specialist roles"), screenReader);
 
-        menu.AddItem($"قائد الفريق: {userTeam.Captain?.Name ?? "غير محدد"}", () =>
+        menu.AddItem(T("قائد الفريق", "Captain") + $": {userTeam.Captain?.Name ?? T("غير محدد", "Unassigned")}", () =>
         {
-            var capMenu = new AccessibleMenu("اختر قائد الفريق", screenReader);
+            var capMenu = new AccessibleMenu(T("اختر قائد الفريق", "Select captain"), screenReader);
             foreach (var p in userTeam.Players)
             {
                 var candidate = p;
-                capMenu.AddItem($"{candidate.Name}، {candidate.CurrentAssignedPosition}", () =>
+                capMenu.AddItem(T($"{candidate.Name}، {candidate.CurrentAssignedPosition}", $"{candidate.Name}, {candidate.CurrentAssignedPosition}"), () =>
                 {
                     userTeam.Captain = candidate;
-                    screenReader.Speak($"تم تعيين {candidate.Name} قائداً للفريق.");
+                    screenReader.Speak(T($"تم تعيين {candidate.Name} قائداً للفريق.", $"Captain: {candidate.Name}"));
                     popMenu();
                     popMenu();
                 });
             }
-            capMenu.AddItem("إلغاء", () => popMenu());
+            capMenu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
             pushMenu(capMenu);
         });
 
-        menu.AddItem($"ركلات الجزاء: {userTeam.PenaltyTaker?.Name ?? "غير محدد"}", () =>
+        menu.AddItem(T("ركلات الجزاء", "Penalty taker") + $": {userTeam.PenaltyTaker?.Name ?? T("غير محدد", "Unassigned")}", () =>
         {
-            var penMenu = new AccessibleMenu("اختر مسدد ركلات الجزاء", screenReader);
+            var penMenu = new AccessibleMenu(T("اختر مسدد ركلات الجزاء", "Select penalty taker"), screenReader);
             foreach (var p in userTeam.Players)
             {
                 var candidate = p;
-                penMenu.AddItem($"{candidate.Name}، تسديد {candidate.Shooting}", () =>
+                penMenu.AddItem(T($"{candidate.Name}، تسديد {candidate.Shooting}", $"{candidate.Name}, shooting {candidate.Shooting}"), () =>
                 {
                     userTeam.PenaltyTaker = candidate;
-                    screenReader.Speak($"تم تعيين {candidate.Name} مسدداً أول لركلات الجزاء.");
+                    screenReader.Speak(T($"تم تعيين {candidate.Name} مسدداً أول لركلات الجزاء.", $"Penalty taker: {candidate.Name}"));
                     popMenu();
                     popMenu();
                 });
             }
-            penMenu.AddItem("إلغاء", () => popMenu());
+            penMenu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
             pushMenu(penMenu);
         });
 
-        menu.AddItem($"الركلات الحرة: {userTeam.FreeKickTaker?.Name ?? "غير محدد"}", () =>
+        menu.AddItem(T("الركلات الحرة", "Free-kick taker") + $": {userTeam.FreeKickTaker?.Name ?? T("غير محدد", "Unassigned")}", () =>
         {
-            var fkMenu = new AccessibleMenu("اختر مسدد الركلات الحرة", screenReader);
+            var fkMenu = new AccessibleMenu(T("اختر مسدد الركلات الحرة", "Select free-kick taker"), screenReader);
             foreach (var p in userTeam.Players)
             {
                 var candidate = p;
-                fkMenu.AddItem($"{candidate.Name}، تسديد {candidate.Shooting}، تمرير {candidate.Passing}", () =>
+                fkMenu.AddItem(T($"{candidate.Name}، تسديد {candidate.Shooting}، تمرير {candidate.Passing}", $"{candidate.Name}, shooting {candidate.Shooting}, passing {candidate.Passing}"), () =>
                 {
                     userTeam.FreeKickTaker = candidate;
-                    screenReader.Speak($"تم تعيين {candidate.Name} مسدداً للركلات الحرة المباشرة.");
+                    screenReader.Speak(T($"تم تعيين {candidate.Name} مسدداً للركلات الحرة المباشرة.", $"Free-kick taker: {candidate.Name}"));
                     popMenu();
                     popMenu();
                 });
             }
-            fkMenu.AddItem("إلغاء", () => popMenu());
+            fkMenu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
             pushMenu(fkMenu);
         });
 
-        menu.AddItem($"الركلات الركنية: {userTeam.CornerTaker?.Name ?? "غير محدد"}", () =>
+        menu.AddItem(T("الركلات الركنية", "Corner taker") + $": {userTeam.CornerTaker?.Name ?? T("غير محدد", "Unassigned")}", () =>
         {
-            var crnMenu = new AccessibleMenu("اختر منفذ الركلات الركنية", screenReader);
+            var crnMenu = new AccessibleMenu(T("اختر منفذ الركلات الركنية", "Select corner taker"), screenReader);
             foreach (var p in userTeam.Players)
             {
                 var candidate = p;
-                crnMenu.AddItem($"{candidate.Name}، تمرير {candidate.Passing}", () =>
+                crnMenu.AddItem(T($"{candidate.Name}، تمرير {candidate.Passing}", $"{candidate.Name}, passing {candidate.Passing}"), () =>
                 {
                     userTeam.CornerTaker = candidate;
-                    screenReader.Speak($"تم تعيين {candidate.Name} منفذاً للركلات الركنية.");
+                    screenReader.Speak(T($"تم تعيين {candidate.Name} منفذاً للركلات الركنية.", $"Corner taker: {candidate.Name}"));
                     popMenu();
                     popMenu();
                 });
             }
-            crnMenu.AddItem("إلغاء", () => popMenu());
+            crnMenu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
             pushMenu(crnMenu);
         });
 
-        menu.AddItem("رجوع", () => popMenu());
+        menu.AddItem(T("رجوع", "Back"), () => popMenu());
 
         return menu;
     }
@@ -396,21 +394,21 @@ public static class GamePlanMenuBuilder
         IScreenReader screenReader, 
         Action popMenu)
     {
-        var menu = new AccessibleMenu("الخطة التكتيكية", screenReader);
+        var menu = new AccessibleMenu(T("الخطة التكتيكية", "Formation"), screenReader);
         var formations = FormationManager.GetAllFormations();
 
         foreach (var f in formations)
         {
             var targetFormation = f;
-            menu.AddItem(targetFormation.ToArabicName(), () =>
+            menu.AddItem(T(targetFormation.ToArabicName(), targetFormation.ToEnglishName()), () =>
             {
                 userTeam.ChangeFormation(targetFormation);
-                screenReader.Speak($"تم تطبيق خطة {targetFormation.ToArabicName()} بنجاح، وتوزيع تمركزات اللاعبين.");
+                screenReader.Speak(T($"تم تطبيق خطة {targetFormation.ToArabicName()} بنجاح، وتوزيع تمركزات اللاعبين.", $"Formation: {targetFormation.ToEnglishName()}"));
                 popMenu();
             });
         }
 
-        menu.AddItem("إلغاء", () => popMenu());
+        menu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
         return menu;
     }
 
@@ -419,10 +417,10 @@ public static class GamePlanMenuBuilder
         IScreenReader screenReader, 
         Action popMenu)
     {
-        var menu = new AccessibleMenu($"الأسلوب والتكتيك - {userTeam.Name}", screenReader);
+        var menu = new AccessibleMenu(T($"الأسلوب والتكتيك - {userTeam.Name}", $"Style and tactics: {userTeam.Name}"), screenReader);
 
         // 1. شريط مستوى الضغط
-        menu.AddItem($"شريط الضغط: {userTeam.Tactics.PressingIntensity}%", () =>
+        menu.AddItem(T($"شريط الضغط: {userTeam.Tactics.PressingIntensity}%", $"Pressing: {userTeam.Tactics.PressingIntensity}%"), () =>
         {
             userTeam.Tactics.PressingIntensity = userTeam.Tactics.PressingIntensity switch
             {
@@ -431,15 +429,15 @@ public static class GamePlanMenuBuilder
                 <= 75 => 90,
                 _ => 20
             };
-            string tier = userTeam.Tactics.PressingIntensity <= 25 ? "دفاع متراجع تحت الكرة (Low Block)"
-                : (userTeam.Tactics.PressingIntensity <= 50 ? "ضغط متوسط متوازن"
-                : (userTeam.Tactics.PressingIntensity <= 75 ? "ضغط نشط ومتقدم"
-                : "ضغط عالي خانق (Gegenpress)"));
-            screenReader.Speak($"تم ضبط شريط الضغط عند {userTeam.Tactics.PressingIntensity}%: {tier}");
+            string tier = userTeam.Tactics.PressingIntensity <= 25 ? T("دفاع متراجع تحت الكرة (Low Block)", "Low block")
+                : (userTeam.Tactics.PressingIntensity <= 50 ? T("ضغط متوسط متوازن", "Balanced pressing")
+                : (userTeam.Tactics.PressingIntensity <= 75 ? T("ضغط نشط ومتقدم", "Advanced pressing")
+                : T("ضغط عالي خانق (Gegenpress)", "Gegenpress")));
+            screenReader.Speak(T($"تم ضبط شريط الضغط عند {userTeam.Tactics.PressingIntensity}%: {tier}", $"Pressing {userTeam.Tactics.PressingIntensity}%: {tier}"));
         });
 
         // 2. شريط أسلوب التمرير والريتم
-        menu.AddItem($"شريط التمرير: {userTeam.Tactics.PassingDirectness}%", () =>
+        menu.AddItem(T($"شريط التمرير: {userTeam.Tactics.PassingDirectness}%", $"Passing directness: {userTeam.Tactics.PassingDirectness}%"), () =>
         {
             userTeam.Tactics.PassingDirectness = userTeam.Tactics.PassingDirectness switch
             {
@@ -448,27 +446,27 @@ public static class GamePlanMenuBuilder
                 <= 75 => 90,
                 _ => 20
             };
-            string tier = userTeam.Tactics.PassingDirectness <= 25 ? "بناء هجمة قصير من الـ 18"
-                : (userTeam.Tactics.PassingDirectness <= 50 ? "تمرير أرضي متوازن"
-                : (userTeam.Tactics.PassingDirectness <= 75 ? "تمرير مباشر يكسر الخطوط"
-                : "كرات طولية سريعة في ضهر الدفاع"));
-            screenReader.Speak($"تم ضبط شريط التمرير عند {userTeam.Tactics.PassingDirectness}%: {tier}");
+            string tier = userTeam.Tactics.PassingDirectness <= 25 ? T("بناء هجمة قصير من الـ 18", "Short build-up")
+                : (userTeam.Tactics.PassingDirectness <= 50 ? T("تمرير أرضي متوازن", "Balanced passing")
+                : (userTeam.Tactics.PassingDirectness <= 75 ? T("تمرير مباشر يكسر الخطوط", "Direct passing")
+                : T("كرات طولية سريعة في ضهر الدفاع", "Long balls behind defence")));
+            screenReader.Speak(T($"تم ضبط شريط التمرير عند {userTeam.Tactics.PassingDirectness}%: {tier}", $"Passing directness {userTeam.Tactics.PassingDirectness}%: {tier}"));
         });
 
         // 3. طريقة الدفاع
-        menu.AddItem($"طريقة الدفاع: {userTeam.Tactics.Marking.ToArabicName()}", () =>
+        menu.AddItem(T($"طريقة الدفاع: {userTeam.Tactics.Marking.ToArabicName()}", $"Marking: {userTeam.Tactics.Marking.ToDisplayName()}"), () =>
         {
             userTeam.Tactics.Marking = userTeam.Tactics.Marking == DefensiveMarking.Zonal
                 ? DefensiveMarking.ManToMan
                 : DefensiveMarking.Zonal;
             string detail = userTeam.Tactics.Marking == DefensiveMarking.Zonal
-                ? "دفاع منطقة: تغطية جماعية تحمي الفريق وتغلق المساحات"
-                : "دفاع رجل لرجل: صراعات فردية لصيقة، تتطلب مدافعين أقوياء في الـ 1v1";
-            screenReader.Speak($"تم تغيير طريقة الدفاع إلى: {userTeam.Tactics.Marking.ToArabicName()}. {detail}");
+                ? T("دفاع منطقة: تغطية جماعية تحمي الفريق وتغلق المساحات", "Zonal marking: cover spaces together")
+                : T("دفاع رجل لرجل: صراعات فردية لصيقة، تتطلب مدافعين أقوياء في الـ 1v1", "Man-to-man marking: close individual duels");
+            screenReader.Speak(T($"تم تغيير طريقة الدفاع إلى: {userTeam.Tactics.Marking.ToArabicName()}. {detail}", $"Marking: {userTeam.Tactics.Marking.ToDisplayName()}. {detail}"));
         });
 
         // 4. شراسة العرقلة
-        menu.AddItem($"شراسة العرقلة: {userTeam.Tactics.Tackling.ToArabicName()}", () =>
+        menu.AddItem(T($"شراسة العرقلة: {userTeam.Tactics.Tackling.ToArabicName()}", $"Tackling: {userTeam.Tactics.Tackling.ToDisplayName()}"), () =>
         {
             userTeam.Tactics.Tackling = userTeam.Tactics.Tackling switch
             {
@@ -478,18 +476,18 @@ public static class GamePlanMenuBuilder
                 TacklingAggression.Aggressive => TacklingAggression.Reckless,
                 _ => TacklingAggression.Cautious
             };
-            screenReader.Speak($"تم ضبط شراسة العرقلة على: {userTeam.Tactics.Tackling.ToArabicName()}");
+            screenReader.Speak(T($"تم ضبط شراسة العرقلة على: {userTeam.Tactics.Tackling.ToArabicName()}", $"Tackling: {userTeam.Tactics.Tackling.ToDisplayName()}"));
         });
 
         // 5. مصيدة التسلل
-        menu.AddItem($"مصيدة التسلل: {(userTeam.Tactics.OffsideTrap ? "مفعلة" : "معطلة")}", () =>
+        menu.AddItem(T("مصيدة التسلل", "Offside trap") + ": " + T(userTeam.Tactics.OffsideTrap ? "مفعلة" : "معطلة", userTeam.Tactics.OffsideTrap ? "On" : "Off"), () =>
         {
             userTeam.Tactics.OffsideTrap = !userTeam.Tactics.OffsideTrap;
-            screenReader.Speak($"مصيدة التسلل الآن: {(userTeam.Tactics.OffsideTrap ? "مفعلة" : "معطلة")}");
+            screenReader.Speak(T("مصيدة التسلل", "Offside trap") + ": " + T(userTeam.Tactics.OffsideTrap ? "مفعلة" : "معطلة", userTeam.Tactics.OffsideTrap ? "On" : "Off"));
         });
 
         // 6. أسلوب وبؤرة الهجوم
-        menu.AddItem($"أسلوب الهجوم: {userTeam.Tactics.Focus.ToArabicName()}", () =>
+        menu.AddItem(T($"أسلوب الهجوم: {userTeam.Tactics.Focus.ToArabicName()}", $"Attacking focus: {userTeam.Tactics.Focus.ToDisplayName()}"), () =>
         {
             userTeam.Tactics.Focus = userTeam.Tactics.Focus switch
             {
@@ -500,26 +498,26 @@ public static class GamePlanMenuBuilder
                 AttackingFocus.ShootOnSight => AttackingFocus.CounterAttack,
                 _ => AttackingFocus.Balanced
             };
-            screenReader.Speak($"تم تغيير أسلوب الهجوم إلى: {userTeam.Tactics.Focus.ToArabicName()}");
+            screenReader.Speak(T($"تم تغيير أسلوب الهجوم إلى: {userTeam.Tactics.Focus.ToArabicName()}", $"Attacking focus: {userTeam.Tactics.Focus.ToDisplayName()}"));
         });
 
         // 7. تقرير التناغم التكتيكي
-        menu.AddItem("تقرير التناغم والانسجام التكتيكي", () =>
+        menu.AddItem(T("تقرير التناغم والانسجام التكتيكي", "Tactical synergy"), () =>
         {
             var synergy = userTeam.Tactics.CalculateSynergy();
-            string msg = $"التناغم التكتيكي: {synergy.SynergyScore} من 100، معامل الأداء: {synergy.AdvantageMultiplier:F2}x. ";
+            string msg = T($"التناغم التكتيكي: {synergy.SynergyScore} من 100، معامل الأداء: {synergy.AdvantageMultiplier:F2}x. ", $"Tactical synergy {synergy.SynergyScore}/100, performance multiplier {synergy.AdvantageMultiplier:F2}x. ");
             if (synergy.PositiveSynergies.Count > 0)
             {
-                msg += "نقاط القوة: " + string.Join("، ", synergy.PositiveSynergies) + ". ";
+                msg += T("نقاط القوة: ", "Strengths: ") + string.Join("، ", synergy.PositiveSynergies) + ". ";
             }
             if (synergy.Conflicts.Count > 0)
             {
-                msg += "تحذيرات وتناقضات: " + string.Join("، ", synergy.Conflicts) + ". ";
+                msg += T("تحذيرات وتناقضات: ", "Conflicts: ") + string.Join("، ", synergy.Conflicts) + ". ";
             }
             screenReader.Speak(msg);
         });
 
-        menu.AddItem("رجوع", () => popMenu());
+        menu.AddItem(T("رجوع", "Back"), () => popMenu());
 
         return menu;
     }
@@ -534,37 +532,37 @@ public static class GamePlanMenuBuilder
         Action onExit)
     {
         string pauseTitle = match.State == MatchState.HalfTime
-            ? $"استراحة بين الشوطين - {match.HomeTeam.Name} {match.HomeTeam.Score} - {match.AwayTeam.Score} {match.AwayTeam.Name}"
-            : "قائمة الإيقاف المؤقت";
+            ? T($"استراحة بين الشوطين - {match.HomeTeam.Name} {match.HomeTeam.Score} - {match.AwayTeam.Score} {match.AwayTeam.Name}", $"Interval: {match.HomeTeam.Name} {match.HomeTeam.Score} - {match.AwayTeam.Score} {match.AwayTeam.Name}")
+            : T("قائمة الإيقاف المؤقت", "Pause menu");
         var menu = new AccessibleMenu(pauseTitle, screenReader);
 
-        string resumeLabel = match.State == MatchState.HalfTime ? (match.IsExtraTimeStartInterval ? "بدء الشوط الإضافي الأول" : match.IsExtraTime ? "بدء الشوط الإضافي الثاني" : "بدء الشوط الثاني") : "استئناف المباراة";
+        string resumeLabel = match.State == MatchState.HalfTime ? (match.IsExtraTimeStartInterval ? T("بدء الشوط الإضافي الأول", "Start first extra-time period") : match.IsExtraTime ? T("بدء الشوط الإضافي الثاني", "Start second extra-time period") : T("بدء الشوط الثاني", "Start second half")) : T("استئناف المباراة", "Resume match");
         menu.AddItem(resumeLabel, () =>
         {
             bool wasHalfTime = match.State == MatchState.HalfTime;
-            screenReader.Speak(wasHalfTime ? "بدء الشوط التالي" : "استئناف اللقاء");
+            screenReader.Speak(wasHalfTime ? T("بدء الشوط التالي", "Starting next period") : T("استئناف اللقاء", "Resuming match"));
             // كلمة المدرب للأجنحة تُسمع فقط إن كانت تعليمة الأجناب مفعّلة فعلاً (مرة لكل تفعيل)
             if (commentaryEngine.ActiveCommentator.Id == CommentatorId.FaresAwad) match.RequestCoachWideInstruction(match.HomeTeam);
             onResumeMatch();
         });
 
-        menu.AddItem("التشكيلة الأساسية", () =>
+        menu.AddItem(T("التشكيلة الأساسية", "Starting lineup"), () =>
         {
             var lineup = CreateLineupMenu(match.HomeTeam, screenReader, pushMenu, popMenu, match);
             pushMenu(lineup);
         });
 
-        menu.AddItem("تبديل تكتيكي", () =>
+        menu.AddItem(T("تبديل تكتيكي", "Substitutions"), () =>
         {
             if (!match.CanMakeSubstitution(match.HomeTeam))
             {
                 if (match.HomeTeam.SubstitutionsUsed >= match.HomeTeam.MaxSubstitutions)
                 {
-                    screenReader.Speak($"تم استنفاد جميع التبديلات المسموحة ({match.HomeTeam.MaxSubstitutions} تبديلات)!");
+                    screenReader.Speak(T($"تم استنفاد جميع التبديلات المسموحة ({match.HomeTeam.MaxSubstitutions} تبديلات)!", $"All {match.HomeTeam.MaxSubstitutions} substitutions used"));
                 }
                 else
                 {
-                    screenReader.Speak($"تم استنفاد جميع فترات التوقف المسموحة ({match.HomeTeam.MaxStoppageWindows} فترات توقف)!");
+                    screenReader.Speak(T($"تم استنفاد جميع فترات التوقف المسموحة ({match.HomeTeam.MaxStoppageWindows} فترات توقف)!", $"All {match.HomeTeam.MaxStoppageWindows} substitution opportunities used"));
                 }
                 return;
             }
@@ -573,35 +571,35 @@ public static class GamePlanMenuBuilder
             pushMenu(bench);
         });
 
-        menu.AddItem("تغيير الخطة التكتيكية", () =>
+        menu.AddItem(T("تغيير الخطة التكتيكية", "Change formation"), () =>
         {
             var form = CreateFormationMenu(match.HomeTeam, screenReader, popMenu);
             pushMenu(form);
         });
 
-        menu.AddItem("الأسلوب والتكتيك (الشرايط وطريقة الدفاع)", () =>
+        menu.AddItem(T("الأسلوب والتكتيك (الشرايط وطريقة الدفاع)", "Playing style and tactics"), () =>
         {
             var tactMenu = CreateTacticsMenu(match.HomeTeam, screenReader, popMenu);
             pushMenu(tactMenu);
         });
 
-        menu.AddItem("المستشار التكتيكي", async () =>
+        menu.AddItem(T("المستشار التكتيكي", "Tactical advisor"), async () =>
         {
             if (TacticalAiAdvisor.IsNeuralModelAvailable)
             {
-                screenReader.Speak("جاري استشارة نموذج الذكاء الاصطناعي Qwen 2.5 وتحليل المباراة...");
+                screenReader.Speak(T("جاري استشارة نموذج الذكاء الاصطناعي Qwen 2.5 وتحليل المباراة...", "Consulting optional tactical model"));
             }
-            var advisorMenu = new AccessibleMenu("المستشار التكتيكي", screenReader);
+            var advisorMenu = new AccessibleMenu(T("المستشار التكتيكي", "Tactical advisor"), screenReader);
             var language = MatchSettings.Current.Language;
             string report = await Task.Run(() => TacticalAiAdvisor.GenerateTacticalReport(match, language));
-            advisorMenu.AddItem("التقرير والتحليل التكتيكي الشامل", () =>
+            advisorMenu.AddItem(T("التقرير والتحليل التكتيكي الشامل", "Tactical report"), () =>
             {
                 screenReader.Speak(report);
             });
 
             var recs = TacticalAiAdvisor.GetRecommendations(match, () =>
             {
-                screenReader.Speak("تم تطبيق التوصية التكتيكية بنجاح!");
+                screenReader.Speak(T("تم تطبيق التوصية التكتيكية بنجاح!", "Tactical recommendation applied"));
                 popMenu();
             });
 
@@ -615,25 +613,25 @@ public static class GamePlanMenuBuilder
                 });
             }
 
-            advisorMenu.AddItem("رجوع", () => popMenu());
+            advisorMenu.AddItem(T("رجوع", "Back"), () => popMenu());
             pushMenu(advisorMenu);
         });
 
-        menu.AddItem("إحصائيات المباراة", () =>
+        menu.AddItem(T("إحصائيات المباراة", "Match statistics"), () =>
         {
-            var stats = new AccessibleMenu("إحصائيات المباراة. استخدم السهمين للتنقل، وإسكيب للرجوع", screenReader);
+            var stats = new AccessibleMenu(T("إحصائيات المباراة. استخدم السهمين للتنقل، وإسكيب للرجوع", "Match statistics"), screenReader);
             foreach (string line in match.GetStatisticsAnnouncements())
             {
                 string item = line;
                 stats.AddItem(item, () => screenReader.Speak(item));
             }
-            stats.AddItem("رجوع", popMenu);
+            stats.AddItem(T("رجوع", "Back"), popMenu);
             pushMenu(stats);
         });
 
-        menu.AddItem("خروج للقائمة الرئيسية", () =>
+        menu.AddItem(T("خروج للقائمة الرئيسية", "End match"), () =>
         {
-            screenReader.Speak("تم إنهاء اللقاء والعودة إلى القائمة الرئيسية");
+            screenReader.Speak(T("تم إنهاء اللقاء والعودة إلى القائمة الرئيسية", "Match ended"));
             onExit();
         });
 
