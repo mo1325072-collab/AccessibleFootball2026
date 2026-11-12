@@ -19,8 +19,6 @@ public class AnthemEngine
     public bool WasSkipped { get; private set; }
     public bool IsAnthemPlaying { get; private set; } = false;
 
-    [DllImport("winmm.dll", CharSet = CharSet.Auto)]
-    private static extern int mciSendString(string command, string? buffer, int bufferSize, IntPtr hwndCallback);
 
     public AnthemEngine(IScreenReader screenReader, string? assetsDir = null)
     {
@@ -50,19 +48,33 @@ public class AnthemEngine
         return binAnthems;
     }
 
+    private static bool StartAnthem(string path, bool fromStart)
+    {
+        float volume = SoundEffectsPlayer.GetEffectiveMusicVolume();
+        if (volume <= .001f) return false;
+        string type = path.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ? "mpegvideo" : "waveaudio";
+        MciPlayback.SendString("close anthem", null, 0, IntPtr.Zero);
+        if (MciPlayback.SendString($"open \"{path}\" type {type} alias anthem", null, 0, IntPtr.Zero) != 0) return false;
+        if (MciPlayback.SendString($"setaudio anthem volume to {(int)(volume * 1000)}", null, 0, IntPtr.Zero) != 0 ||
+            MciPlayback.SendString(fromStart ? "play anthem from 0" : "play anthem", null, 0, IntPtr.Zero) != 0)
+        { MciPlayback.SendString("close anthem", null, 0, IntPtr.Zero); return false; }
+        return true;
+    }
+
     public void StopAllSounds()
     {
         _stopRequested = true;
         try
         {
-            mciSendString("stop anthem", null, 0, IntPtr.Zero);
-            mciSendString("close anthem", null, 0, IntPtr.Zero);
+            MciPlayback.SendString("stop anthem", null, 0, IntPtr.Zero);
+            MciPlayback.SendString("close anthem", null, 0, IntPtr.Zero);
         }
         catch { }
     }
 
     public void PlayChampionsLeagueIntro(bool isAutomatedTest = false, Func<bool>? skipChecker = null)
     {
+        if (SoundEffectsPlayer.GetEffectiveMusicVolume() <= .001f) return;
         if (isAutomatedTest) return;
 
         _stopRequested = false;
@@ -79,10 +91,7 @@ public class AnthemEngine
             LastPlayedAnthem = "ChampionsLeague";
             try
             {
-                string mciType = anthemPath.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ? "mpegvideo" : "waveaudio";
-                mciSendString("close anthem", null, 0, IntPtr.Zero);
-                mciSendString($"open \"{anthemPath}\" type {mciType} alias anthem", null, 0, IntPtr.Zero);
-                mciSendString("play anthem", null, 0, IntPtr.Zero);
+                if (!StartAnthem(anthemPath, fromStart: false)) return;
                 WaitForSkipOrCompletion(60000, skipChecker);
                 StopAllSounds();
             }
@@ -102,6 +111,7 @@ public class AnthemEngine
     /// </summary>
     public bool PlayChampionsLeagueSample()
     {
+        if (SoundEffectsPlayer.GetEffectiveMusicVolume() <= .001f) return false;
         string? anthemPath = null;
         if (File.Exists(Path.Combine(_assetsBaseDir, "ChampionsLeague.mp3")))
             anthemPath = Path.Combine(_assetsBaseDir, "ChampionsLeague.mp3");
@@ -116,20 +126,7 @@ public class AnthemEngine
         LastPlayedAnthem = "ChampionsLeague";
         try
         {
-            string mciType = anthemPath.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ? "mpegvideo" : "waveaudio";
-            mciSendString("close anthem", null, 0, IntPtr.Zero);
-            int openErr = mciSendString($"open \"{anthemPath}\" type {mciType} alias anthem", null, 0, IntPtr.Zero);
-            if (openErr != 0)
-            {
-                mciSendString("close anthem", null, 0, IntPtr.Zero);
-                return false;
-            }
-            int playErr = mciSendString("play anthem from 0", null, 0, IntPtr.Zero);
-            if (playErr != 0)
-            {
-                mciSendString("close anthem", null, 0, IntPtr.Zero);
-                return false;
-            }
+            if (!StartAnthem(anthemPath, fromStart: true)) return false;
             IsAnthemPlaying = true;
             return true;
         }
@@ -141,6 +138,7 @@ public class AnthemEngine
 
     public void PlayNationalAnthemSample(string? teamId = "EGY")
     {
+        if (SoundEffectsPlayer.GetEffectiveMusicVolume() <= .001f) return;
         string nationalDir = Path.Combine(_assetsBaseDir, "National");
         string id = teamId ?? "EGY";
         string? anthemPath = null;
@@ -151,7 +149,7 @@ public class AnthemEngine
         else
         {
             // fallback to any national anthem in folder
-            var files = Directory.GetFiles(nationalDir, "*.wav");
+            var files = Directory.Exists(nationalDir) ? Directory.GetFiles(nationalDir, "*.wav") : Array.Empty<string>();
             if (files.Length > 0) anthemPath = files[0];
         }
 
@@ -160,10 +158,7 @@ public class AnthemEngine
             LastPlayedAnthem = id;
             try
             {
-                string mciType = anthemPath.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ? "mpegvideo" : "waveaudio";
-                mciSendString("close anthem", null, 0, IntPtr.Zero);
-                mciSendString($"open \"{anthemPath}\" type {mciType} alias anthem", null, 0, IntPtr.Zero);
-                mciSendString("play anthem from 0", null, 0, IntPtr.Zero);
+                if (!StartAnthem(anthemPath, fromStart: true)) return;
             }
             catch { }
         }
@@ -186,6 +181,7 @@ public class AnthemEngine
 
     private void PlaySingleNationalAnthem(Team nationalTeam, Func<bool>? skipChecker)
     {
+        if (SoundEffectsPlayer.GetEffectiveMusicVolume() <= .001f) return;
         _stopRequested = false;
         // ترك الإعلان للمؤثر الصوتي للعبة دون تشويش من قارئ الشاشة
 
@@ -203,10 +199,7 @@ public class AnthemEngine
             LastPlayedAnthem = nationalTeam.Id;
             try
             {
-                string mciType = anthemPath.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ? "mpegvideo" : "waveaudio";
-                mciSendString("close anthem", null, 0, IntPtr.Zero);
-                mciSendString($"open \"{anthemPath}\" type {mciType} alias anthem", null, 0, IntPtr.Zero);
-                mciSendString("play anthem", null, 0, IntPtr.Zero);
+                if (!StartAnthem(anthemPath, fromStart: false)) return;
                 WaitForSkipOrCompletion(4000, skipChecker);
                 StopAllSounds();
             }
@@ -252,4 +245,3 @@ public class AnthemEngine
         }
     }
 }
-
