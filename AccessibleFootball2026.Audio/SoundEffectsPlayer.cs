@@ -16,8 +16,6 @@ namespace AccessibleFootball2026.Audio;
 /// </summary>
 public static class SoundEffectsPlayer
 {
-    [DllImport("winmm.dll", CharSet = CharSet.Auto)]
-    private static extern int mciSendString(string command, StringBuilder? buffer, int bufferSize, IntPtr hwndCallback);
 
     private static string _baseAudioDir = Directory.Exists(@"D:\AccessibleFootball2026\Assets\Audio")
         ? @"D:\AccessibleFootball2026\Assets\Audio"
@@ -25,6 +23,7 @@ public static class SoundEffectsPlayer
     private static readonly object _lock = new();
 
     private static bool _menuMusicPlaying = false;
+    private static bool _menuMusicRequested;
     private static bool _crowdPlaying = false;
     private static int _lastReportedCrowdVol = -1;
     private static DateTime _lastCrowdVolChange = DateTime.MinValue;
@@ -44,6 +43,14 @@ public static class SoundEffectsPlayer
     public static float GetEffectiveMusicVolume() => GetEffectiveMasterVolume() * Math.Clamp(MusicVolumeSetting / 100.0f, 0.0f, 1.0f);
 
     private static bool _crowdPaused;
+    private static bool _crowdRequested;
+    private static string? _stadiumAcousticPath;
+    private static int _crowdIntensity = 350;
+    private static float _crowdDucking = 1f;
+    private static bool _commentaryEnabled = true;
+    private static readonly Dictionary<string, float> _activeOneShots = new();
+    private static float ChannelVolume(string alias) => alias == "comm_voice" ? (_commentaryEnabled ? GetEffectiveCommentaryVolume() : 0)
+        : alias == "chant_ch" || alias.StartsWith("crowd_", StringComparison.Ordinal) ? GetEffectiveCrowdVolume() : GetEffectiveSfxVolume();
     public static bool IsCrowdActive => _crowdPlaying && !_crowdPaused && GetEffectiveCrowdVolume() > .001f;
     public static string? LastPlayedSound { get; private set; }
     public static string? LastPlayedFilePath { get; private set; }
@@ -107,7 +114,9 @@ public static class SoundEffectsPlayer
     {
         if (!string.IsNullOrEmpty(dir)) _baseAudioDir = dir;
         EnsureDefaultAudioAssets();
+        AccessibleFootball2026.Core.Models.MatchSettings.OnSettingsChanged -= ApplyLiveSettings;
         AccessibleFootball2026.Core.Models.MatchSettings.OnSettingsChanged += ApplyLiveSettings;
+        ApplyLiveSettings(AccessibleFootball2026.Core.Models.MatchSettings.Current);
     }
 
     public static void ApplyLiveSettings(AccessibleFootball2026.Core.Models.MatchSettings settings)
@@ -119,15 +128,30 @@ public static class SoundEffectsPlayer
         GoalBeaconVolumeSetting = settings.GoalBeaconVolumePercent;
         MusicVolumeSetting = settings.MusicVolumePercent;
 
+        _commentaryEnabled = settings.CommentaryEnabled && settings.CommentaryVoice != AccessibleFootball2026.Core.Models.CommentaryVoiceOption.Off;
         ApplyMusicVolume();
         ApplyCrowdVolume();
+        lock (_lock)
+        {
+            foreach (var alias in _activeOneShots.Keys.ToArray())
+            {
+                int volume = (int)(ChannelVolume(alias) * _activeOneShots[alias] * 1000);
+                SendMci($"setaudio {alias} volume to {volume}");
+                if (volume == 0) { SendMci($"stop {alias}"); SendMci($"close {alias}"); _activeOneShots.Remove(alias); }
+            }
+        }
+        if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f) StopCommentaryAudio();
+        GoalBeaconPlayer.ApplyLiveVolume();
+        AnthemEngineVolume();
     }
+
+    private static void AnthemEngineVolume() => SendMci($"setaudio anthem volume to {(int)(GetEffectiveMusicVolume() * 1000)}");
 
     private static void SendMci(string command)
     {
         try
         {
-            mciSendString(command, null, 0, IntPtr.Zero);
+            MciPlayback.SendString(command, null, 0, IntPtr.Zero);
         }
         catch { }
     }
@@ -260,6 +284,7 @@ public static class SoundEffectsPlayer
     {
         lock (_lock)
         {
+            _menuMusicRequested = true;
             // إيقاف أي نشيد أو صوت افتتاحية عند الدخول إلى القوائم
             SendMci("stop anthem");
             SendMci("close anthem");
@@ -278,10 +303,11 @@ public static class SoundEffectsPlayer
             if (p != null)
             {
                 SendMci("close bgm_menu");
-                SendMci($"open \"{p}\" type mpegvideo alias bgm_menu");
+                if (MciPlayback.SendString($"open \"{p}\" type mpegvideo alias bgm_menu", null, 0, IntPtr.Zero) != 0) return;
                 int vol = Math.Clamp((int)(GetEffectiveMusicVolume() * 1000), 0, 1000);
-                SendMci($"setaudio bgm_menu volume to {vol}");
-                SendMci("play bgm_menu repeat");
+                if (MciPlayback.SendString($"setaudio bgm_menu volume to {vol}", null, 0, IntPtr.Zero) != 0 ||
+                    MciPlayback.SendString("play bgm_menu repeat", null, 0, IntPtr.Zero) != 0)
+                { SendMci("close bgm_menu"); return; }
                 _menuMusicPlaying = true;
             }
         }
@@ -291,6 +317,7 @@ public static class SoundEffectsPlayer
     {
         lock (_lock)
         {
+            _menuMusicRequested = false;
             SendMci("stop bgm_menu");
             SendMci("close bgm_menu");
             _menuMusicPlaying = false;
@@ -304,70 +331,56 @@ public static class SoundEffectsPlayer
     {
         lock (_lock)
         {
-            // إذا كان صوت الجماهير مضبوطاً على 0: صامت تماماً 100% ولا يتم تشغيله مطلقاً
-            if (GetEffectiveCrowdVolume() <= 0.001f)
-            {
-                StopCrowdAmbiance();
-                return;
-            }
-
-            if (_crowdPlaying) return;
-            string? p = ResolveAudioPath("SFX", "Crowd", "CrowdAmbiance");
-            if (p != null)
-            {
-                try
-                {
-                    mciSendString("close crowd",null,0,IntPtr.Zero);
-                    if(mciSendString($"open \"{p}\" type mpegvideo alias crowd",null,0,IntPtr.Zero)!=0)return;
-                    int initialVol=Math.Clamp((int)(350*GetEffectiveCrowdVolume()),0,1000);
-                    if(mciSendString($"setaudio crowd volume to {initialVol}",null,0,IntPtr.Zero)!=0)return;
-                    if(mciSendString("play crowd repeat",null,0,IntPtr.Zero)!=0)return;
-                    _crowdPlaying=true;_crowdPaused=false;
-                    _lastReportedCrowdVol = initialVol;
-                    _lastCrowdVolChange = DateTime.UtcNow;
-                }
-                catch { _crowdPlaying=false; }
-            }
+            _crowdRequested = true;
+            _crowdPaused = false;
+            StartRequestedCrowd();
         }
+    }
+
+    private static void StartRequestedCrowd()
+    {
+        if (!_crowdRequested || _crowdPaused || _crowdPlaying || GetEffectiveCrowdVolume() <= .001f) return;
+        string? path = _stadiumAcousticPath ?? ResolveAudioPath("SFX", "Crowd", "CrowdAmbiance");
+        if (path == null) return;
+        SendMci("close crowd");
+        if (MciPlayback.SendString($"open \"{path}\" type mpegvideo alias crowd", null, 0, IntPtr.Zero) != 0) return;
+        int volume = Math.Clamp((int)(_crowdIntensity * _crowdDucking * GetEffectiveCrowdVolume()), 0, 1000);
+        if (MciPlayback.SendString($"setaudio crowd volume to {volume}", null, 0, IntPtr.Zero) != 0) { SendMci("close crowd"); return; }
+        if (MciPlayback.SendString("play crowd repeat", null, 0, IntPtr.Zero) != 0) { SendMci("close crowd"); return; }
+        _crowdPlaying = true;
+        _lastReportedCrowdVol = volume;
+        _lastCrowdVolChange = DateTime.UtcNow;
+    }
+
+    private static void CloseCrowdChannel()
+    {
+        SendMci("stop crowd"); SendMci("close crowd");
+        _crowdPlaying = false;
+        _lastReportedCrowdVol = -1;
     }
 
     public static void StopCrowdAmbiance()
     {
         lock (_lock)
         {
-            SendMci("stop crowd");
-            SendMci("close crowd");
-            _crowdPlaying = false;_crowdPaused=false;
-            _lastReportedCrowdVol = -1;
+            _crowdRequested = false; _crowdPaused = false; _stadiumAcousticPath = null;
+            _crowdIntensity = 350; _crowdDucking = 1;
+            CloseCrowdChannel();
         }
     }
 
     public static void PauseCrowdAmbiance()
     {
-        lock (_lock)
-        {
-            SendMci("pause crowd");_crowdPaused=true;
-        }
+        lock (_lock) { SendMci("pause crowd"); _crowdPaused = true; }
     }
 
     public static void ResumeCrowdAmbiance()
     {
         lock (_lock)
         {
-            if (GetEffectiveCrowdVolume() <= 0.001f)
-            {
-                StopCrowdAmbiance();
-                return;
-            }
-
-            if (_crowdPlaying)
-            {
-                SendMci("resume crowd");_crowdPaused=false;
-            }
-            else
-            {
-                StartCrowdAmbiance();
-            }
+            _crowdPaused = false;
+            if (GetEffectiveCrowdVolume() <= .001f) { CloseCrowdChannel(); return; }
+            if (_crowdPlaying) SendMci("resume crowd"); else StartRequestedCrowd();
         }
     }
 
@@ -378,6 +391,7 @@ public static class SoundEffectsPlayer
         // أثناء المباراة (حيث تتوقف موسيقى القوائم عمداً) كان يشغّلها فوق اللعب
         if (!_menuMusicPlaying)
         {
+            if (_menuMusicRequested && vol > 0) StartMenuMusic();
             return;
         }
         if (vol <= 0)
@@ -394,53 +408,34 @@ public static class SoundEffectsPlayer
 
     public static void ApplyCrowdVolume()
     {
-        float factor = GetEffectiveCrowdVolume();
-        if (factor <= 0.001f)
-        {
-            StopCrowdAmbiance();
-            return;
-        }
-
-        int vol = Math.Clamp((int)(factor * 1000), 0, 1000);
-        SetCrowdVolume(vol, force: true);
+        lock (_lock) UpdateCrowdChannel(force: true);
     }
 
     public static void SetCrowdVolume(int volumeOut1000, bool force = false)
     {
-        float settingFactor = GetEffectiveCrowdVolume();
-
-        // إذا كان صوت الجماهير معطلاً (0%): نكتم ونوقف الصوت فوراً وبشكل قاطع
-        if (settingFactor <= 0.001f)
+        lock (_lock)
         {
-            if (_crowdPlaying)
-            {
-                StopCrowdAmbiance();
-            }
-            return;
+            _crowdIntensity = Math.Clamp(volumeOut1000, 0, 1000);
+            UpdateCrowdChannel(force);
         }
+    }
 
-        if (!_crowdPlaying)
-        {
-            StartCrowdAmbiance();
-        }
+    public static void SetCrowdDucking(float factor)
+    {
+        lock (_lock) { _crowdDucking = Math.Clamp(factor, 0, 1); UpdateCrowdChannel(force: true); }
+    }
 
-        int vol = Math.Clamp((int)(volumeOut1000 * settingFactor), 0, 1000);
-
-        // منع تكرار أوامر MCI السريعة لمنع التقطيع الصوتي التام (Zero Stutter)
-        DateTime now = DateTime.UtcNow;
-        if (!force)
-        {
-            if (Math.Abs(vol - _lastReportedCrowdVol) < 30 && (now - _lastCrowdVolChange).TotalMilliseconds < 250)
-            {
-                return;
-            }
-        }
-
-        _lastReportedCrowdVol = vol;
-        _lastCrowdVolChange = now;
-
-        // تنفيذ مباشر ومتزامن على نفس الـ Thread لضمان تعرف MCI على الـ Alias وعدم حدوث الخطأ 261
-        SendMci($"setaudio crowd volume to {vol}");
+    private static void UpdateCrowdChannel(bool force)
+    {
+        if (GetEffectiveCrowdVolume() <= .001f) { CloseCrowdChannel(); return; }
+        if (!_crowdRequested || _crowdPaused) return; // Saving in a menu must not start a match ambience.
+        StartRequestedCrowd();
+        if (!_crowdPlaying) return;
+        int volume = Math.Clamp((int)(_crowdIntensity * _crowdDucking * GetEffectiveCrowdVolume()), 0, 1000);
+        var now = DateTime.UtcNow;
+        if (!force && Math.Abs(volume - _lastReportedCrowdVol) < 30 && (now - _lastCrowdVolChange).TotalMilliseconds < 250) return;
+        _lastReportedCrowdVol = volume; _lastCrowdVolChange = now;
+        SendMci($"setaudio crowd volume to {volume}");
     }
 
     public static void PlayCrowdMiss()
@@ -476,50 +471,27 @@ public static class SoundEffectsPlayer
         if (GetEffectiveCrowdVolume() <= 0.001f) return false;
         string? p = ResolveAudioPath("SFX", "Crowd", "CrowdApplause");
         if (p == null || LastResolveWasSynthetic) return false;
-        PlayOneShot(p, "crowd_applause", customVolume: GetEffectiveCrowdVolume());
-        return true;
+        return PlayOneShot(p, "crowd_applause", customVolume: GetEffectiveCrowdVolume());
     }
 
     public static void PlayOneShotChant(string filePath)
     {
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
-        PlayOneShot(filePath, "chant_ch");
+        PlayOneShot(filePath, "chant_ch", customVolume: GetEffectiveCrowdVolume());
     }
 
-    public static bool TryPlayAudibleChant(string filePath)
-    {
-        if(!File.Exists(filePath)||GetEffectiveCrowdVolume()<=.001f)return false;
-        try
-        {
-            lock(_lock)
-            {
-                mciSendString("close chant_ch",null,0,IntPtr.Zero);
-                if(mciSendString($"open \"{filePath}\" type mpegvideo alias chant_ch",null,0,IntPtr.Zero)!=0)return false;
-                int volume=Math.Clamp((int)(GetEffectiveCrowdVolume()*1000),0,1000);
-                if(mciSendString($"setaudio chant_ch volume to {volume}",null,0,IntPtr.Zero)!=0)return false;
-                if(mciSendString("play chant_ch from 0",null,0,IntPtr.Zero)!=0)return false;
-                LastPlayedSound="chant_ch";LastPlayedFilePath=filePath;TotalSoundsPlayedCount++;
-                return true;
-            }
-        }
-        catch{return false;}
-    }
+    public static bool TryPlayAudibleChant(string filePath) => PlayOneShot(filePath, "chant_ch", customVolume: GetEffectiveCrowdVolume());
 
     public static void SetStadiumAcoustics(string acousticPath)
     {
         if (string.IsNullOrEmpty(acousticPath) || !File.Exists(acousticPath)) return;
         lock (_lock)
         {
-            try
-            {
-                mciSendString("stop crowd",null,0,IntPtr.Zero);mciSendString("close crowd",null,0,IntPtr.Zero);
-                _crowdPlaying=false;_crowdPaused=false;
-                if(mciSendString($"open \"{acousticPath}\" type mpegvideo alias crowd",null,0,IntPtr.Zero)!=0)return;
-                if(mciSendString("play crowd repeat",null,0,IntPtr.Zero)!=0)return;
-                _crowdPlaying=true;
-                SetCrowdVolume(800,force:true);
-            }
-            catch { _crowdPlaying=false; }
+            CloseCrowdChannel();
+            _stadiumAcousticPath = acousticPath;
+            _crowdIntensity = 800;
+            _crowdRequested = true; _crowdPaused = false;
+            StartRequestedCrowd(); // Volume is applied before play, and zero never opens the channel.
         }
     }
 
@@ -679,11 +651,12 @@ public static class SoundEffectsPlayer
 
     public static bool IsCommentaryPlaying()
     {
+        if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f) return false;
         if (DateTime.UtcNow < _commentaryBusyUntil) return true;
         try
         {
             var sb = new StringBuilder(128);
-            int err = mciSendString("status comm_voice mode", sb, sb.Capacity, IntPtr.Zero);
+            int err = MciPlayback.SendString("status comm_voice mode", sb, sb.Capacity, IntPtr.Zero);
             if (err == 0 && sb.ToString().Equals("playing", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
@@ -693,14 +666,16 @@ public static class SoundEffectsPlayer
         return false;
     }
 
-    public static void PlayCommentaryAudio(string filePath)
+    public static bool PlayCommentaryAudio(string filePath)
     {
-        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
+        if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f || string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
         // نافذة الانشغال تساوي المدة الحقيقية للمقطع (نداءات الأسماء القصيرة لا تحجب التعليق 3 ثوانٍ كاملة)
         double seconds = filePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? GetWavDurationSeconds(filePath) : 0;
         if (seconds <= 0.05) seconds = 3.2;
         _commentaryBusyUntil = DateTime.UtcNow.AddSeconds(Math.Clamp(seconds, 0.3, 30.0));
-        PlayOneShot(filePath, "comm_voice");
+        bool played = PlayOneShot(filePath, "comm_voice");
+        if (!played) _commentaryBusyUntil = DateTime.MinValue;
+        return played;
     }
 
     // =========================================================================
@@ -750,45 +725,30 @@ public static class SoundEffectsPlayer
     {
         CrowdVolumeSetting = Math.Clamp(crowdVal, 0, 100);
         ApplyCrowdVolume();
+        PlayCrowdCheer(); // A bounded explicit preview, never a new ambience loop in the menu.
     }
 
     public static void PlayLivePreviewGoalBeacon(int beaconVal)
     {
         GoalBeaconVolumeSetting = Math.Clamp(beaconVal, 0, 100);
-        float vol = GetEffectiveBeaconVolume();
-        GoalBeaconPlayer.PlayBeaconPulse(vol, 0.0f);
+        GoalBeaconPlayer.PlayBeaconPulse(1f, 0.0f);
     }
 
-    private static void PlayOneShot(string filePath, string alias, string? soundName = null, float? customVolume = null)
+    private static bool PlayOneShot(string filePath, string alias, string? soundName = null, float? customVolume = null)
     {
-        LastPlayedSound = soundName ?? alias;
-        LastPlayedFilePath = filePath;
-        TotalSoundsPlayedCount++;
-
-        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
-        try
+        LastPlayedSound = soundName ?? alias; LastPlayedFilePath = filePath; TotalSoundsPlayedCount++;
+        float volume = customVolume ?? ChannelVolume(alias);
+        if (volume <= .001f || string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
+        lock (_lock)
         {
-            string mciType = (alias == "comm_voice" || alias == "chant_ch") ? "mpegvideo" : GetMciType(filePath);
+            string type = alias is "comm_voice" or "chant_ch" ? "mpegvideo" : GetMciType(filePath);
             SendMci($"close {alias}");
-            SendMci($"open \"{filePath}\" type {mciType} alias {alias}");
-            if (customVolume.HasValue)
-            {
-                int vol = Math.Clamp((int)(customVolume.Value * 1000), 0, 1000);
-                SendMci($"setaudio {alias} volume to {vol}");
-            }
-            else if (alias == "comm_voice")
-            {
-                int commVol = Math.Clamp((int)(GetEffectiveCommentaryVolume() * 1000), 0, 1000);
-                SendMci($"setaudio {alias} volume to {commVol}");
-            }
-            else
-            {
-                int sfxVol = Math.Clamp((int)(GetEffectiveSfxVolume() * 1000), 0, 1000);
-                SendMci($"setaudio {alias} volume to {sfxVol}");
-            }
-            SendMci($"play {alias} from 0");
+            if (MciPlayback.SendString($"open \"{filePath}\" type {type} alias {alias}", null, 0, IntPtr.Zero) != 0) return false;
+            if (MciPlayback.SendString($"setaudio {alias} volume to {Math.Clamp((int)(volume * 1000), 0, 1000)}", null, 0, IntPtr.Zero) != 0 ||
+                MciPlayback.SendString($"play {alias} from 0", null, 0, IntPtr.Zero) != 0) { SendMci($"close {alias}"); return false; }
+            _activeOneShots[alias] = 1f;
+            return true;
         }
-        catch { }
     }
 
     // =========================================================================
@@ -1093,4 +1053,3 @@ public static class SoundEffectsPlayer
         SendMci("close all");
     }
 }
-
