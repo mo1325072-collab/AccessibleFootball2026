@@ -347,8 +347,8 @@
         ],
         "sec": 7.1
       },
-      "finalStatus": "identity_pending",
-      "decision": "Player callname or sentence containing a name, requires independently verified identity and actual event subject. Not a generic event pool. Independent review completed; possible/surname-only or unresolved names remain unbound, never guessed."
+      "finalStatus": "reviewed",
+      "decision": "Independent review could not settle the surname-only callname (low-confidence non-Arabic hypothesis). The user explicitly chose on 2026-11-12 (WhatsApp voice note) to bind it to Nico Gonzalez (Nicolas Ivan Gonzalez) after giving the Juventus clue himself. The 2026/27 database holds two players named exactly 'Nico Gonzalez' (Juventus FC left winger, Newcastle United midfielder), so routing is whole-name plus the exact database team string 'Juventus FC'; the Newcastle player never triggers it. The other 10 identity_pending names remain untouched, never guessed."
     },
     {
       "slot": "02666",
