@@ -1400,7 +1400,8 @@ public partial class MatchEngine
 
     public void IssueCard(Player player, bool isDirectRed, string reason = "")
     {
-        Team playerTeam = HomeTeam.Players.Contains(player) ? HomeTeam : AwayTeam;
+        Team? playerTeam = TeamOf(player);
+        if (playerTeam == null || !player.IsActiveOnPitch) return;
 
         if (isDirectRed)
         {
