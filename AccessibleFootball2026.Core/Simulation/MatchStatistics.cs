@@ -85,29 +85,30 @@ public partial class MatchEngine
 
     public IReadOnlyList<string> GetStatisticsAnnouncements()
     {
+        string T(string ar, string en) => LocalizationService.Text(ar, en);
         var h = _homeStatistics; var a = _awayStatistics;
-        string Both(string label, object home, object away) => $"{label}: {HomeTeam.Name} {home}، مقابل {AwayTeam.Name} {away}";
-        string Accuracy(TeamMatchStatistics s) => s.Passes == 0 ? "لا توجد تمريرات بعد" : $"{100.0 * s.CompletedPasses / s.Passes:0.0} بالمئة";
+        string Both(string label, object home, object away) => T($"{label}: {HomeTeam.Name} {home}، مقابل {AwayTeam.Name} {away}", $"{label}: {HomeTeam.Name} {home}, {AwayTeam.Name} {away}");
+        string Accuracy(TeamMatchStatistics s) => s.Passes == 0 ? T("لا توجد تمريرات بعد", "No passes recorded") : T($"{100.0 * s.CompletedPasses / s.Passes:0.0} بالمئة", $"{100.0 * s.CompletedPasses / s.Passes:0.0} percent");
         float possession = _homePossessionSeconds + _awayPossessionSeconds;
-        string hp = possession == 0 ? "لم يسجل استحواذ بعد" : $"{100 * _homePossessionSeconds / possession:0.0} بالمئة";
-        string ap = possession == 0 ? "لم يسجل استحواذ بعد" : $"{100 * _awayPossessionSeconds / possession:0.0} بالمئة";
+        string hp = possession == 0 ? T("لم يسجل استحواذ بعد", "No possession recorded") : T($"{100 * _homePossessionSeconds / possession:0.0} بالمئة", $"{100 * _homePossessionSeconds / possession:0.0} percent");
+        string ap = possession == 0 ? T("لم يسجل استحواذ بعد", "No possession recorded") : T($"{100 * _awayPossessionSeconds / possession:0.0} بالمئة", $"{100 * _awayPossessionSeconds / possession:0.0} percent");
         return new[] {
-            Both("النتيجة", HomeTeam.Score, AwayTeam.Score),
-            $"الدقيقة {(int)MatchTimeMinutes}. {(IsExtraTime ? "الوقت الإضافي" : HalfTimeReached ? "الشوط الثاني" : "الشوط الأول")}",
-            Both("الخطة", HomeTeam.CurrentFormation.ToArabicName(), AwayTeam.CurrentFormation.ToArabicName()),
-            Both("الاستحواذ على الكرة أثناء اللعب الفعلي", hp, ap),
-            Both("التسديدات", h.Shots, a.Shots), Both("التسديدات على المرمى", h.ShotsOnTarget, a.ShotsOnTarget),
-            Both("التسديدات خارج المرمى", h.ShotsOffTarget, a.ShotsOffTarget),
-            Both("التمريرات المعترضة", h.Interceptions, a.Interceptions),
-            Both("التسديدات التي صدها المدافع", h.BlockedShots, a.BlockedShots), Both("القائم والعارضة", h.Woodwork, a.Woodwork),
-            Both("تصديات الحارس", h.Saves, a.Saves), Both("التمريرات", h.Passes, a.Passes),
-            Both("التمريرات المكتملة", h.CompletedPasses, a.CompletedPasses), Both("دقة التمرير", Accuracy(h), Accuracy(a)),
-            Both("الركنيات", h.Corners, a.Corners), Both("الركلات الحرة", h.FreeKicks, a.FreeKicks),
-            Both("ركلات الجزاء المحتسبة", h.Penalties, a.Penalties), Both("ضربات المرمى", h.GoalKicks, a.GoalKicks),
-            Both("رميات التماس", h.ThrowIns, a.ThrowIns), Both("الأخطاء المرتكبة", h.Fouls, a.Fouls),
-            Both("التسلل", h.Offsides, a.Offsides), Both("الاستخلاصات الناجحة", h.Tackles, a.Tackles),
-            Both("البطاقات الصفراء", h.YellowCards, a.YellowCards), Both("البطاقات الحمراء", h.RedCards, a.RedCards),
-            Both("التبديلات المستخدمة", HomeTeam.SubstitutionsUsed, AwayTeam.SubstitutionsUsed)
+            Both(T("النتيجة", "Score"), HomeTeam.Score, AwayTeam.Score),
+            T($"الدقيقة {(int)MatchTimeMinutes}. {(IsExtraTime ? "الوقت الإضافي" : HalfTimeReached ? "الشوط الثاني" : "الشوط الأول")}", $"Minute {(int)MatchTimeMinutes}. {(IsExtraTime ? "Extra time" : HalfTimeReached ? "Second half" : "First half")}"),
+            Both(T("الخطة", "Formation"), T(HomeTeam.CurrentFormation.ToArabicName(), HomeTeam.CurrentFormation.ToEnglishName()), T(AwayTeam.CurrentFormation.ToArabicName(), AwayTeam.CurrentFormation.ToEnglishName())),
+            Both(T("الاستحواذ على الكرة أثناء اللعب الفعلي", "Possession during active play"), hp, ap),
+            Both(T("التسديدات", "Shots"), h.Shots, a.Shots), Both(T("التسديدات على المرمى", "Shots on target"), h.ShotsOnTarget, a.ShotsOnTarget),
+            Both(T("التسديدات خارج المرمى", "Shots off target"), h.ShotsOffTarget, a.ShotsOffTarget),
+            Both(T("التمريرات المعترضة", "Interceptions"), h.Interceptions, a.Interceptions),
+            Both(T("التسديدات التي صدها المدافع", "Blocked shots"), h.BlockedShots, a.BlockedShots), Both(T("القائم والعارضة", "Woodwork"), h.Woodwork, a.Woodwork),
+            Both(T("تصديات الحارس", "Saves"), h.Saves, a.Saves), Both(T("التمريرات", "Passes"), h.Passes, a.Passes),
+            Both(T("التمريرات المكتملة", "Completed passes"), h.CompletedPasses, a.CompletedPasses), Both(T("دقة التمرير", "Pass accuracy"), Accuracy(h), Accuracy(a)),
+            Both(T("الركنيات", "Corners"), h.Corners, a.Corners), Both(T("الركلات الحرة", "Free kicks"), h.FreeKicks, a.FreeKicks),
+            Both(T("ركلات الجزاء المحتسبة", "Penalties awarded"), h.Penalties, a.Penalties), Both(T("ضربات المرمى", "Goal kicks"), h.GoalKicks, a.GoalKicks),
+            Both(T("رميات التماس", "Throw-ins"), h.ThrowIns, a.ThrowIns), Both(T("الأخطاء المرتكبة", "Fouls committed"), h.Fouls, a.Fouls),
+            Both(T("التسلل", "Offsides"), h.Offsides, a.Offsides), Both(T("الاستخلاصات الناجحة", "Successful tackles"), h.Tackles, a.Tackles),
+            Both(T("البطاقات الصفراء", "Yellow cards"), h.YellowCards, a.YellowCards), Both(T("البطاقات الحمراء", "Red cards"), h.RedCards, a.RedCards),
+            Both(T("التبديلات المستخدمة", "Substitutions used"), HomeTeam.SubstitutionsUsed, AwayTeam.SubstitutionsUsed)
         };
     }
 
