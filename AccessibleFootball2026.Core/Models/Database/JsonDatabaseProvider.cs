@@ -204,6 +204,10 @@ public static class JsonDatabaseProvider
             }
 
             int teamIndex = 1;
+            // Source rows have no global player id. Reuse only an exact normalized name/age identity;
+            // never reuse a squad-row number across unrelated teams.
+            var playerIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            int nextPlayerId = 1;
             foreach (var teamEntry in root.teams)
             {
                 if (string.IsNullOrWhiteSpace(teamEntry.team)) continue;
@@ -240,8 +244,11 @@ public static class JsonDatabaseProvider
                             ? 1 
                             : (shirtNumberCounter == 1 ? 2 : shirtNumberCounter);
 
+                        string identity = string.Join(" ", p.name.Trim().Normalize().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)) + "|" + age;
+                        if (!playerIds.TryGetValue(identity, out int playerId))
+                            playerIds[identity] = playerId = nextPlayerId++;
                         var player = new Player(
-                            id: createdPlayers.Count + 1,
+                            id: playerId,
                             name: p.name.Trim(),
                             shirtNumber: shirtNum,
                             pos: specPos,
@@ -551,4 +558,3 @@ public static class JsonDatabaseProvider
         return _groupArabicNames.TryGetValue(group, out var ar) ? ar : group;
     }
 }
-
