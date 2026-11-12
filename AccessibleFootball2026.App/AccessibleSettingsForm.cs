@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Text.Json;
 using AccessibleFootball2026.Audio;
 using AccessibleFootball2026.Core.Models;
 
@@ -15,6 +16,8 @@ namespace AccessibleFootball2026.App;
 public class AccessibleSettingsForm : Form
 {
     private readonly IScreenReader _screenReader;
+    private readonly MatchSettings _original = JsonSerializer.Deserialize<MatchSettings>(JsonSerializer.Serialize(MatchSettings.Current))!;
+    private bool _saved;
 
     // عناصر التحكم الحقيقية
     private ComboBox _cmbLanguage = null!;
@@ -101,6 +104,7 @@ public class AccessibleSettingsForm : Form
         {
             if (_isLoadingSettings) return;
             MatchSettings.Current.MasterVolumePercent = _tbMasterVolume.Value;
+            MatchSettings.Current.ApplyLive();
             SoundEffectsPlayer.MasterVolumeSetting = _tbMasterVolume.Value;
             SoundEffectsPlayer.PlayLivePreviewMaster(_tbMasterVolume.Value);
         };
@@ -114,6 +118,7 @@ public class AccessibleSettingsForm : Form
         {
             if (_isLoadingSettings) return;
             MatchSettings.Current.SfxVolumePercent = _tbSfxVolume.Value;
+            MatchSettings.Current.ApplyLive();
             SoundEffectsPlayer.SfxVolumeSetting = _tbSfxVolume.Value;
             SoundEffectsPlayer.PlayLivePreviewSfx(_tbSfxVolume.Value);
         };
@@ -127,6 +132,7 @@ public class AccessibleSettingsForm : Form
         {
             if (_isLoadingSettings) return;
             MatchSettings.Current.CommentaryVolumePercent = _tbCommentaryVolume.Value;
+            MatchSettings.Current.ApplyLive();
             SoundEffectsPlayer.CommentaryVolumeSetting = _tbCommentaryVolume.Value;
             SoundEffectsPlayer.PlayLivePreviewCommentary(_tbCommentaryVolume.Value);
         };
@@ -140,6 +146,7 @@ public class AccessibleSettingsForm : Form
         {
             if (_isLoadingSettings) return;
             MatchSettings.Current.CrowdVolumePercent = _tbCrowdVolume.Value;
+            MatchSettings.Current.ApplyLive();
             SoundEffectsPlayer.CrowdVolumeSetting = _tbCrowdVolume.Value;
             SoundEffectsPlayer.PlayLivePreviewCrowd(_tbCrowdVolume.Value);
         };
@@ -153,6 +160,7 @@ public class AccessibleSettingsForm : Form
         {
             if (_isLoadingSettings) return;
             MatchSettings.Current.GoalBeaconVolumePercent = _tbBeaconVolume.Value;
+            MatchSettings.Current.ApplyLive();
             SoundEffectsPlayer.GoalBeaconVolumeSetting = _tbBeaconVolume.Value;
             SoundEffectsPlayer.PlayLivePreviewGoalBeacon(_tbBeaconVolume.Value);
         };
@@ -166,6 +174,7 @@ public class AccessibleSettingsForm : Form
         {
             if (_isLoadingSettings) return;
             MatchSettings.Current.MusicVolumePercent = _tbMusicVolume.Value;
+            MatchSettings.Current.ApplyLive();
             SoundEffectsPlayer.MusicVolumeSetting = _tbMusicVolume.Value;
             SoundEffectsPlayer.ApplyMusicVolume();
         };
@@ -469,7 +478,7 @@ public class AccessibleSettingsForm : Form
         SoundEffectsPlayer.CrowdVolumeSetting = MatchSettings.Current.CrowdVolumePercent;
         SoundEffectsPlayer.GoalBeaconVolumeSetting = MatchSettings.Current.GoalBeaconVolumePercent;
         SoundEffectsPlayer.MusicVolumeSetting = MatchSettings.Current.MusicVolumePercent;
-        SoundEffectsPlayer.ApplyMusicVolume();
+        MatchSettings.Current.ApplyLive();
 
         LoadCurrentSettings();
         RefreshLanguageLabels();
@@ -477,6 +486,16 @@ public class AccessibleSettingsForm : Form
         _screenReader.Speak(MatchSettings.Current.Language == UiLanguage.Arabic
             ? "تمت استعادة الإعدادات الافتراضية بنجاح"
             : "Settings successfully reset to defaults.");
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        base.OnFormClosing(e);
+        if (!e.Cancel && !_saved)
+        {
+            MatchSettings.Current.CopyFrom(_original);
+            MatchSettings.Current.ApplyLive();
+        }
     }
 
     private void OnSaveSettingsClicked(object? sender, EventArgs e)
@@ -518,7 +537,14 @@ public class AccessibleSettingsForm : Form
         s.AutoTacticalAdjustmentsEnabled = _chkAutoTactics.Checked;
         s.AiVarEnabled = _chkAiVar.Checked;
 
-        s.Save();
+        if (!s.Save())
+        {
+            _screenReader.Speak(s.Language == UiLanguage.Arabic
+                ? "تعذر حفظ الإعدادات. لم يتم حفظ التغييرات على القرص. يمكنك المحاولة مرة أخرى أو الإغلاق لإلغاء التغييرات."
+                : "Settings could not be saved to disk. Try again, or close to cancel changes.");
+            return;
+        }
+        _saved = true;
         SoundEffectsPlayer.PlayMenuSelect();
         _screenReader.Speak(s.Language == UiLanguage.Arabic
             ? "تم حفظ الإعدادات بنجاح في ملف settings.json"
