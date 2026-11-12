@@ -11462,6 +11462,31 @@
       "priority": 0
     },
     {
+      "id": "04472",
+      "file": "Library/04472.mp3",
+      "event": "PossessionPlay",
+      "transcript": "كورة ما زالت مستمرة.",
+      "review": "verified",
+      "all": [
+        {
+          "fact": "attack.continues",
+          "op": "eq",
+          "value": "true"
+        },
+        {
+          "fact": "analysis.hasPossession",
+          "op": "eq",
+          "value": "true"
+        },
+        {
+          "fact": "possession.seconds",
+          "op": "ge",
+          "value": "5"
+        }
+      ],
+      "priority": 0
+    },
+    {
       "id": "04478",
       "file": "Library/04478.mp3",
       "event": "PossessionPlay",

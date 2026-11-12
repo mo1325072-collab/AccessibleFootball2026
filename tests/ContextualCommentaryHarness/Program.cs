@@ -95,8 +95,13 @@ if (args.Length>0)
  Check(!document.Clips.Any(c=>library.Recordings.Single(r=>r.File==c.File).ReviewStatus!="reviewed"),"Review holds and promos cannot leak into automatic selection");
  var coachPraise=document.Clips.Single(c=>c.Id=="04487");
  Check(coachPraise.Event=="CoachPraise"&&coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",true),("goal.own",false))))&&!coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",false),("goal.own",false)))),"Direct coach praise requires actual assisted team-goal response, not a generic goal or inferred mood");
- var reviewHolds=new[]{"00520","01201","01616","02009","04397","04431","04446","04472","04665","04721"};
+ var reviewHolds=new[]{"00520","01201","01616","02009","04397","04431","04446","04665","04721"};
  Check(!document.Clips.Any(c=>reviewHolds.Contains(c.Id.Split('-')[0])),"Independent-review unknown words, names and historical cause cannot leak into automatic matches");
+ var ballContinues=document.Clips.Single(c=>c.Id=="04472");
+ Check(ballContinues.Review=="verified"&&ballContinues.Transcript.Contains("مستمرة"),"User-confirmed exact words preserved for continuing-ball line");
+ Check(ballContinues.Event=="PossessionPlay"&&ballContinues.All.All(r=>r.Matches(empty.With(("attack.continues","true"),("analysis.hasPossession","true"),("possession.seconds","7")))),"User-verified continuing-ball line plays during actual sustained live possession");
+ Check(!ballContinues.All.All(r=>r.Matches(empty.With(("attack.continues","true"),("analysis.hasPossession","false"),("possession.seconds","7")))),"Continuing-ball line rejected when possession lost (stoppage/turnover)");
+ Check(!ballContinues.All.All(r=>r.Matches(empty.With(("attack.continues","true"),("analysis.hasPossession","true"),("possession.seconds","2")))),"Continuing-ball line rejected on a fresh touch, not yet still-continuing play");
  Check(library.Recordings.Single(r=>r.Slot=="01616").ReviewStatus=="context_history_pending","Genuine historical speech remains historical, not a current Ronaldo goal");
  var easySave=document.Clips.Single(c=>c.Id=="03245");
  Check(!easySave.All.All(r=>r.Matches(empty.With(("save.difficulty","hard"))))&&easySave.All.All(r=>r.Matches(empty.With(("save.difficulty","easy")))),"Independent easy-save meaning excludes hard saves");

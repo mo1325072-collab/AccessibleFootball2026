@@ -3,9 +3,9 @@
   "distinctMonoRecordings": 933,
   "distinctStereoEncodings": 3,
   "monoReviewStatusCounts": {
-    "reviewed": 865,
+    "reviewed": 866,
     "context_visual_pending": 5,
-    "speech_review_pending": 29,
+    "speech_review_pending": 28,
     "non_speech_pending": 6,
     "non_game_promo": 3,
     "coach_voice_pending": 8,
@@ -14,7 +14,7 @@
     "context_asset_pending": 3,
     "identity_pending": 11
   },
-  "automaticMappings": 898,
+  "automaticMappings": 899,
   "independentReview": "completed for all 59 assigned recordings; reconciled conservatively; unresolved holds remain",
   "windowsRuntimeVerified": false
 }

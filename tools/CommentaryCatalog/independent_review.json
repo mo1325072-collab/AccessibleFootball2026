@@ -844,8 +844,8 @@
     ],
     "sec": 6.9
    },
-   "finalStatus": "speech_review_pending",
-   "decision": "Independent review did not recover convergent intelligible content; prior event label is unverifiable. Original preserved, no automatic trigger."
+   "finalStatus": "reviewed",
+   "decision": "Independent review could not settle the words; the user (knowledgeable listener) heard the original sample on 2026-11-12 and confirmed «كورة ما زالت مستمرة». Now bound to sustained live-play continuation, not goal/stoppage."
   },
   {
    "slot": "04487",

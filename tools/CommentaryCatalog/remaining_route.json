@@ -1,6 +1,6 @@
 {
-  "date": "2026-11-11",
-  "completedNextStep": "04487 fully corroborated direct coach praise becomes an actual once-per-assisted-goal response after official announcement, before restart. No face or inferred emotion.",
+  "date": "2026-11-12",
+  "completedNextStep": "04487 fully corroborated direct coach praise becomes an actual once-per-assisted-goal response after official announcement, before restart. No face or inferred emotion. 04472 resolved 2026-11-12 by user listening confirmation «كورة ما زالت مستمرة»: bound to sustained live-play continuation (PossessionPlay, possession >= 5s), explicitly not goal/stoppage.",
   "evidenceSearch": "Original ZIP has only SSOUND.cpk. Current Drive searches for all ZIP archives and SOUND/crowd/applause/SFX found original source and generated repair/commentary packages, no relevant named original crowd or player mapping file. Does not establish absence everywhere.",
   "nextBoundedGroups": [
     {
@@ -45,7 +45,6 @@
         "04397",
         "04431",
         "04446",
-        "04472",
         "04665",
         "04721",
         "04896"

@@ -20601,7 +20601,7 @@
  },
  {
   "slot": "04472",
-  "transcript": "كل عام وأنتم مستمرة.",
+  "transcript": "كورة ما زالت مستمرة.",
   "status": "speech",
   "metadata": {
    "audio_codec": "mp3",
@@ -20610,13 +20610,13 @@
    "duration_seconds": 1.486077,
    "sample_rate": 22050
   },
-  "reviewStatus": "speech_review_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "PossessionPlay",
     "all": [
      {
-      "fact": "attack.dangerous",
+      "fact": "attack.continues",
       "op": "eq",
       "value": "true"
      },
@@ -20624,11 +20624,16 @@
       "fact": "analysis.hasPossession",
       "op": "eq",
       "value": "true"
+     },
+     {
+      "fact": "possession.seconds",
+      "op": "ge",
+      "value": "5"
      }
     ]
    }
   ],
-  "notes": "Independent review did not recover convergent intelligible content; prior event label is unverifiable. Original preserved, no automatic trigger."
+  "notes": "User Mohamed Farag, acting as the knowledgeable listener, heard the untouched original sample on 2026-11-12 and confirmed the exact words «كورة ما زالت مستمرة» (the ball is still in play) in his own WhatsApp message (wamid.HBgMMjAxMjA2Mjc0MTQxFQIAEhggQUNEMkFDNTA1RDM5M0EyMDg3MjJGQzMzMUUxOUE3RTMA, 2026-11-12 08:08 EET, replying to the 04472 sample we sent at his request). Bound only to sustained live-play continuation: same team still in possession for at least 5 seconds. Never a goal, stoppage or first touch. Original preserved."
  },
  {
   "slot": "04478",
