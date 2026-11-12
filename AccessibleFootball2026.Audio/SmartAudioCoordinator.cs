@@ -199,6 +199,39 @@ public class SmartAudioCoordinator
             SoundEffectsPlayer.PlayWhistle();
         }
 
+        if (matchEvent.Type == MatchEventType.SubstitutionMade)
+        {
+            string text = matchEvent.Description;
+            if (matchEvent.Context.TryGet("restart.held", out var held) && held == "true" &&
+                matchEvent.Context.TryGet("restart.teamName", out var teamName) &&
+                matchEvent.Context.TryGet("restart.takerName", out var takerName))
+                text += $". استئناف اللعب لصالح {teamName}، {takerName} على التنفيذ. اضغط إنتر بعد التعليق.";
+            SpeakWithDucking(text);
+            return;
+        }
+        // Details come from the event-time team/taker facts, never guessed from a generic commentary clip.
+        if (matchEvent.Type is MatchEventType.FreeKickAwarded or MatchEventType.PenaltyAwarded or MatchEventType.CornerKick
+            or MatchEventType.GoalKick or MatchEventType.ThrowIn)
+        {
+            string kind = matchEvent.Type switch
+            {
+                MatchEventType.PenaltyAwarded => "ضربة جزاء",
+                MatchEventType.CornerKick => "ضربة ركنية",
+                MatchEventType.GoalKick => "ضربة مرمى",
+                MatchEventType.ThrowIn => "رمية تماس",
+                _ => "ركلة حرة"
+            };
+            string team = matchEvent.Context.TryGet("team.name", out var name) ? $" لصالح {name}" : "";
+            string taker = matchEvent.SubjectPlayer is { } actor ? $". {actor.Name} على التنفيذ" : "";
+            SpeakWithDucking($"{kind}{team}{taker}. اضغط إنتر لاستئناف اللعب بعد الإعادة.");
+            return;
+        }
+        if (matchEvent.Type is MatchEventType.Offside or MatchEventType.GoalDisallowed)
+        {
+            SpeakWithDucking(matchEvent.Description + ". اضغط إنتر بعد الإعادة لاستئناف اللعب.");
+            return;
+        }
+
         // 4. إذا تكفل المعلق بالتعليق أو كان وضع الصمت التام مفعلاً
         if (matchEvent.HandledByCommentary)
         {
@@ -265,11 +298,13 @@ public class SmartAudioCoordinator
     }
 
     private int _goalSequenceGeneration;
+    public bool HasPendingGoalAnnouncement { get; private set; }
 
-    public void CancelPendingGoalSequence() => Interlocked.Increment(ref _goalSequenceGeneration);
+    public void CancelPendingGoalSequence() { Interlocked.Increment(ref _goalSequenceGeneration); HasPendingGoalAnnouncement = false; }
 
     private async void HandleGoalCelebrationSequence(GoalDetails goalData, bool handledByCommentary)
     {
+        HasPendingGoalAnnouncement = true;
         int generation = Volatile.Read(ref _goalSequenceGeneration);
         await Task.Delay(handledByCommentary ? 600 : 500);
         // No fixed timeout that would speak over a longer sequence of recorded clips.
@@ -281,9 +316,10 @@ public class SmartAudioCoordinator
         }
         if (generation != Volatile.Read(ref _goalSequenceGeneration)) return;
         OnCrowdVolumeDucking?.Invoke(.2f);
-        try { await _screenReader.SpeakUntilFinishedAsync(goalData.ToOfficialAnnouncement()); }
+        try { await _screenReader.SpeakUntilFinishedAsync(goalData.ToOfficialAnnouncement() + ". اضغط إنتر لإنهاء الإعادة واستئناف المباراة."); }
         finally {OnCrowdVolumeDucking?.Invoke(1f);}
-        if (generation == Volatile.Read(ref _goalSequenceGeneration)) OnGoalSequenceCompleted?.Invoke();
+        if (generation == Volatile.Read(ref _goalSequenceGeneration))
+        { HasPendingGoalAnnouncement = false; OnGoalSequenceCompleted?.Invoke(); }
     }
 
     private void SpeakWithDucking(string text)
@@ -297,4 +333,3 @@ public class SmartAudioCoordinator
         });
     }
 }
-
