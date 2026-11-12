@@ -585,14 +585,15 @@ public static class GamePlanMenuBuilder
             pushMenu(tactMenu);
         });
 
-        menu.AddItem("المستشار التكتيكي بالذكاء الاصطناعي", () =>
+        menu.AddItem("المستشار التكتيكي", async () =>
         {
             if (TacticalAiAdvisor.IsNeuralModelAvailable)
             {
                 screenReader.Speak("جاري استشارة نموذج الذكاء الاصطناعي Qwen 2.5 وتحليل المباراة...");
             }
-            var advisorMenu = new AccessibleMenu("المستشار التكتيكي بالذكاء الاصطناعي", screenReader);
-            string report = TacticalAiAdvisor.GenerateTacticalReport(match, MatchSettings.Current.Language);
+            var advisorMenu = new AccessibleMenu("المستشار التكتيكي", screenReader);
+            var language = MatchSettings.Current.Language;
+            string report = await Task.Run(() => TacticalAiAdvisor.GenerateTacticalReport(match, language));
             advisorMenu.AddItem("التقرير والتحليل التكتيكي الشامل", () =>
             {
                 screenReader.Speak(report);
