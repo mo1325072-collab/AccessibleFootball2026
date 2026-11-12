@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AccessibleFootball2026.Core.Models;
 
@@ -154,19 +155,32 @@ public class MatchSettings
         OnSettingsChanged?.Invoke(this);
     }
 
-    public void Save(string? targetPath = null)
+    [JsonIgnore] public string? LastSaveError { get; private set; }
+
+    public bool Save(string? targetPath = null)
     {
         string p = targetPath ?? ActiveSettingsFilePath;
+        string? temporary = null;
+        LastSaveError = null;
         try
         {
+            SettingsVersion = 2; // An explicit save must never be treated as an unmigrated legacy choice.
             var options = new JsonSerializerOptions { WriteIndented = true };
             string json = JsonSerializer.Serialize(this, options);
             string? dir = Path.GetDirectoryName(p);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            File.WriteAllText(p, json);
+            temporary = p + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllText(temporary, json);
+            File.Move(temporary, p, overwrite: true);
         }
-        catch { }
+        catch (Exception error)
+        {
+            LastSaveError = error.Message;
+            if (temporary != null) { try { File.Delete(temporary); } catch { } }
+            return false;
+        }
         ApplyLive();
+        return true;
     }
 
     public static void Load(string? sourcePath = null)
@@ -180,34 +194,18 @@ public class MatchSettings
                 var loaded = JsonSerializer.Deserialize<MatchSettings>(json);
                 if (loaded != null)
                 {
-                    Current.Difficulty = loaded.Difficulty;
-                    Current.MatchDurationMinutes = loaded.MatchDurationMinutes;
-                    Current.ExtraTimeEnabled = loaded.ExtraTimeEnabled;
-                    Current.PenaltyShootoutEnabled = loaded.PenaltyShootoutEnabled;
-                    Current.Commentator = loaded.Commentator;
-                    Current.CommentaryVoice = loaded.CommentaryVoice;
-                    Current.CommentaryEnabled = loaded.CommentaryEnabled;
-                    Current.MasterVolumePercent = loaded.MasterVolumePercent;
-                    Current.SfxVolumePercent = loaded.SfxVolumePercent;
-                    Current.CommentaryVolumePercent = loaded.CommentaryVolumePercent;
-                    Current.CrowdVolumePercent = loaded.CrowdVolumePercent;
-                    Current.GoalBeaconVolumePercent = loaded.GoalBeaconVolumePercent;
-                    Current.MusicVolumePercent = loaded.MusicVolumePercent;
-                    Current.ScreenReaderSpokenEventsEnabled = loaded.ScreenReaderSpokenEventsEnabled;
-                    Current.Language = loaded.Language;
-                    Current.AutoSubstitutionsEnabled = loaded.AutoSubstitutionsEnabled;
-                    Current.AutoTacticalAdjustmentsEnabled = loaded.AutoTacticalAdjustmentsEnabled;
-                    Current.AiVarEnabled = loaded.AiVarEnabled;
-                    Current.SettingsVersion = loaded.SettingsVersion;
+                    Current.CopyFrom(loaded);
                     // ترقية لمرة واحدة: اعتماد فارس عوض معلقاً افتراضياً بطلب المستخدم؛
                     // رؤوف خليف يبقى متاحاً من قائمة اختيار المعلق ولا تتكرر الترقية بعد الإصدار 2
                     if (Current.SettingsVersion < 2)
                     {
-                        Current.Commentator = CommentatorId.FaresAwad;
-                        Current.CommentaryVoice = CommentaryVoiceOption.FaresAwad;
-                        Current.CommentaryEnabled = true;
+                        if (Current.CommentaryEnabled && Current.CommentaryVoice != CommentaryVoiceOption.Off)
+                        {
+                            Current.Commentator = CommentatorId.FaresAwad;
+                            Current.CommentaryVoice = CommentaryVoiceOption.FaresAwad;
+                        }
                         Current.SettingsVersion = 2;
-                        Current.Save();
+                        Current.Save(p);
                         return;
                     }
                     Current.ApplyLive();
@@ -215,6 +213,29 @@ public class MatchSettings
             }
         }
         catch { }
+    }
+
+    public void CopyFrom(MatchSettings source)
+    {
+                    Difficulty = source.Difficulty;
+                    MatchDurationMinutes = source.MatchDurationMinutes;
+                    ExtraTimeEnabled = source.ExtraTimeEnabled;
+                    PenaltyShootoutEnabled = source.PenaltyShootoutEnabled;
+                    Commentator = source.Commentator;
+                    CommentaryVoice = source.CommentaryVoice;
+                    CommentaryEnabled = source.CommentaryEnabled;
+                    MasterVolumePercent = source.MasterVolumePercent;
+                    SfxVolumePercent = source.SfxVolumePercent;
+                    CommentaryVolumePercent = source.CommentaryVolumePercent;
+                    CrowdVolumePercent = source.CrowdVolumePercent;
+                    GoalBeaconVolumePercent = source.GoalBeaconVolumePercent;
+                    MusicVolumePercent = source.MusicVolumePercent;
+                    ScreenReaderSpokenEventsEnabled = source.ScreenReaderSpokenEventsEnabled;
+                    Language = source.Language;
+                    AutoSubstitutionsEnabled = source.AutoSubstitutionsEnabled;
+                    AutoTacticalAdjustmentsEnabled = source.AutoTacticalAdjustmentsEnabled;
+                    AiVarEnabled = source.AiVarEnabled;
+                    SettingsVersion = source.SettingsVersion;
     }
 
     public void ToggleAutoSubstitutions()
