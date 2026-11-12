@@ -163,7 +163,22 @@ public class TeamSelectionManager
         var nationalTeams = JsonDatabaseProvider.GetTeamsByGroup("National teams - current squads");
         if (nationalTeams.Count == 0) nationalTeams = JsonDatabaseProvider.GetAllNationalTeams();
         if (nationalTeams.Count == 0) nationalTeams = NationalTeamDatabase.GetAllNationalTeams();
-        menu.AddItem($"المنتخبات الوطنية الرسمية ({nationalTeams.Count} منتخباً)", () => onCategoryChosen(nationalTeams, "المنتخبات الوطنية"));
+        menu.AddItem($"المنتخبات الوطنية الرسمية ({nationalTeams.Count} منتخباً)", () =>
+        {
+            if (_pushMenu == null) { onCategoryChosen(nationalTeams, "المنتخبات الوطنية"); return; }
+            var continentMenu = new AccessibleMenu("المنتخبات حسب القارة", _screenReader);
+            foreach (var continent in Enum.GetValues<ContinentType>())
+            {
+                var selectedContinent = continent;
+                var members = NationalTeamDatabase.GetNationalTeamsByContinent(selectedContinent);
+                string title = NationalTeamConfederations.Title(selectedContinent, MatchSettings.Current.Language);
+                continentMenu.AddItem($"{title} ({members.Count})", () => onCategoryChosen(members, title));
+            }
+            // Keep all source records available, including a future unclassified addition.
+            continentMenu.AddItem("جميع المنتخبات", () => onCategoryChosen(nationalTeams, "المنتخبات الوطنية"));
+            if (_popMenu != null) continentMenu.AddItem("رجوع", _popMenu);
+            _pushMenu(continentMenu);
+        });
 
         // 7. جميع الفرق (529 فريقاً موثقاً من ملف المستخدم)
         var all = JsonDatabaseProvider.AllTeams.Count > 0 ? JsonDatabaseProvider.AllTeams.ToList() : _allTeams;
@@ -193,4 +208,3 @@ private AccessibleMenu CreateSubTeamSelectMenu(string title, List<Team> teams, T
         return subMenu;
     }
 }
-
