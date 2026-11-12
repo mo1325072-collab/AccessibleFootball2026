@@ -355,23 +355,19 @@ public class TacticalAiAdvisor
     /// </summary>
     public static Player? FindBestBenchReplacement(Team team, Player playerToReplace)
     {
-        var availableBench = team.Bench.Where(p => !p.IsSentOff && !p.IsOffPitch).ToList();
-        if (availableBench.Count == 0) return null;
-
-        // مطابقة المركز الدقيق أولاً
-        var exactMatch = availableBench.FirstOrDefault(p => p.CurrentAssignedPosition == playerToReplace.CurrentAssignedPosition);
-        if (exactMatch != null) return exactMatch;
-
-        // مطابقة المراكز الثانوية
-        var secondaryMatch = availableBench.FirstOrDefault(p => p.SecondaryPositions != null && p.SecondaryPositions.Contains(playerToReplace.CurrentAssignedPosition));
-        if (secondaryMatch != null) return secondaryMatch;
-
-        // مطابقة الدور العام (مدافع، وسط، مهاجم)
-        var roleMatch = availableBench.FirstOrDefault(p => p.Role == playerToReplace.Role);
-        if (roleMatch != null) return roleMatch;
-
-        // أي لاعب متاح غير الحارس
-        return availableBench.FirstOrDefault(p => p.Role != PlayerRole.Goalkeeper) ?? availableBench[0];
+        var position = playerToReplace.CurrentAssignedPosition;
+        var available = team.Bench.Where(team.CanEnterAsSubstitute).ToArray();
+        // Compare effective strength IN the required position without mutating the real bench player.
+        int Strength(Player candidate)
+        {
+            var positioned = candidate.Clone();
+            positioned.CurrentAssignedPosition = position;
+            return positioned.EffectiveOverallRating;
+        }
+        Player? Strongest(IEnumerable<Player> players) => players.OrderByDescending(Strength)
+            .ThenByDescending(p => p.Stamina).ThenBy(p => p.Id).FirstOrDefault();
+        return Strongest(available.Where(p => p.PrimaryPosition == position)) ??
+            Strongest(available.Where(p => p.SecondaryPositions.Contains(position)));
     }
 
     /// <summary>
@@ -383,23 +379,20 @@ public class TacticalAiAdvisor
         if (!MatchSettings.Current.AutoSubstitutionsEnabled) return false;
         if (!match.CanMakeSubstitution(match.HomeTeam)) return false;
 
-        // يتم التبديل التلقائي فقط بعد الدقيقة 60 للاعبين الأكثر إرهاقاً
-        if (match.MatchTimeMinutes < 60.0f) return false;
-
-        var tired = match.HomeTeam.Players
-            .Where(p => p.Role != PlayerRole.Goalkeeper && !p.IsSentOff && !p.IsOffPitch)
-            .OrderBy(p => p.Stamina)
-            .FirstOrDefault();
-
-        if (tired == null || tired.Stamina > 70) return false;
-
-        var sub = FindBestBenchReplacement(match.HomeTeam, tired);
-        if (sub == null) return false;
-
-        bool ok = match.MakeSubstitution(match.HomeTeam, tired, sub);
-        if (ok)
+        // Meaningful fatigue uses the existing 70% boundary, relative to the player's own capacity.
+        // A booking plus three recorded fouls is the native second-yellow risk rule, not a prediction by Qwen.
+        float Fitness(Player p) => 100f * p.Stamina / Math.Max(1, p.BaseStamina);
+        bool CardRisk(Player p) => p.YellowCards > 0 && match.PerformanceOf(p).Fouls >= 3;
+        var candidates = match.HomeTeam.Players.Where(p => p.IsActiveOnPitch &&
+                (Fitness(p) <= 70 || CardRisk(p)))
+            .OrderByDescending(CardRisk).ThenBy(Fitness).ThenBy(p => p.Id);
+        foreach (var player in candidates)
         {
-            announcement = $"تبديل تلقائي ذكي: خروج {tired.Name} ودخول {sub.Name} في الدقيقة {(int)match.MatchTimeMinutes}.";
+            var replacement = FindBestBenchReplacement(match.HomeTeam, player);
+            if (replacement == null) continue; // Never put an incompatible player in a vacant position.
+            string reason = CardRisk(player) ? "إنذار مع كثرة الأخطاء وخطر الإنذار الثاني" : "هبوط اللياقة";
+            if (!match.MakeSubstitution(match.HomeTeam, player, replacement)) continue;
+            announcement = $"تبديل تلقائي بسبب {reason}: خروج {player.Name} ودخول {replacement.Name} في الدقيقة {(int)match.MatchTimeMinutes}.";
             return true;
         }
 
