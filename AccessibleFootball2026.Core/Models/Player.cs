@@ -152,7 +152,7 @@ public class Player
     public SpecificPosition CurrentAssignedPosition { get; set; }
     public SpecificPosition Position
     {
-        get => CurrentAssignedPosition != default ? CurrentAssignedPosition : PrimaryPosition;
+        get => CurrentAssignedPosition;
         set
         {
             PrimaryPosition = value;
