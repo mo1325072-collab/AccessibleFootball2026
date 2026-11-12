@@ -97,6 +97,9 @@ public static class LocalizationService
         ["PenaltiesExpl"] = ("ركلات الترجيح (Penalty Shootouts)", "Penalty Shootout Rules")
     };
 
+    public static string Text(string arabic, string english) =>
+        CurrentLanguage == UiLanguage.English ? english : arabic;
+
     public static string GetString(string key)
     {
         if (_strings.TryGetValue(key, out var val))
