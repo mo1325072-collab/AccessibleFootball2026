@@ -442,6 +442,19 @@ public static class SoundEffectsPlayer
         if (p != null) PlayOneShot(p, "crowd_cheer", customVolume: GetEffectiveCrowdVolume());
     }
 
+    /// <summary>
+    /// تصفيق جماهير حقيقي (تسجيل فعلي مرخص CC0 في SFX/Crowd/CrowdApplause، ليس توليداً صناعياً).
+    /// يعيد true فقط إذا وُجد التسجيل الحقيقي وبدأ تشغيله؛ غياب الملف يعني لا تصفيق ولا تعليق يصفه.
+    /// </summary>
+    public static bool PlayCrowdApplause()
+    {
+        if (GetEffectiveCrowdVolume() <= 0.001f) return false;
+        string? p = ResolveAudioPath("SFX", "Crowd", "CrowdApplause");
+        if (p == null || LastResolveWasSynthetic) return false;
+        PlayOneShot(p, "crowd_applause", customVolume: GetEffectiveCrowdVolume());
+        return true;
+    }
+
     public static void PlayOneShotChant(string filePath)
     {
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;

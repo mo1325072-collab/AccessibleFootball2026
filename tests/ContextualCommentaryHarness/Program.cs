@@ -103,6 +103,41 @@ if (args.Length>0)
  Check(!ballContinues.All.All(r=>r.Matches(empty.With(("attack.continues","true"),("analysis.hasPossession","false"),("possession.seconds","7")))),"Continuing-ball line rejected when possession lost (stoppage/turnover)");
  Check(!ballContinues.All.All(r=>r.Matches(empty.With(("attack.continues","true"),("analysis.hasPossession","true"),("possession.seconds","2")))),"Continuing-ball line rejected on a fresh touch, not yet still-continuing play");
  Check(library.Recordings.Single(r=>r.Slot=="01616").ReviewStatus=="context_history_pending","Genuine historical speech remains historical, not a current Ronaldo goal");
+ var ovation=document.Clips.Where(c=>c.Id is "01643" or "01644" or "01647").ToArray();
+ Check(ovation.Length==3,"Three genuine ovation variants preserved for high-rated substitution exits");
+ foreach(var ov in ovation)
+ {
+  Check(ov.Event=="SubstitutionMade"&&ov.All.All(r=>r.Matches(empty.With(("substitution.playerRating","8.4"),("applause.played","true")))),ov.Id+" ovation line plays only after real applause started for a high-rated exit");
+  Check(!ov.All.All(r=>r.Matches(empty.With(("substitution.playerRating","8.4"),("applause.played","false")))),ov.Id+" ovation line rejected when the genuine applause recording did not actually start");
+  Check(!ov.All.All(r=>r.Matches(empty.With(("substitution.playerRating","7.9"),("applause.played","true")))),ov.Id+" ovation line rejected for an ordinary-rated exit");
+  Check(!ov.All.All(r=>r.Matches(empty.With(("substitution.playerRating","8.4")))),ov.Id+" ovation line rejected with applause state unknown (fail closed)");
+ }
+ var applauseAsset=Path.GetFullPath(Path.Combine(corpusRoot,"..","..","SFX","Crowd","CrowdApplause.wav"));
+ Check(File.Exists(applauseAsset)&&new FileInfo(applauseAsset).Length>100000,"Genuine CC0 stadium applause recording is bundled, not a procedural substitute");
+ var applauseLicense=Path.GetFullPath(Path.Combine(corpusRoot,"..","..","SFX","Crowd","CrowdApplause-LICENSE.txt"));
+ Check(File.Exists(applauseLicense)&&File.ReadAllText(applauseLicense).Contains("CC0"),"Applause recording carries its license and provenance");
+ var coachJoy=document.Clips.Single(c=>c.Id=="00010");
+ Check(coachJoy.Event=="GoalAnalysis"&&coachJoy.All.All(r=>r.Matches(empty.With(("replay.available","true"),("goal.takesLead","true"),("coach.reaction","joyfulLead")))),"Coach-joy replay line plays for modeled joy after an actual lead-taking goal");
+ Check(!coachJoy.All.All(r=>r.Matches(empty.With(("replay.available","true"),("goal.takesLead","true"),("coach.reaction","dejected")))),"Coach-joy line rejected under a different modeled reaction");
+ Check(!coachJoy.All.All(r=>r.Matches(empty.With(("replay.available","true"),("goal.takesLead","true")))),"Coach-joy line rejected when no reaction state is represented");
+ var anxiousMiss=document.Clips.Single(c=>c.Id=="00033");
+ Check(anxiousMiss.Event=="Miss"&&anxiousMiss.All.All(r=>r.Matches(empty.With(("shot.underPressure","true"),("player.reaction","anxious")))),"Anxious-miss line plays after an actual pressured miss with modeled anxiety");
+ Check(!anxiousMiss.All.All(r=>r.Matches(empty.With(("shot.underPressure","false"),("player.reaction","anxious"))))&&!anxiousMiss.All.All(r=>r.Matches(empty.With(("shot.underPressure","true")))),"Anxious-miss line rejected without real pressure or without the modeled state");
+ var dejected=document.Clips.Single(c=>c.Id=="01107");
+ Check(dejected.Event=="MatchAnalysis"&&dejected.All.All(r=>r.Matches(empty.With(("analysis.result","loss"),("score.margin","3"),("coach.reaction","dejected")))),"Coach-dejection analysis plays for modeled dejection at a real 2+ deficit");
+ Check(!dejected.All.All(r=>r.Matches(empty.With(("analysis.result","loss"),("score.margin","3"),("coach.reaction","joyfulLead"))))&&!dejected.All.All(r=>r.Matches(empty.With(("analysis.result","loss"),("score.margin","1"),("coach.reaction","dejected")))),"Coach-dejection analysis rejected under wrong reaction or one-goal margin");
+ var displeased=document.Clips.Single(c=>c.Id=="01445");
+ Check(displeased.Event=="Goal"&&displeased.All.All(r=>r.Matches(empty.With(("goal.equalizer","true"),("coach.opponent.reaction","displeasedConceded")))),"Equalizer line with conceding-coach displeasure plays only for the modeled conceding reaction");
+ Check(!displeased.All.All(r=>r.Matches(empty.With(("goal.equalizer","true"),("coach.opponent.reaction","joyfulLead"))))&&!displeased.All.All(r=>r.Matches(empty.With(("goal.equalizer","false"),("coach.opponent.reaction","displeasedConceded")))),"Equalizer displeasure line rejected for non-equalizer or wrong modeled reaction");
+ var coachSad=document.Clips.Single(c=>c.Id=="01492");
+ Check(coachSad.Event=="MatchAnalysis"&&coachSad.All.All(r=>r.Matches(empty.With(("analysis.result","loss"),("score.margin","3"),("coach.reaction","sad")))),"Coach-sadness analysis plays for modeled sadness at a real 3+ deficit");
+ Check(!coachSad.All.All(r=>r.Matches(empty.With(("analysis.result","loss"),("score.margin","2"),("coach.reaction","sad")))),"Coach-sadness analysis rejected below the real 3+ margin");
+ foreach(var ownId in new[]{"01629","02959"})
+ {
+  var own=document.Clips.Single(c=>c.Id==ownId);
+  Check(own.Event=="OwnGoal"&&own.All.All(r=>r.Matches(empty.With(("player.reaction","devastated")))),ownId+" own-goal sadness line plays only for the modeled devastated scorer");
+  Check(!own.All.All(r=>r.Matches(empty.With(("player.reaction","anxious")))),ownId+" own-goal sadness line rejected under a different modeled emotion");
+ }
  var easySave=document.Clips.Single(c=>c.Id=="03245");
  Check(!easySave.All.All(r=>r.Matches(empty.With(("save.difficulty","hard"))))&&easySave.All.All(r=>r.Matches(empty.With(("save.difficulty","easy")))),"Independent easy-save meaning excludes hard saves");
  var farPost=document.Clips.Single(c=>c.Id=="00372");

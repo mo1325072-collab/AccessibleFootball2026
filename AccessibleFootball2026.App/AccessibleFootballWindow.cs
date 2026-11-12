@@ -149,6 +149,12 @@ public class AccessibleFootballWindow : Form
         _eventBus.OnMatchEvent += evt =>
         {
             evt.Context = evt.Context.With(("crowd.active", SoundEffectsPlayer.IsCrowdActive));
+            // خروج لاعب قدّم مباراة كبيرة: يبدأ تصفيق الجمهور الحقيقي أولاً، ثم يُروى التعليق بعده.
+            // إن تعذر تشغيل التسجيل الحقيقي يبقى applause.played=false فيُغلق الشرط ولا يُدَّعى تصفيق لم يحدث.
+            if (evt.Type == MatchEventType.SubstitutionMade &&
+                evt.Context.TryGet("substitution.playerRating", out var ovationRating) &&
+                double.TryParse(ovationRating, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var rating) && rating >= 8)
+                evt.Context = evt.Context.With(("applause.played", SoundEffectsPlayer.PlayCrowdApplause()));
             _commentaryEngine.TryCommentOnEvent(evt,force:evt.Type==MatchEventType.CoachPraise);
             if (evt.Type == MatchEventType.GoalScored && _activeMatch?.LastGoalReplay is { } replay)
                 _commentaryEngine.QueueGoalReplay(replay);

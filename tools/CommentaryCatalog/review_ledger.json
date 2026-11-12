@@ -93,7 +93,7 @@
    "duration_seconds": 7.291066,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_visual_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "GoalAnalysis",
@@ -107,11 +107,16 @@
       "fact": "goal.takesLead",
       "op": "eq",
       "value": "true"
+     },
+     {
+      "fact": "coach.reaction",
+      "op": "eq",
+      "value": "joyfulLead"
      }
     ]
    }
   ],
-  "notes": "Explicit coach reaction/facial expression not represented in the actual game. Original preserved, not inferred from score."
+  "notes": "Resolved 2026-11-12: engine now explicitly represents the scoring coach's joyfulLead reaction state, caused only by an actual lead-taking goal (90s window). Replay narration requires coach.reaction=joyfulLead; no score-to-face inference."
  },
  {
   "slot": "00012",
@@ -344,7 +349,7 @@
    "duration_seconds": 9.473741,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_visual_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "Miss",
@@ -353,11 +358,16 @@
       "fact": "shot.underPressure",
       "op": "eq",
       "value": "true"
+     },
+     {
+      "fact": "player.reaction",
+      "op": "eq",
+      "value": "anxious"
      }
     ]
    }
   ],
-  "notes": "Explicit visible anxious facial features are not established by physical pressure alone."
+  "notes": "Resolved 2026-11-12: engine represents the shooter's anxious state only after an actual missed chance under recorded pressure (shot.underPressure). Narration requires player.reaction=anxious."
  },
  {
   "slot": "00034",
@@ -4613,7 +4623,7 @@
    "duration_seconds": 5.20127,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_visual_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "MatchAnalysis",
@@ -4627,11 +4637,16 @@
       "fact": "score.margin",
       "op": "ge",
       "value": "2"
+     },
+     {
+      "fact": "coach.reaction",
+      "op": "eq",
+      "value": "dejected"
      }
     ]
    }
   ],
-  "notes": "Explicit coach facial expression cannot be inferred from score deficit. Held for genuine represented coach-state feature, not a score-to-face label."
+  "notes": "Resolved 2026-11-12: engine represents the trailing coach's dejected state when his side concedes to a 2+ goal deficit. Analysis requires the modeled state, not score alone."
  },
  {
   "slot": "01108",
@@ -6542,7 +6557,7 @@
    "duration_seconds": 22.987755,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_visual_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "Goal",
@@ -6551,11 +6566,16 @@
       "fact": "goal.equalizer",
       "op": "eq",
       "value": "true"
+     },
+     {
+      "fact": "coach.opponent.reaction",
+      "op": "eq",
+      "value": "displeasedConceded"
      }
     ]
    }
   ],
-  "notes": "Explicit coach reaction/facial expression not represented in the actual game. Original preserved, not inferred from score."
+  "notes": "Resolved 2026-11-12: engine represents the conceding coach's displeasedConceded state at an actual equalizer against his side. Narration requires coach.opponent.reaction=displeasedConceded."
  },
  {
   "slot": "01447",
@@ -6915,7 +6935,7 @@
    "duration_seconds": 7.894785,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_visual_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "MatchAnalysis",
@@ -6929,11 +6949,16 @@
       "fact": "score.margin",
       "op": "ge",
       "value": "3"
+     },
+     {
+      "fact": "coach.reaction",
+      "op": "eq",
+      "value": "sad"
      }
     ]
    }
   ],
-  "notes": "Explicit coach facial expression cannot be inferred from score deficit. Held for genuine represented coach-state feature, not a score-to-face label."
+  "notes": "Resolved 2026-11-12: engine represents the trailing coach's sad state when his side concedes to a 3+ goal deficit. Analysis requires the modeled state, not score alone."
  },
  {
   "slot": "01510",
@@ -7536,14 +7561,20 @@
    "duration_seconds": 8.080544,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_emotion_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "OwnGoal",
-    "all": []
+    "all": [
+     {
+      "fact": "player.reaction",
+      "op": "eq",
+      "value": "devastated"
+     }
+    ]
    }
   ],
-  "notes": "Narration explicitly asserts player sadness; an own goal alone is not evidence of a represented emotional state. Original preserved."
+  "notes": "Resolved 2026-11-12: engine represents the scorer's devastated state on an actual own goal. Narration requires player.reaction=devastated."
  },
  {
   "slot": "01631",
@@ -7636,7 +7667,7 @@
    "duration_seconds": 9.287982,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_asset_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "SubstitutionMade",
@@ -7645,11 +7676,16 @@
       "fact": "substitution.playerRating",
       "op": "ge",
       "value": "8"
+     },
+     {
+      "fact": "applause.played",
+      "op": "eq",
+      "value": "true"
      }
     ]
    }
   ],
-  "notes": "Applause is an explicit claim. Needs genuine crowd-applause asset and successful audible trigger, not rating alone or procedural substitute. Original preserved."
+  "notes": "Resolved 2026-11-12: genuine stadium applause recording (sandermotions applause-2, CC0, Wikimedia Commons 277021_sandermotions_applause-2.wav) bundled as Assets/Audio/SFX/Crowd/CrowdApplause.wav. The ovation starts first; commentary requires applause.played=true (real file actually started) and substitution.playerRating>=8. No procedural substitute."
  },
  {
   "slot": "01644",
@@ -7662,7 +7698,7 @@
    "duration_seconds": 16.671927,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_asset_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "SubstitutionMade",
@@ -7671,11 +7707,16 @@
       "fact": "substitution.playerRating",
       "op": "ge",
       "value": "8"
+     },
+     {
+      "fact": "applause.played",
+      "op": "eq",
+      "value": "true"
      }
     ]
    }
   ],
-  "notes": "Applause is an explicit claim. Needs genuine crowd-applause asset and successful audible trigger, not rating alone or procedural substitute. Original preserved."
+  "notes": "Resolved 2026-11-12: same genuine-applause route as 01643; variant lines for the same real ovation event."
  },
  {
   "slot": "01647",
@@ -7688,7 +7729,7 @@
    "duration_seconds": 13.096054,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_asset_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "SubstitutionMade",
@@ -7697,11 +7738,16 @@
       "fact": "substitution.playerRating",
       "op": "ge",
       "value": "8"
+     },
+     {
+      "fact": "applause.played",
+      "op": "eq",
+      "value": "true"
      }
     ]
    }
   ],
-  "notes": "Applause is an explicit claim. Needs genuine crowd-applause asset and successful audible trigger, not rating alone or procedural substitute. Original preserved."
+  "notes": "Resolved 2026-11-12: same genuine-applause route as 01643; variant lines for the same real ovation event."
  },
  {
   "slot": "01651",
@@ -8997,14 +9043,20 @@
    "duration_seconds": 4.179592,
    "sample_rate": 22050
   },
-  "reviewStatus": "context_emotion_pending",
+  "reviewStatus": "reviewed",
   "mappings": [
    {
     "event": "OwnGoal",
-    "all": []
+    "all": [
+     {
+      "fact": "player.reaction",
+      "op": "eq",
+      "value": "devastated"
+     }
+    ]
    }
   ],
-  "notes": "Narration explicitly asserts player sadness; an own goal alone is not evidence of a represented emotional state. Original preserved."
+  "notes": "Resolved 2026-11-12: engine represents the scorer's devastated state on an actual own goal. Narration requires player.reaction=devastated."
  },
  {
   "slot": "02962",

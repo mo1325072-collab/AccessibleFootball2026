@@ -288,6 +288,62 @@ foreach(bool onTarget in new[]{true,false})
  await done.Task.WaitAsync(TimeSpan.FromSeconds(8));
  Check(order.SequenceEqual(Enumerable.Range(0,10)),"Queue longer than six never evicts completion callbacks or changes their order");
 }
+{
+ // Reaction model: represented coach/player states come only from actual match causes
+ var(m,ev,input)=Fresh();m.AutomaticGoalRestart=false;
+ void Score(string side){ bool home=side=="home"; typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m, home?m.HomeTeam.Players[9]:m.AwayTeam.Players[9]); m.Ball.Position=new Vector3(home?105.1f:-.1f,34,1); typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null); }
+ var pub=typeof(MatchEngine).GetMethods(BindingFlags.NonPublic|BindingFlags.Instance).Single(x=>x.Name=="Publish");
+ Score("home");
+ var g1=ev.Last(e=>e.Type==MatchEventType.GoalScored);
+ Check(g1.Context.Facts["coach.reaction"]=="joyfulLead","Actual lead-taking goal models scoring coach joy");
+ Check(!g1.Context.Facts.ContainsKey("coach.opponent.reaction"),"First goal models no conceding-coach reaction yet");
+ Check(m.LastGoalReplay!=null&&m.LastGoalReplay.Context.Facts["coach.reaction"]=="joyfulLead","Replay snapshot carries the modeled coach joy");
+ m.CompleteGoalCelebration();
+ Score("away");
+ var g2=ev.Last(e=>e.Type==MatchEventType.GoalScored);
+ Check(g2.Context.Facts["goal.equalizer"]=="true"&&g2.Context.Facts["coach.opponent.reaction"]=="displeasedConceded","Actual equalizer models conceding coach displeasure");
+ m.CompleteGoalCelebration();
+ Score("away");m.CompleteGoalCelebration();
+ Score("away");
+ var g4=ev.Last(e=>e.Type==MatchEventType.GoalScored);
+ Check(g4.Context.Facts["coach.opponent.reaction"]=="dejected","Actual two-goal deficit models conceding coach dejection");
+ m.CompleteGoalCelebration();
+ Score("away");
+ var g5=ev.Last(e=>e.Type==MatchEventType.GoalScored);
+ Check(g5.Context.Facts["coach.opponent.reaction"]=="sad","Actual three-goal deficit models conceding coach sadness");
+ m.CompleteGoalCelebration();
+ pub.Invoke(m,new object[]{new MatchEvent(MatchEventType.MatchAnalysis,"تحليل سير اللعب",subjectPlayer:m.HomeTeam.Players[1]),new (string,object?)[0]});
+ var analysis=ev.Last();
+ Check(analysis.Context.Facts["coach.reaction"]=="sad"&&analysis.Context.Facts["analysis.result"]=="loss"&&analysis.Context.Facts["score.margin"]=="3","Analysis of trailing side carries its modeled coach sadness with real margin");
+}
+{
+ var(m,ev,input)=Fresh();
+ typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m,m.AwayTeam.Players[3]);
+ m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ var og=ev.Last(e=>e.Type==MatchEventType.GoalScored);
+ Check(og.GoalData!.IsOwnGoal&&og.Context.Facts["player.reaction"]=="devastated","Actual own goal models the scorer's represented devastation");
+}
+{
+ var(m,ev,input)=Fresh();
+ var pub=typeof(MatchEngine).GetMethods(BindingFlags.NonPublic|BindingFlags.Instance).Single(x=>x.Name=="Publish");
+ typeof(MatchEngine).GetField("_lastShotContext",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(m,AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty.With(("shot.underPressure",true)));
+ typeof(MatchEngine).GetField("_shotContextValid",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(m,true);
+ pub.Invoke(m,new object[]{new MatchEvent(MatchEventType.MissedChance,"تسديدة خارج المرمى",subjectPlayer:m.ActiveUserPlayer),new (string,object?)[0]});
+ Check(ev.Last().Context.Facts["player.reaction"]=="anxious","Actual pressured miss models shooter anxiety");
+ typeof(MatchEngine).GetField("_shotContextValid",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(m,false);
+ typeof(MatchEngine).GetField("_elapsedSeconds",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(m,200f);
+ pub.Invoke(m,new object[]{new MatchEvent(MatchEventType.MissedChance,"تسديدة خارج المرمى",subjectPlayer:m.ActiveUserPlayer),new (string,object?)[0]});
+ Check(!ev.Last().Context.Facts.ContainsKey("player.reaction"),"Represented reactions expire instead of sticking forever");
+}
+{
+ var(m,ev,input)=Fresh();m.AutomaticGoalRestart=false;
+ var star=m.HomeTeam.Players[9];
+ for(int i=0;i<2;i++){ typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m,star); m.Ball.Position=new Vector3(105.1f,34,1); typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null); m.CompleteGoalCelebration(); }
+ var benchPlayer=new Player(999,"Bench",33,SpecificPosition.ST,75,75,75,75,75); m.HomeTeam.Bench.Add(benchPlayer);
+ Check(m.MakeSubstitution(m.HomeTeam,star,benchPlayer),"Actual substitution of the star executes");
+ var sub=ev.Last(e=>e.Type==MatchEventType.SubstitutionMade);
+ Check(double.Parse(sub.Context.Facts["substitution.playerRating"],System.Globalization.CultureInfo.InvariantCulture)>=8,"Star exit carries his actual high match rating for the ovation decision");
+}
 Console.WriteLine($"RESULT {passed} passed, {failed} failed");return failed==0?0:1;
 class Input:IInputHandler{ public HashSet<GameAction> Actions=new();public HashSet<GameAction> PollCurrentActions(bool p)=>Actions;public bool IsActionTriggered(GameAction a,bool p)=>Actions.Contains(a);}
 

@@ -125,12 +125,14 @@ public partial class MatchEngine
             ("attack.continues", _possessionTeamId == team.Id), ("attack.mustRelease", pressured && goalDistance > 20),
             ("possession.seconds", _elapsedSeconds - _possessionStartSeconds), ("possession.changed", _possessionChanges > 0),
             ("control.pressured", pressured), ("pressure.high", pressured && opponent.Tactics.PressingIntensity >= 70),
+            ("coach.reaction", CoachReactionOf(team.Id)),
             ("player.positioningGood", space),
             ("analysis.homeRating", HomeTeam.Players.Where(p=>p.IsActiveOnPitch).Select(p=>PerformanceOf(p).Rating).DefaultIfEmpty(6).Average()),
             ("match.ratingGap", Math.Abs(HomeTeam.Players.Average(p => p.BaseOverallRating) - AwayTeam.Players.Average(p => p.BaseOverallRating))));
         if (player != null)
         {
             c = c.With(("player.speed", player.Speed), ("player.goals", player.MatchGoalsCount), ("player.rating", PerformanceOf(player).Rating),
+                ("player.reaction", PlayerReactionOf(player.Id)),
                 ("player.role", player.Role == PlayerRole.Forward ? "attacker" : player.Role.ToString().ToLowerInvariant()),
                 ("team.activePlayers", team.Players.Count(p => p.IsActiveOnPitch)),
                 ("tackle.playerSuccessfulCount", _successfulTackles.GetValueOrDefault(player.Id)));

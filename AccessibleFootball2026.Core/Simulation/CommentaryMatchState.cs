@@ -125,6 +125,7 @@ public partial class MatchEngine
         if(!recalledFoul)RecordPerformance(e);
         UpdateConfidence(e);
         if (e.Type == MatchEventType.ShotTaken && MatchTimeMinutes < 45) Count("stats.firstHalfShots");
+        RecordReactionsFor(e);
         var snapshot = Snapshot();
         var c = new CommentaryContext(snapshot.Facts.Concat(PlayFacts(e).Facts).GroupBy(p => p.Key).Select(g => g.Last()));
         if (e.Type is MatchEventType.ShotTaken or MatchEventType.GoalScored or MatchEventType.HatTrickAchieved or MatchEventType.DramaticComeback or
@@ -151,6 +152,7 @@ public partial class MatchEngine
             var defendingKeeper = (home ? AwayTeam : HomeTeam).Players.FirstOrDefault(p=>p.IsActiveOnPitch && p.Role==PlayerRole.Goalkeeper);
             bool positioningError = defendingKeeper != null && (Math.Abs(defendingKeeper.Position2D.X-(home == UserAttackingRight ? Pitch.Length : 0))>8 || Math.Abs(defendingKeeper.Position2D.Y-Ball.Position.Y)>Pitch.GoalWidth*.7f);
             c = c.With(("goal.opponentConcentration",_goalOpponentConcentration),("goal.keeperError", positioningError), ("goal.own.method", g.IsOwnGoal ? _lastTouchMethod : null),
+                ("coach.opponent.reaction", CoachReactionOf((home ? AwayTeam : HomeTeam).Id)),
                 ("goal.own", g.IsOwnGoal), ("goal.teamOrdinal", teamScore),
                 ("goal.matchOrdinal", g.HomeScore + g.AwayScore), ("goal.equalizer", teamScore == opponentScore),
                 ("goal.takesLead", teamScore == opponentScore + 1),
