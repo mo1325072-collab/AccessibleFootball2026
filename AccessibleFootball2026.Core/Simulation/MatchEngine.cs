@@ -234,21 +234,42 @@ public partial class MatchEngine
 
     public void ReportTacticalRadar()
     {
+        string T(string ar, string en) => LocalizationService.Text(ar, en);
+        string zone = T(CurrentZone.ToArabicAnnouncement(), CurrentZone.ToEnglishAnnouncement());
+        if (Restart is { } restart)
+        {
+            string kind = restart.Kind switch
+            {
+                RestartKind.Penalty => T("ركلة جزاء", "Penalty"),
+                RestartKind.IndirectFreeKick => T("ركلة حرة غير مباشرة", "Indirect free kick"),
+                RestartKind.Corner => T("ركنية", "Corner"),
+                RestartKind.ThrowIn => T("رمية تماس", "Throw-in"),
+                RestartKind.GoalKick => T("ضربة مرمى", "Goal kick"),
+                _ => T("ركلة حرة", "Free kick")
+            };
+            bool attackingRight = restart.Team == HomeTeam ? UserAttackingRight : !UserAttackingRight;
+            int distance = (int)Vector2.Distance(restart.Spot, attackingRight ? Pitch.RightGoalCenter : Pitch.LeftGoalCenter);
+            string description = T($"{kind}، {restart.Team.Name}، {restart.Taker.Name}، المرمى: {distance} م",
+                $"{kind}, {restart.Team.Name}, {restart.Taker.Name}, goal {distance} m");
+            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, description, CurrentZone));
+            return;
+        }
         if (Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner))
         {
-            float distToGoal = UserAttackingRight ? (Pitch.Length - Ball.Position2D.X) : Ball.Position2D.X;
-            string radarMsg = $"{Ball.Owner.Name}، {CurrentZone.ToArabicAnnouncement()}، المرمى: {(int)distToGoal} م";
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, radarMsg, CurrentZone));
+            int distance = (int)Vector2.Distance(Ball.Position2D, UserAttackingRight ? Pitch.RightGoalCenter : Pitch.LeftGoalCenter);
+            string description = T($"{Ball.Owner.Name}، {zone}، المرمى: {distance} م", $"{Ball.Owner.Name}, {zone}, goal {distance} m");
+            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, description, CurrentZone));
         }
         else if (Ball.Owner != null && AwayTeam.Players.Contains(Ball.Owner))
         {
-            float distToOurGoal = UserAttackingRight ? Ball.Position2D.X : (Pitch.Length - Ball.Position2D.X);
-            string radarMsg = $"{Ball.Owner.Name} ({AwayTeam.Name})، {CurrentZone.ToArabicAnnouncement()}، مرماك: {(int)distToOurGoal} م";
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, radarMsg, CurrentZone));
+            int distance = (int)Vector2.Distance(Ball.Position2D, UserAttackingRight ? Pitch.LeftGoalCenter : Pitch.RightGoalCenter);
+            string description = T($"{Ball.Owner.Name} ({AwayTeam.Name})، {zone}، مرماك: {distance} م",
+                $"{Ball.Owner.Name} ({AwayTeam.Name}), {zone}, your goal {distance} m");
+            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, description, CurrentZone));
         }
         else
         {
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, $"كرة حرة في {CurrentZone.ToArabicAnnouncement()}.", CurrentZone));
+            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, T($"كرة حرة في {zone}.", $"Loose ball, {zone}."), CurrentZone));
         }
     }
 
