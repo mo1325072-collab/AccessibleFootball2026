@@ -218,6 +218,7 @@ public partial class MatchEngine
 
     public void TriggerExtraTime()
     {
+        if (IsExtraTime || State == MatchState.GameOver) return;
         IsExtraTime = true;
         HomeTeam.IsExtraTime = true;
         AwayTeam.IsExtraTime = true;
@@ -272,22 +273,11 @@ public partial class MatchEngine
         FormationManager.ApplyFormation(HomeTeam, HomeTeam.CurrentFormation);
         FormationManager.ApplyFormation(AwayTeam, AwayTeam.CurrentFormation);
 
-        ActiveUserPlayer = HomeTeam.Players[9];
-        ActiveUserPlayer.Position2D = new Vector2(Pitch.CenterSpot.X, Pitch.CenterSpot.Y);
-        Ball.Position = new Vector3(Pitch.CenterSpot.X, Pitch.CenterSpot.Y, 0.0f);
-        Ball.CatchOrTackle(ActiveUserPlayer);
-        GrantPossessionGrace(1.5f);
-        LastKicker = ActiveUserPlayer;
+        if (HomeTeam.Players.Count(p => p.IsActiveOnPitch) < 7 || AwayTeam.Players.Count(p => p.IsActiveOnPitch) < 7)
+            throw new ArgumentException("Each team needs at least seven active players to start a match.");
+        ActiveUserPlayer = HomeTeam.Players.First(p => p.IsActiveOnPitch);
+        PlaceKickoff(HomeTeam, HomeTeam.Players.ElementAtOrDefault(9));
 
-        // دفع لاعبي الخصم خارج دائرة منتصف الملعب عند انطلاق اللقاء وضبط اتجاههم نحو مرمى المضيف
-        foreach (var opp in AwayTeam.Players)
-        {
-            opp.FacingDirection = new Vector2(-1.0f, 0.0f);
-            if (opp.Position2D.X < Pitch.CenterSpot.X + 11.0f)
-            {
-                opp.Position2D = new Vector2(Pitch.CenterSpot.X + 12.0f, opp.Position2D.Y);
-            }
-        }
     }
 
     public void Update(float deltaTime)
@@ -357,6 +347,7 @@ public partial class MatchEngine
                     if (ExtraTimeAllowed)
                     {
                         TriggerExtraTime();
+                        return;
                     }
                     else if (ShootoutAllowed)
                     {
@@ -382,6 +373,7 @@ public partial class MatchEngine
             if (!_extraTimeHalfReached && MatchTimeMinutes >= 105.0f)
             {
                 _extraTimeHalfReached = true;
+                MatchTimeMinutes = 105;
                 State = MatchState.HalfTime;
                 SwapPlayingEnds();
                 PlaceKickoff(HomeTeam);
@@ -2178,7 +2170,7 @@ public partial class MatchEngine
             scoringTeam.Score++;
 
             // حساب المسجل والأسيست والهدف العكسي
-            Player scorer = LastKicker ?? (forHomeTeam ? HomeTeam.Players[9] : AwayTeam.Players[9]);
+            Player scorer = LastKicker ?? (forHomeTeam ? HomeTeam : AwayTeam).Players.First(p => p.IsActiveOnPitch);
             bool deflectedOnTarget=_onTargetDeflectedShooter is {} originalShooter && TeamOf(originalShooter)==scoringTeam && _elapsedSeconds-_deflectionRecordedAt<=10;
             if(deflectedOnTarget)scorer=_onTargetDeflectedShooter!;
             bool isOwnGoal = (forHomeTeam && AwayTeam.Players.Contains(scorer)) ||
@@ -2324,7 +2316,7 @@ public partial class MatchEngine
         bool homeAtLeft = UserAttackingRight;
         if (forHomeTeam)
         {
-            var gk = HomeTeam.Players[0];
+            var gk = HomeTeam.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role == PlayerRole.Goalkeeper) ?? HomeTeam.Players.First(p => p.IsActiveOnPitch);
             float gkX = homeAtLeft ? 5.0f : Pitch.Length - 5.0f;
             gk.Position2D = new Vector2(gkX, Pitch.Width / 2.0f);
             Ball.Position = new Vector3(gkX, Pitch.Width / 2.0f, 0.0f);
@@ -2340,7 +2332,7 @@ public partial class MatchEngine
         }
         else
         {
-            var gk = AwayTeam.Players[0];
+            var gk = AwayTeam.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role == PlayerRole.Goalkeeper) ?? AwayTeam.Players.First(p => p.IsActiveOnPitch);
             float gkX = homeAtLeft ? Pitch.Length - 5.0f : 5.0f;
             gk.Position2D = new Vector2(gkX, Pitch.Width / 2.0f);
             Ball.Position = new Vector3(gkX, Pitch.Width / 2.0f, 0.0f);
@@ -2362,11 +2354,7 @@ public partial class MatchEngine
         if (forHomeTeam)
         {
             float cornerX = homeAttacksRight ? Pitch.Length - 1.0f : 1.0f;
-            var taker = HomeTeam.CornerTaker?.IsActiveOnPitch == true ? HomeTeam.CornerTaker : (!HomeTeam.Players[9].IsSentOff && !HomeTeam.Players[9].IsOffPitch)
-                ? HomeTeam.Players[9]
-                : HomeTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch && p.Role != PlayerRole.Goalkeeper)
-                  ?? HomeTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch)
-                  ?? HomeTeam.Players[0];
+            var taker = HomeTeam.CornerTaker?.IsActiveOnPitch == true ? HomeTeam.CornerTaker : HomeTeam.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper) ?? HomeTeam.Players.First(p => p.IsActiveOnPitch);
 
             taker.Position2D = new Vector2(cornerX, cornerY);
             Ball.Position = new Vector3(cornerX, cornerY, 0.0f);
@@ -2383,11 +2371,7 @@ public partial class MatchEngine
         else
         {
             float cornerX = homeAttacksRight ? 1.0f : Pitch.Length - 1.0f;
-            var taker = AwayTeam.CornerTaker?.IsActiveOnPitch == true ? AwayTeam.CornerTaker : (!AwayTeam.Players[9].IsSentOff && !AwayTeam.Players[9].IsOffPitch)
-                ? AwayTeam.Players[9]
-                : AwayTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch && p.Role != PlayerRole.Goalkeeper)
-                  ?? AwayTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch)
-                  ?? AwayTeam.Players[0];
+            var taker = AwayTeam.CornerTaker?.IsActiveOnPitch == true ? AwayTeam.CornerTaker : AwayTeam.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper) ?? AwayTeam.Players.First(p => p.IsActiveOnPitch);
 
             taker.Position2D = new Vector2(cornerX, cornerY);
             Ball.Position = new Vector3(cornerX, cornerY, 0.0f);
@@ -2445,20 +2429,7 @@ public partial class MatchEngine
     /// </summary>
     public void ResumePlayAfterGoalCelebration(Team kickoffTeam)
     {
-        Ball.Position = new Vector3(Pitch.CenterSpot.X, Pitch.CenterSpot.Y, 0.0f);
-        Ball.Velocity = Vector3.Zero;
-        var kicker = kickoffTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch && p.Role != PlayerRole.Goalkeeper)
-            ?? kickoffTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch)
-            ?? kickoffTeam.Players[0];
-
-        kicker.Position2D = new Vector2(Pitch.CenterSpot.X, Pitch.CenterSpot.Y);
-        Ball.CatchOrTackle(kicker);
-        LastKicker = kicker;
-        PreviousKicker = null;
-
-        if (kickoffTeam == HomeTeam) ActiveUserPlayer = kicker;
-        _kickoffProtectionTimer = 3.5f;
-        GrantPossessionGrace(2.0f);
+        PlaceKickoff(kickoffTeam);
         State = MatchState.InPlay;
     }
 }
