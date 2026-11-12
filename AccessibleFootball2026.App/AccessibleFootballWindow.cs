@@ -247,7 +247,7 @@ public class AccessibleFootballWindow : Form
         _displayListBox.Items.Add("Q بينية عالية | K إبعاد | B عرضية أرضية | N القائم البعيد | T التشكيلة | R اقتراب بطيء ثم تسديد");
         _displayListBox.Items.Add("التسديد: H رأسية | J مقصية | V على الطائر | L ساقطة | F مقوسة");
         _displayListBox.Items.Add("الدفاع: Ctrl لتبديل المدافع | S للاستخلاص الهادئ | W/D/A للاستخلاص القوي");
-        _displayListBox.Items.Add("التكتيك: Space أو C للرادار التكتيكي | Esc للإيقاف المؤقت | Q للانسحاب");
+        _displayListBox.Items.Add("التكتيك: Space أو C للرادار التكتيكي | Esc للإيقاف المؤقت | الانسحاب من قائمة الإيقاف");
         _displayListBox.SelectedIndex = 0;
         if (_displayListBox.CanFocus)
         {
@@ -771,7 +771,7 @@ public class AccessibleFootballWindow : Form
                        "زر A للتمريرة البينية في المساحة. " +
                        "زر المسافة أو C لتشغيل الرادار التكتيكي وسماع مكان الكرة والمسافة نحو المرمى. " +
                        "زر Escape لفتح قائمة الإيقاف المؤقت والتبديلات وتعديل التكتيك. " +
-                       "وزر Q للانسحاب والعودة للقائمة الرئيسية.";
+                       "زر Q للتمريرة البينية العالية. للانسحاب اختر إنهاء المباراة من قائمة الإيقاف المؤقت.";
         _screenReader.Speak(guide);
     }
 
@@ -961,6 +961,8 @@ public class AccessibleFootballWindow : Form
     {
         SoundEffectsPlayer.StopCrowdAmbiance();
         SoundEffectsPlayer.PlayWhistle();
+        _currentMenu = null;
+        _menuHistory.Clear();
         // The existing shootout-start recording must finish before menus or official speech.
 
         int userPenaltiesScored = 0;
@@ -1031,7 +1033,8 @@ public class AccessibleFootballWindow : Form
 
         async void ExecuteUserPenaltyShot(int angle,bool slow=false)
         {
-            PopMenu();
+            _currentMenu = null;
+            _menuHistory.Clear();
             _inputHandler.Reset();
             if(slow)await Task.Delay(1200);
             if(_activeMatch!=match)return;
@@ -1067,7 +1070,8 @@ public class AccessibleFootballWindow : Form
 
         async void ExecuteCpuPenaltyShot(int userDive)
         {
-            PopMenu();
+            _currentMenu = null;
+            _menuHistory.Clear();
             _inputHandler.Reset();
             bool slow=Random.Shared.Next(4)==0;
             if(slow)await Task.Delay(1200);
@@ -1090,10 +1094,7 @@ public class AccessibleFootballWindow : Form
         void FinishShootout(MatchEngine m, int uScore, int cScore)
         {
             m.CompleteShootout(uScore,cScore);
-            var finalContext = m.GetCommentarySnapshot().With(("shootout.homeScore", uScore), ("shootout.awayScore", cScore),
-                ("shootout.decided", true), ("shootout.winner", uScore > cScore ? "home" : "away"));
-            _commentaryEngine.TryCommentOnEvent(new MatchEvent(MatchEventType.ShootoutFinished, "نهاية ركلات الترجيح") { Context = finalContext }, force: true);
-            AfterCommentary(() =>
+            AfterCommentary(async () =>
             {
             _activeMatch = null;
             _currentMenu = null;
@@ -1105,7 +1106,8 @@ public class AccessibleFootballWindow : Form
                 ? $"مبرووووك الفوز العظيم! فاز فريق {m.HomeTeam.Name} بركلات الترجيح بنتيجة {uScore} مقابل {cScore}!"
                 : $"هارد لك! فاز فريق {m.AwayTeam.Name} بركلات الترجيح بنتيجة {cScore} مقابل {uScore}.";
 
-            _screenReader.Speak(outcome);
+            await _screenReader.SpeakUntilFinishedAsync(outcome);
+            if (IsDisposed || _activeMatch != null) return;
             SoundEffectsPlayer.StartMenuMusic();
             OpenMainMenu();
             });
@@ -1118,7 +1120,7 @@ public class AccessibleFootballWindow : Form
         });
     }
 
-    private void EndMatchAndReturnToMenu(bool waitForCommentary = true)
+    private async void EndMatchAndReturnToMenu(bool waitForCommentary = true)
     {
         _gameLoopTimer?.Stop();
         _gameLoopTimer?.Dispose();
@@ -1144,8 +1146,11 @@ public class AccessibleFootballWindow : Form
             SoundEffectsPlayer.StopCrowdAmbiance();
             SoundEffectsPlayer.PlayWhistle();
             string finalSpeech = $"نهاية المباراة! النتيجة النهائية: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، مقابل {_activeMatch.AwayTeam.Score} لـ {_activeMatch.AwayTeam.Name}. العودة للقائمة الرئيسية.";
-            _screenReader.Speak(finalSpeech);
             _activeMatch = null;
+            _currentMenu = null;
+            _menuHistory.Clear();
+            await _screenReader.SpeakUntilFinishedAsync(finalSpeech);
+            if (IsDisposed || _activeMatch != null) return;
         }
 
         _displayListBox.Visible = true;
@@ -1239,6 +1244,11 @@ public class AccessibleFootballWindow : Form
                 if (_activeMatch != null && _menuHistory.Count == 0)
                 {
                     // استئناف المباراة مباشرة من قائمة الإيقاف المؤقت الرئيسية
+                    if (_activeMatch.State == MatchState.PenaltyShootout)
+                    {
+                        _screenReader.Speak("اختر التسديد أو ارتماء الحارس من قائمة ركلات الترجيح.");
+                        return;
+                    }
                     bool wasHalfTime = _activeMatch.State == MatchState.HalfTime;
                     if (wasHalfTime)
                     {
@@ -1271,6 +1281,13 @@ public class AccessibleFootballWindow : Form
             return;
         }
 
+        // No field controls or pause/main-menu routing while a shootout kick is resolving.
+        if (_activeMatch?.State == MatchState.PenaltyShootout)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
         // 2. إذا كنا في مباراة حية جارية (التحكم بالملعب)
         if (_activeMatch != null)
         {
@@ -1296,14 +1313,6 @@ public class AccessibleFootballWindow : Form
 
                 string matchInfo = $"{ballStatus}. {zoneStatus}. الدقيقة {(int)_activeMatch.MatchTimeMinutes}. النتيجة: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.";
                 _screenReader.Speak(matchInfo, interrupt: true);
-                return;
-            }
-
-            if (e.KeyCode == Keys.Q)
-            {
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-                EndMatchAndReturnToMenu();
                 return;
             }
 
