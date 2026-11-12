@@ -2,7 +2,7 @@
 
 Checked 2026-11-12 against ORIGINAL_REQUEST.md, PROJECT.md, Tactical_Design_Specs.md and the later user corrections. This is an open work record, not a whole-game approval.
 
-Later corrections win over older text: S passes and D crosses; Fares Awad is the selected commentary source; Enter releases incidents only after narration; recorded commentary precedes latest-only reader updates; only goals and penalties interrupt commentary. Optional automatic substitutions use fatigue or repeated-foul booking risk and the strongest exact-position replacement before a supported secondary position. Preserve source rosters, all reviewed commentary and user audio exclusions.
+Later corrections win over older text: S passes and D crosses; Fares Awad is the selected commentary source; Enter releases incidents only after narration; recorded commentary precedes latest-only reader updates; only goals and penalties interrupt commentary. Optional automatic substitutions use fatigue or repeated-foul booking risk and the strongest exact-position replacement before a supported secondary position. Severe injuries to the human team are different: name the injured player and let the user choose from the bench. The earlier compatible-automatic injury repair missed this intended choice; this checkpoint corrects that miss, not a newly invented feature. Preserve source rosters, all reviewed commentary and user audio exclusions.
 
 ## Tested source behavior
 
@@ -14,7 +14,7 @@ Remaining limitation: Native keyboard layout, NVDA focus and real WinForms handl
 
 ### Pass reception, physical shots and defending
 
-Implementation and evidence: Physics harness source 19/19 via a temporary .NET8 runner; mechanics harness 146/146, with explicit incident dismissal and pre-extra-time resume
+Implementation and evidence: Checked-in .NET9 physics harness 19/19, run directly with an isolated SDK9; mechanics harness 146/146, with explicit incident dismissal and pre-extra-time resume
 
 Remaining limitation: Windows interaction not verified
 
@@ -38,9 +38,9 @@ Remaining limitation: Seven source roster gaps remain separate
 
 ### Severe injuries and forced replacement
 
-Implementation and evidence: Reckless sliding fouls from behind can produce severe injury; compatible replacement selected; unreplaced player leaves; actual restart and taker survive
+Implementation and evidence: Actual reckless sliding fouls can produce severe injury. The human team now enters a pending choice, freezing clock, ball and optional auto-assistance. A modal injury menu names the player and lists legal bench entries with position/rating. Arrows and Enter choose the replacement; Escape cannot silently resume. The user may continue short; exhausted substitutions remove the player without inventing a replacement. The penalty/free-kick restart, taker and its separate Enter confirmation survive. Opponent injury choices remain computer-managed. Arabic/English engine-to-menu-to-user-choice tests cover the weaker chosen reserve winning over an unchosen stronger reserve.
 
-Remaining limitation: Injury tuning is a deterministic game rule, not a medical prediction
+Remaining limitation: Native window focus and audible screen-reader interaction are prepared but not executed on Windows. Injury tuning is a deterministic game rule, not a medical prediction.
 
 ### Temporary-period state
 
@@ -82,7 +82,11 @@ Remaining limitation: Full bracket/season progression is not implemented. The re
 
 Implementation and evidence: Legendary difficulty preserved instead of downgraded to Hard. English pre-match, lineup, bench, roles, formation, tactics, pause, statistics and team-selection paths have direct menu/action tests. Window, draft, shootout and library labels use explicit language pairs. The settings language switch relabels controls in place without dropping current selections; the main menu rebuilds after switching.
 
-Remaining limitation: Native language-switch behavior is not executed on Windows. English menu/action paths are exercised by the source harness; original Arabic team/player names and recording transcripts remain source content.
+Settings lifecycle repair: Save now writes through a same-directory temporary file and reports failure rather than swallowing it; the native form stays open and does not announce success on failure. An explicit save stamps the migrated version so a first saved Off choice is not overwritten. Legacy Off remains Off, and migration writes back to the requested path. Closing without Save restores previewed values and live consumers.
+
+SettingsLifecycleHarness checks every stored property after save/reload and in a fresh process, then exercises production playback commands through a recording transport instead of a native device. It covers zero master/category volumes, stadium volume before first play, chants using crowd rather than SFX, stopping active channels on mute, single rather than squared crowd scaling, no crowd/menu-music starts from unrelated settings changes, requested menu-song unmute, gameplay beacon scaling, anthem scaling, commentary Off/current voice changes, duration/difficulty, extra time/penalties, optional auto-sub/tactics and native close-offside review. The legacy spoken-events flag now controls automatic announcements without disabling explicit radar. Existing live-match silence remains in force.
+
+Remaining limitation: No native MCI device or Windows audio/reader/focus behavior was executed. These tests verify production commands and behavior, not that a speaker produced sound. English menu/action paths are exercised by the source harness; original Arabic names and recording transcripts remain source content.
 
 ### Optional advisory CLI
 
@@ -100,7 +104,7 @@ Remaining limitation: Qwen is not the match referee. Installing/choosing a model
 
 Implementation and evidence: Release cross-build; actual DB external to single-file EXE; real native controller recovered
 
-Remaining limitation: Current target is .NET8, unlike the old .NET9 request. Desktop deployment, native Windows/NVDA/SAPI/MCI execution and complete asset assembly are not verified
+Remaining limitation: Current production target is .NET8; ORIGINAL_REQUEST/PROJECT say .NET9, while the current README specifies .NET8 or higher. The discrepancy is preserved, not declared mandatory or revoked. SDK9 is locally available and a separate scratch retarget/build/test/publish succeeded, so SDK availability is not a blocker and production targets were not silently changed. Desktop deployment, native Windows/NVDA/SAPI/MCI execution and complete asset assembly are not verified.
 
 
 ### Team-selection callback routing
@@ -117,7 +121,7 @@ Remaining limitation: Recorded Arabic commentary remains Arabic; no translated r
 
 ### Native verification preparation
 
-Implementation and evidence: The Windows-only test suite now uses the current S=pass/D=cross/Q=lofted-through-ball controls, supplies current optional match-start parameters, isolates menu key-routing tests from destructive selections, and invokes the real game timer instead of duplicating obsolete telemetry behavior. New native settings tests cover both language directions, accessible names and retention of unsaved selections. The suite cross-builds with zero errors.
+Implementation and evidence: The Windows-only test suite now uses the current S=pass/D=cross/Q=lofted-through-ball controls, supplies current optional match-start parameters, isolates menu key-routing tests from destructive selections, and invokes the real game timer instead of duplicating obsolete telemetry behavior. New native settings tests cover both language directions, accessible names, unsaved selections, all slider/checkbox saves and reloads, cancellation, and failed-save feedback. Native injury tests invoke the real timer, Escape guard, Down/Enter selection and focus restoration. The suite cross-builds with zero errors.
 
 Remaining limitation: It has not run on Windows. These are prepared tests, not passing runtime evidence. No native Windows executor is available in the current authorized environment; no emulator, service enrollment or security change was used to pretend otherwise.
 
@@ -141,16 +145,18 @@ Remaining limitation: This does not claim exhaustive coverage of all football di
 
 ## Checks for this checkpoint
 
-- MatchFlowRegression: 176 assertions, including 45 added since the 131-assertion checkpoint. These exercise actual bilingual menu navigation/actions, source-name preservation, no-mirror selection, and explicit restart/goal-side radar. Run with the real database argument below.
+- MatchFlowRegression: 193 assertions. These exercise actual bilingual menu navigation/actions, source-name preservation, no-mirror selection, and explicit restart/goal-side radar. Run with the real database argument below.
 - Existing ContextualMechanicsHarness: 146 assertions. Its tests now explicitly dismiss held restarts and resume the added interval; CPU readiness time starts only after dismissal.
-- ContextualCommentaryHarness: 65 assertions passed. ChallengerPhysicsHarness source: 19 assertions passed through a temporary .NET8 runner linked to its unchanged Program.cs. Its checked-in legacy project targets .NET9; the bare project command does not run with the available .NET8 SDK.
-- Before/after evidence: the forced-goalkeeper-injury test fails against the pre-audit MatchEngine and passes with the repair. The new English-category test also fails against the prior TeamSelectionManager and passes after localization. The held-restart Space test fails against the previous engine and passes only after the held-input repair. Adding tests did not merely restate successful old behavior.
+- ContextualCommentaryHarness: 65 assertions passed. ChallengerPhysicsHarness: 19 assertions passed directly with SDK9 against the checked-in project.
+- SettingsLifecycleHarness: 66 assertions passed. Native transport is recorded, not executed. The original settings logic fails 24 checks from the initial 60-check version of this harness, with only the transport seam added for fair command capture.
+- Before/after evidence: the new pending-human-choice injury assertion fails against the earlier automatic-replacement engine. The old compatible-automatic assertion was corrected, not counted as proof of the user's intended choice. The new English-category test also fails against the prior TeamSelectionManager and passes after localization. The held-restart Space test fails against the previous engine and passes only after the held-input repair. Adding tests did not merely restate successful old behavior.
 - Older database harness has stale fixed census, bench-depth and center-spot assumptions, plus real unresolved source-policy/roster failures. Its 3/13 result is not reported as passing.
 - Older audio harness cannot begin without original TackleWon.wav. No audio pass or native playback pass is claimed.
 
 ```sh
 dotnet run --project tests/MatchFlowRegression -c Release -- --database AccessibleFootball2026.Core/Data/players_database.json
 dotnet run --project tests/ContextualMechanicsHarness -c Release
+dotnet run --project tests/SettingsLifecycleHarness -c Release
 dotnet build -c Release -p:EnableWindowsTargeting=true
 ```
 
