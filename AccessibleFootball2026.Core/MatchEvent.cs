@@ -89,7 +89,7 @@ public class GoalDetails
     {
         if (IsOwnGoal)
         {
-            return $"هدف ذاتي عكسي في المرمى! النتيجة الآن: {HomeScore} - {AwayScore}";
+            return $"هدف لصالح {ScoringTeam.Name}، سجله {Scorer.Name} بالخطأ في مرماه. الدقيقة {Minute}. النتيجة الآن: {HomeScore} - {AwayScore}";
         }
 
         string announcement = $"هدف لصالح {ScoringTeam.Name}، سجله {Scorer.Name}";
@@ -144,4 +144,3 @@ public class MatchEventBus
         OnMatchEvent?.Invoke(matchEvent);
     }
 }
-
