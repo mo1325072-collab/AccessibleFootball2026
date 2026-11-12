@@ -282,11 +282,12 @@ public class AccessibleFootballWindow : Form
 
     public void PopMenu()
     {
+        _currentMenu?.Close();
         if (_menuHistory.Count > 0)
         {
             var prev = _menuHistory.Pop();
             SetActiveMenu(prev);
-            if (_menuHistory.Count == 0 && !_isInStartupIntro)
+            if (_menuHistory.Count == 0 && !_isInStartupIntro && _activeMatch == null)
             {
                 SoundEffectsPlayer.StartMenuMusic();
             }
@@ -343,7 +344,7 @@ public class AccessibleFootballWindow : Form
 
         menu.AddItem(T("نهائي كأس مخصص", "Custom cup final"), () => StartMatchWizardFlow(cupFinal: true));
 
-        menu.AddItem(T("الكلاسيكو (ريال مدريد × برشلونة)", "El Clasico"), () =>
+        menu.AddItem(T("الكلاسيكو", "El Clasico"), () =>
         {
             StartClasicoWizardFlow();
         });
@@ -442,7 +443,7 @@ public class AccessibleFootballWindow : Form
 
     private void ChooseStadiumFlow(Team home, Team away)
     {
-        var stadiumMenu = new AccessibleMenu(T("اختر ملعب المباراة لاختبار شرط الأهازيج والجماهير", "Select stadium"), _screenReader);
+        var stadiumMenu = new AccessibleMenu(T("اختر الملعب", "Select stadium"), _screenReader);
 
         stadiumMenu.AddItem(T("ملعب سانتياجو برنابيو (معقل ريال مدريد)", "Santiago Bernabeu"), () =>
         {
@@ -458,7 +459,7 @@ public class AccessibleFootballWindow : Form
             StartInteractiveMatch(home, away, rivalry: true);
         });
 
-        stadiumMenu.AddItem(T("ملعب محايد (لاختبار الجماهير بصوت محايد وبدون أهازيج خاصة)", "Neutral stadium"), () =>
+        stadiumMenu.AddItem(T("ملعب محايد", "Neutral stadium"), () =>
         {
             _stadiumSoundEngine.ActiveStadiumKey = "NeutralStadium";
             _screenReader.Speak(T("تم اختيار ملعب محايد. صوت الجماهير سيعمل بشكل محايد تماماً.", "Neutral stadium selected"));
@@ -532,14 +533,18 @@ public class AccessibleFootballWindow : Form
     private void ChooseClubsForUserTeam(DreamTeamBuilder builder, List<Team> allClubs, int clubNumber)
     {
         var menu = new AccessibleMenu(T($"اختر النادي رقم {clubNumber} من 4 لتشكيلة فريقك", $"Your club {clubNumber}/4"), _screenReader);
-        var availableClubs = allClubs.Where(c => !builder.UserSourceClubs.Any(u => u.Id == c.Id)).ToList();
+        var availableClubs = allClubs.Where(c => !builder.UserSourceClubs.Take(clubNumber - 1).Any(u => u.Id == c.Id)).ToList();
 
         foreach (var c in availableClubs)
         {
             var club = c;
             menu.AddItem(club.Name, () =>
             {
-                builder.AddUserSourceClub(club);
+                if (!builder.SelectSourceClubAt(false, clubNumber - 1, club))
+                {
+                    _screenReader.Speak(T("تعذر اختيار هذا النادي. راجع الاختيارات السابقة.", "Cannot select this club. Check the previous choices."));
+                    return;
+                }
                 _screenReader.Speak(T($"تم اختيار {club.Name} لفريقك ({clubNumber} من 4).", $"Your club {clubNumber}/4: {club.Name}"));
 
                 if (clubNumber < 4)
@@ -561,14 +566,18 @@ public class AccessibleFootballWindow : Form
     private void ChooseClubsForCpuTeam(DreamTeamBuilder builder, List<Team> allClubs, int clubNumber)
     {
         var menu = new AccessibleMenu(T($"اختر النادي رقم {clubNumber} من 4 لتشكيلة الكمبيوتر (الخصم)", $"Opponent club {clubNumber}/4"), _screenReader);
-        var availableClubs = allClubs.Where(c => !builder.CpuSourceClubs.Any(cpu => cpu.Id == c.Id)).ToList();
+        var availableClubs = allClubs.Where(c => !builder.CpuSourceClubs.Take(clubNumber - 1).Any(cpu => cpu.Id == c.Id)).ToList();
 
         foreach (var c in availableClubs)
         {
             var club = c;
             menu.AddItem(club.Name, () =>
             {
-                builder.AddCpuSourceClub(club);
+                if (!builder.SelectSourceClubAt(true, clubNumber - 1, club))
+                {
+                    _screenReader.Speak(T("تعذر اختيار هذا النادي. راجع الاختيارات السابقة.", "Cannot select this club. Check the previous choices."));
+                    return;
+                }
                 _screenReader.Speak(T($"تم اختيار {club.Name} للكمبيوتر ({clubNumber} من 4).", $"Opponent club {clubNumber}/4: {club.Name}"));
 
                 if (clubNumber < 4)
