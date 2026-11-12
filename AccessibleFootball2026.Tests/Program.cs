@@ -42,14 +42,27 @@ public static class Program
         Directory.CreateDirectory(anthemsDir);
         SoundEffectsPlayer.Initialize(baseAudioDir);
 
-        var screenReader = new NvdaScreenReader();
+        var screenReader = new RecordingReader();
         var eventBus = new MatchEventBus();
         inputHandler = new KeyboardInputHandler();
         var commentary = new CommentaryEngine(CommentatorId.RaoufKhlif, baseAudioDir);
         var coordinator = new SmartAudioCoordinator(screenReader);
         var anthem = new AnthemEngine(screenReader, anthemsDir);
 
-        return new AccessibleFootballWindow(screenReader, eventBus, inputHandler, commentary, coordinator, anthem);
+        var window = new AccessibleFootballWindow(screenReader, eventBus, inputHandler, commentary, coordinator, anthem);
+        typeof(AccessibleFootballWindow).GetField("_isInStartupIntro", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, false);
+        window.Shown += (_, _) =>
+        {
+            typeof(AccessibleFootballWindow).GetField("_isInStartupIntro", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, false);
+            window.OpenMainMenu();
+        };
+        window.Disposed += (_, _) =>
+        {
+            var timer = typeof(AccessibleFootballWindow).GetField("_gameLoopTimer", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window) as System.Windows.Forms.Timer;
+            timer?.Stop(); timer?.Dispose();
+            commentary.Dispose();
+        };
+        return window;
     }
 
     [STAThread]
@@ -62,6 +75,7 @@ public static class Program
 
         try
         {
+            TestBilingualSettingsPreserveControls();
             TestKeyEventArgsSuppressKeyPressMechanics();
             TestFormLevelMatchKeysSuppression();
             TestFormLevelMenuKeysSuppression();
@@ -86,6 +100,44 @@ public static class Program
         Console.WriteLine("================================================================================");
 
         return _failedCount == 0 ? 0 : 1;
+    }
+
+    private sealed class RecordingReader : IScreenReader
+    {
+        public bool IsAvailable => true;
+        public List<string> Spoken { get; } = new();
+        public void Speak(string text, bool interrupt = true) => Spoken.Add(text);
+        public void CancelSpeech() { }
+        public System.Threading.Tasks.Task SpeakUntilFinishedAsync(string text, bool interrupt = true)
+        { Speak(text, interrupt); return System.Threading.Tasks.Task.CompletedTask; }
+    }
+
+    private static T Field<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(target)!;
+
+    private static void TestBilingualSettingsPreserveControls()
+    {
+        var previous = MatchSettings.Current.Language;
+        try
+        {
+            MatchSettings.Current.Language = UiLanguage.Arabic;
+            using var form = new AccessibleSettingsForm(new RecordingReader());
+            form.Show();
+            var language = Field<ComboBox>(form, "_cmbLanguage");
+            var difficulty = Field<ComboBox>(form, "_cmbDifficulty");
+            var duration = Field<ComboBox>(form, "_cmbDuration");
+            var voice = Field<ComboBox>(form, "_cmbCommentaryVoice");
+            var volume = Field<TrackBar>(form, "_tbMusicVolume");
+            difficulty.SelectedIndex = 3; duration.SelectedIndex = 2; voice.SelectedIndex = 2; volume.Value = 37;
+            language.SelectedIndex = 1;
+            Assert(form.Text == "Game & Audio Settings", "Changing language relabels the current native settings dialog");
+            Assert(difficulty.SelectedIndex == 3 && difficulty.SelectedItem?.ToString() == "Legendary", "Language change preserves Legendary selection");
+            Assert(duration.SelectedIndex == 2 && voice.SelectedIndex == 2 && volume.Value == 37, "Language change retains unsaved duration, commentator and volume selections");
+            Assert(Field<Button>(form, "_btnSave").Text == "Save Settings" && Field<TrackBar>(form,"_tbSfxVolume").AccessibleName == "SFX Volume", "Native buttons and accessible slider names switch language");
+            language.SelectedIndex = 0;
+            Assert(form.Text == "إعدادات اللعبة والصوت" && difficulty.SelectedIndex == 3, "Switching back restores Arabic labels without resetting controls");
+            form.Close();
+        }
+        finally { MatchSettings.Current.Language = previous; }
     }
 
     private static void Assert(bool condition, string testName, string details = "")
@@ -133,7 +185,7 @@ public static class Program
         Keys[] matchKeys = new[]
         {
             Keys.Up, Keys.Down, Keys.Left, Keys.Right,
-            Keys.D, Keys.W, Keys.S, Keys.A,
+            Keys.D, Keys.W, Keys.S, Keys.A, Keys.Q, Keys.K, Keys.B, Keys.N, Keys.T, Keys.R, Keys.H, Keys.J, Keys.V, Keys.L, Keys.F,
             Keys.Space, Keys.C,
             Keys.ControlKey, Keys.LControlKey, Keys.RControlKey,
             Keys.ShiftKey, Keys.LShiftKey, Keys.RShiftKey
@@ -146,7 +198,7 @@ public static class Program
         foreach (var key in matchKeys)
         {
             using var window = CreateTestWindow(out var inputHandler);
-            startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek() });
+            startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
 
             var keDown = new KeyEventArgs(key);
             onKeyDownMethod!.Invoke(window, new object[] { window, keDown });
@@ -162,7 +214,7 @@ public static class Program
         // Test Escape (pause trigger) during match
         {
             using var window = CreateTestWindow(out var inputHandler);
-            startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek() });
+            startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
 
             var keEscape = new KeyEventArgs(Keys.Escape);
             onKeyDownMethod!.Invoke(window, new object[] { window, keEscape });
@@ -170,14 +222,14 @@ public static class Program
                 $"SuppressKeyPress={keEscape.SuppressKeyPress}, Handled={keEscape.Handled}");
         }
 
-        // Test Q (end match trigger) during match
+        // Q is the lofted through-ball command, not end-match.
         {
             using var window = CreateTestWindow(out var inputHandler);
-            startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek() });
+            startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
 
             var keQ = new KeyEventArgs(Keys.Q);
             onKeyDownMethod!.Invoke(window, new object[] { window, keQ });
-            Assert(keQ.SuppressKeyPress && keQ.Handled, "Match KeyDown suppression for Q (End Match)",
+            Assert(keQ.SuppressKeyPress && keQ.Handled, "Match KeyDown suppression for Q (Lofted Through Ball)",
                 $"SuppressKeyPress={keQ.SuppressKeyPress}, Handled={keQ.Handled}");
         }
     }
@@ -197,6 +249,10 @@ public static class Program
         Keys[] menuKeys = new[] { Keys.Up, Keys.Down, Keys.Left, Keys.Right, Keys.Space, Keys.Enter, Keys.Escape };
         foreach (var key in menuKeys)
         {
+            // A no-op item avoids entering a modal dialog or changing modes during a suppression test.
+            var testMenu = new AccessibleFootball2026.App.Menus.AccessibleMenu("Key routing", new RecordingReader());
+            testMenu.AddItem("No-op", () => {});
+            window.SetActiveMenu(testMenu);
             var ke = new KeyEventArgs(key);
             onKeyDownMethod!.Invoke(window, new object[] { window, ke });
             Assert(ke.SuppressKeyPress && ke.Handled, $"Menu KeyDown suppression for {key}",
@@ -215,17 +271,16 @@ public static class Program
         var onKeyDownMethod = typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyDown", BindingFlags.NonPublic | BindingFlags.Instance);
 
         using var window = CreateTestWindow(out var inputHandler);
-        startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek() });
+        startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
 
-        // During match, test unassigned keys like 'B', 'Z', 'F1'
-        Keys[] unassignedKeys = new[] { Keys.B, Keys.Z, Keys.F1 };
+        // B is assigned to low cross. Z and F1 remain unassigned.
+        Keys[] unassignedKeys = new[] { Keys.Z, Keys.F1 };
         foreach (var key in unassignedKeys)
         {
             var ke = new KeyEventArgs(key);
             onKeyDownMethod!.Invoke(window, new object[] { window, ke });
             // Documenting current behavior: unassigned keys are currently unhandled
-            bool isSuppressed = ke.SuppressKeyPress && ke.Handled;
-            Console.WriteLine($"[INFO] Unassigned key {key} during match: SuppressKeyPress={ke.SuppressKeyPress}, Handled={ke.Handled}");
+            Assert(!ke.SuppressKeyPress && !ke.Handled, $"Unassigned key {key} is not consumed");
         }
     }
 
@@ -240,10 +295,10 @@ public static class Program
         window.Show();
 
         var displayListBoxField = typeof(AccessibleFootballWindow).GetField("_displayListBox", BindingFlags.NonPublic | BindingFlags.Instance);
-        var listBox = (ListBox)displayListBoxField!.GetValue(window)!;
+        var listBox = (ListBox)(displayListBoxField!.GetValue(window) ?? throw new InvalidOperationException("Missing display list"));
 
         var startMatchMethod = typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance);
-        startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek() });
+        startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
 
         Assert(listBox.Focused, "Before Tab: _displayListBox has focus");
 
@@ -262,6 +317,7 @@ public static class Program
         // Load Arabic 101 and English US keyboard layouts
         IntPtr hklArabic = LoadKeyboardLayout("00000401", 0);
         IntPtr hklEnglish = LoadKeyboardLayout("00000409", 0);
+        Assert(hklArabic != IntPtr.Zero && hklEnglish != IntPtr.Zero, "Both requested keyboard layouts loaded, not silently replaced by current layout");
 
         Console.WriteLine($"Arabic layout handle: 0x{hklArabic.ToInt64():X8}, English layout handle: 0x{hklEnglish.ToInt64():X8}");
 
@@ -307,11 +363,11 @@ public static class Program
 
         var handler = new KeyboardInputHandler();
 
-        // 1. D key (VK 0x44) in possession -> ShortPass
+        // 1. S key in possession -> ShortPass
         handler.Reset();
-        handler.HandleKeyDown((int)Keys.D, isPossession: true);
+        handler.HandleKeyDown((int)Keys.S, isPossession: true);
         var actions = handler.PollCurrentActions(isPossession: true);
-        Assert(actions.Contains(GameAction.ShortPass), "Key D in possession gives ShortPass");
+        Assert(actions.Contains(GameAction.ShortPass), "Key S in possession gives ShortPass");
 
         // 2. D key (VK 0x44) out of possession -> SlideTackle
         handler.Reset();
@@ -325,11 +381,11 @@ public static class Program
         actions = handler.PollCurrentActions(isPossession: true);
         Assert(actions.Contains(GameAction.Shoot), "Key W in possession gives Shoot");
 
-        // 4. S key (VK 0x53) in possession -> Cross; out of possession -> StandTackle
+        // 4. D crosses in possession; S is standing tackle out of possession.
         handler.Reset();
-        handler.HandleKeyDown((int)Keys.S, isPossession: true);
+        handler.HandleKeyDown((int)Keys.D, isPossession: true);
         actions = handler.PollCurrentActions(isPossession: true);
-        Assert(actions.Contains(GameAction.Cross), "Key S in possession gives Cross");
+        Assert(actions.Contains(GameAction.Cross), "Key D in possession gives Cross");
 
         handler.Reset();
         handler.HandleKeyDown((int)Keys.S, isPossession: false);
@@ -361,9 +417,9 @@ public static class Program
 
         var handler = new KeyboardInputHandler();
 
-        // SCENARIO 1: Holding 'D' to Pass, then possession transitions to false
+        // SCENARIO 1: Holding 'S' to Pass, then possession transitions to false
         handler.Reset();
-        handler.HandleKeyDown((int)Keys.D, isPossession: true);
+        handler.HandleKeyDown((int)Keys.S, isPossession: true);
 
         // Frame 1: Consumes pass
         var frame1 = handler.PollCurrentActions(isPossession: true);
@@ -373,19 +429,19 @@ public static class Program
         // Possession flipped to false because ball was kicked.
         for (int i = 2; i <= 10; i++)
         {
-            handler.HandleKeyDown((int)Keys.D, isPossession: false);
+            handler.HandleKeyDown((int)Keys.S, isPossession: false);
             var frameN = handler.PollCurrentActions(isPossession: false);
-            Assert(!frameN.Contains(GameAction.SlideTackle) && !frameN.Contains(GameAction.ShortPass),
-                $"Frame {i}: Suppressed auto-repeat while holding D (No SlideTackle)");
+            Assert(!frameN.Contains(GameAction.StandTackle) && !frameN.Contains(GameAction.ShortPass),
+                $"Frame {i}: Suppressed auto-repeat while holding S (No StandTackle)");
         }
 
-        // KeyUp on D
-        handler.HandleKeyUp((int)Keys.D);
+        // KeyUp on S
+        handler.HandleKeyUp((int)Keys.S);
 
-        // Subsequent press triggers slide tackle now that key was released
-        handler.HandleKeyDown((int)Keys.D, isPossession: false);
+        // Subsequent press triggers standing tackle now that key was released
+        handler.HandleKeyDown((int)Keys.S, isPossession: false);
         var afterRelease = handler.PollCurrentActions(isPossession: false);
-        Assert(afterRelease.Contains(GameAction.SlideTackle), "Press after release correctly triggers SlideTackle");
+        Assert(afterRelease.Contains(GameAction.StandTackle), "Press after release correctly triggers StandTackle");
 
         // SCENARIO 2: Holding Ctrl to switch player does not rapid-fire across frames
         handler.Reset();
@@ -431,8 +487,8 @@ public static class Program
 
         var displayListBoxField = typeof(AccessibleFootballWindow).GetField("_displayListBox", BindingFlags.NonPublic | BindingFlags.Instance);
         Assert(displayListBoxField != null, "_displayListBox field lookup");
-        var listBox = (ListBox)displayListBoxField!.GetValue(window)!;
-        Assert(listBox != null, "_displayListBox instance exists");
+        var listBox = (ListBox)(displayListBoxField!.GetValue(window) ?? throw new InvalidOperationException("Missing display list"));
+        Assert(listBox.IsHandleCreated, "_displayListBox native handle exists");
 
         // PHASE 1: Initial Menu
         window.OpenMainMenu();
@@ -445,7 +501,7 @@ public static class Program
         var homeTeam = TeamDatabase.CreateRealMadrid();
         var awayTeam = TeamDatabase.CreateBarcelona();
         var startMatchMethod = typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance);
-        startMatchMethod!.Invoke(window, new object[] { homeTeam, awayTeam });
+        startMatchMethod!.Invoke(window, new object[] { homeTeam, awayTeam, false, false });
 
         Assert(listBox.Visible, "Phase 2 (Match Start): _displayListBox.Visible == true");
         Assert(listBox.Enabled, "Phase 2 (Match Start): _displayListBox.Enabled == true");
@@ -473,9 +529,11 @@ public static class Program
         Assert(listBox.SelectedIndex == 0, $"Phase 4 (Resume Match): SelectedIndex={listBox.SelectedIndex}");
         Assert(listBox.Focused, "Phase 4 (Resume Match): _displayListBox.Focused == true");
 
-        // PHASE 5: Return to Menu via Q
+        // PHASE 5: Q remains gameplay, return through the explicit end-match path.
         var qDown = new KeyEventArgs(Keys.Q);
         onKeyDownMethod!.Invoke(window, new object[] { window, qDown });
+        Assert(typeof(AccessibleFootballWindow).GetField("_activeMatch", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window) != null, "Q cannot terminate the match");
+        typeof(AccessibleFootballWindow).GetMethod("EndMatchAndReturnToMenu", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
 
         Assert(listBox.Visible, "Phase 5 (Returned to Menu): _displayListBox.Visible == true");
         Assert(listBox.Enabled, "Phase 5 (Returned to Menu): _displayListBox.Enabled == true");
@@ -493,34 +551,29 @@ public static class Program
         window.Show();
 
         var displayListBoxField = typeof(AccessibleFootballWindow).GetField("_displayListBox", BindingFlags.NonPublic | BindingFlags.Instance);
-        var listBox = (ListBox)displayListBoxField!.GetValue(window)!;
+        var listBox = (ListBox)(displayListBoxField!.GetValue(window) ?? throw new InvalidOperationException("Missing display list"));
 
         var homeTeam = TeamDatabase.CreateLiverpool();
         var awayTeam = TeamDatabase.CreateManchesterCity();
         var startMatchMethod = typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance);
-        startMatchMethod!.Invoke(window, new object[] { homeTeam, awayTeam });
+        startMatchMethod!.Invoke(window, new object[] { homeTeam, awayTeam, false, false });
 
         var activeMatchField = typeof(AccessibleFootballWindow).GetField("_activeMatch", BindingFlags.NonPublic | BindingFlags.Instance);
         var match = (MatchEngine)activeMatchField!.GetValue(window)!;
 
-        // Simulate 100 frames (2 seconds at 50Hz)
+        // Invoke the real registered timer callback instead of reproducing obsolete telemetry code.
+        var timer = (System.Windows.Forms.Timer)typeof(AccessibleFootballWindow).GetField("_gameLoopTimer", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window)!;
+        timer.Stop();
+        var before = listBox.Items.Cast<object>().Select(x => x.ToString()).ToArray();
+        var timerTick = typeof(System.Windows.Forms.Timer).GetMethod("OnTick", BindingFlags.NonPublic | BindingFlags.Instance)!;
         for (int frame = 0; frame < 100; frame++)
         {
-            match.Update(0.02f);
-
-            // Emulate what _gameLoopTimer.Tick does
-            string matchStatus = $"المباراة جارية (الدقيقة {(int)match.MatchTimeMinutes}): {match.HomeTeam.Name} {match.HomeTeam.Score} - {match.AwayTeam.Score} {match.AwayTeam.Name}";
-            if (listBox.Items.Count > 0 && (string)listBox.Items[0] != matchStatus)
-            {
-                listBox.Items[0] = matchStatus;
-            }
+            typeof(AccessibleFootballWindow).GetField("_lastFrameTime", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, DateTime.UtcNow.AddMilliseconds(-20));
+            timerTick.Invoke(timer, new object[] { EventArgs.Empty });
         }
-
-        Assert(listBox.Visible, "After 100 ticks: _displayListBox remains Visible");
-        Assert(listBox.Enabled, "After 100 ticks: _displayListBox remains Enabled");
-        Assert(listBox.SelectedIndex == 0, $"After 100 ticks: SelectedIndex remains {listBox.SelectedIndex}");
-        Assert(listBox.Focused, "After 100 ticks: _displayListBox remains Focused");
-        Assert(((string)listBox.Items[0]).Contains("المباراة جارية"), "Telemetry updated properly in-place without rebuilding ListBox");
+        Assert(listBox.Visible && listBox.Enabled && listBox.Focused, "Real timer keeps live-match focus anchored");
+        Assert(before.SequenceEqual(listBox.Items.Cast<object>().Select(x => x.ToString())), "Real timer never rewrites the focused live-match list");
+        Assert(match.MatchTimeMinutes > 0, "Real timer advanced the actual engine");
 
         // Clean up match
         var endMatchMethod = typeof(AccessibleFootballWindow).GetMethod("EndMatchAndReturnToMenu", BindingFlags.NonPublic | BindingFlags.Instance);
