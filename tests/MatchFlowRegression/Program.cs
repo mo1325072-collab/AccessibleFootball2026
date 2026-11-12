@@ -322,6 +322,14 @@ m=New();m.HomeTeam.Players[0].CurrentAssignedPosition=SpecificPosition.CB;
 Check(m.HomeTeam.GetMatchStartIssue()!=null,"missing goalkeeper produces a usable start-block reason");
 m.HomeTeam.Players[1].CurrentAssignedPosition=SpecificPosition.GK;
 Check(m.HomeTeam.GetMatchStartIssue()==null,"outfield reassigned as goalkeeper can satisfy lineup validation without adding a player");
+string audioFixture=Path.Combine(Path.GetTempPath(),Guid.NewGuid()+"-audio");
+string portable=Path.Combine(audioFixture,"portable"), legacy=Path.Combine(audioFixture,"legacy");
+Directory.CreateDirectory(portable);Directory.CreateDirectory(Path.Combine(legacy,"Commentary","FaresAwad"));
+File.WriteAllText(Path.Combine(portable,"generated.wav"),"fixture");File.WriteAllText(Path.Combine(legacy,"Commentary","FaresAwad","commentary_context.json"),"{}");
+Check(SoundEffectsPlayer.ResolveBestAudioBaseDirectory(portable,legacy)==legacy,"generated tones alone cannot shadow an installed commentary library");
+Directory.CreateDirectory(Path.Combine(portable,"Commentary","FaresAwad"));File.WriteAllText(Path.Combine(portable,"Commentary","FaresAwad","commentary_context.json"),"{}");
+Check(SoundEffectsPlayer.ResolveBestAudioBaseDirectory(portable,legacy)==portable,"portable packaged commentary takes priority over an older D-drive library");
+Directory.Delete(audioFixture,true);
 Console.WriteLine($"{passed} assertions passed. No Windows/MCI/NVDA runtime was exercised.");
 
 sealed class Input : IInputHandler
