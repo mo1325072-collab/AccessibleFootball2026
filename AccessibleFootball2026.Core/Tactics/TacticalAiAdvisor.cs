@@ -24,45 +24,59 @@ public class TacticalAiAdvisor
         public Action? ApplyAction { get; set; }
     }
 
-    public static string LlamaCliPath => @"D:\AccessibleFootball2026\Models\llama-bin\llama-cli.exe";
-    public static string ModelPath => @"D:\AccessibleFootball2026\Models\qwen2.5-3b-instruct-q4_k_m.gguf";
-
+    private static string ResolveModelDirectory()
+    {
+        var candidates = new List<string> { Path.Combine(AppContext.BaseDirectory, "Models") };
+        string? dir = AppContext.BaseDirectory;
+        while (!string.IsNullOrEmpty(dir))
+        {
+            if (File.Exists(Path.Combine(dir, "AccessibleFootball2026.sln"))) candidates.Add(Path.Combine(dir, "Models"));
+            dir = Path.GetDirectoryName(dir);
+        }
+        candidates.Add(@"D:\AccessibleFootball2026\Models");
+        return candidates.FirstOrDefault(p => File.Exists(Path.Combine(p, "qwen2.5-3b-instruct-q4_k_m.gguf")) &&
+            File.Exists(Path.Combine(p, "llama-bin", "llama-cli.exe"))) ?? candidates[0];
+    }
+    public static string LlamaCliPath => Path.Combine(ResolveModelDirectory(), "llama-bin", "llama-cli.exe");
+    public static string ModelPath => Path.Combine(ResolveModelDirectory(), "qwen2.5-3b-instruct-q4_k_m.gguf");
     public static bool IsNeuralModelAvailable => File.Exists(LlamaCliPath) && File.Exists(ModelPath) && new FileInfo(ModelPath).Length > 1_500_000_000;
 
     public static string QueryNeuralQwenModel(string prompt, int maxTokens = 30, int timeoutSeconds = 8)
     {
         if (!IsNeuralModelAvailable) return string.Empty;
+        return RunModelProcess(LlamaCliPath, ModelPath, prompt, maxTokens, timeoutSeconds);
+    }
 
+    private static string RunModelProcess(string executable, string model, string prompt, int maxTokens, int timeoutSeconds)
+    {
         try
         {
             var psi = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = LlamaCliPath,
-                Arguments = $"-m \"{ModelPath}\" -p \"{prompt.Replace("\"", "\\\"")}\" -n {maxTokens} -c 512 --single-turn --simple-io --no-display-prompt -t 4",
+                FileName = executable,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                StandardOutputEncoding = System.Text.Encoding.UTF8
+                StandardOutputEncoding = Encoding.UTF8
             };
-
+            foreach (var arg in new[] { "-m", model, "-p", prompt, "-n", Math.Clamp(maxTokens, 1, 1024).ToString(), "-c", "2048", "--single-turn", "--simple-io", "--no-display-prompt", "-t", "4" })
+                psi.ArgumentList.Add(arg);
             using var process = System.Diagnostics.Process.Start(psi);
             if (process == null) return string.Empty;
-
-            // إرسال EOF فوري لـ StandardInput لمنع انتظار الإدخال التفاعلي
             process.StandardInput.Close();
-
             var outputTask = process.StandardOutput.ReadToEndAsync();
-            bool finished = process.WaitForExit(timeoutSeconds * 1000);
-
+            var errorTask = process.StandardError.ReadToEndAsync(); // Drain both pipes; diagnostics must not deadlock inference.
+            bool finished = process.WaitForExit(Math.Clamp(timeoutSeconds, 1, 120) * 1000);
             if (!finished)
             {
-                try { process.Kill(); } catch { }
+                try { process.Kill(entireProcessTree: true); process.WaitForExit(2000); } catch { }
                 return string.Empty;
             }
-
+            if (process.ExitCode != 0) return string.Empty;
             string output = outputTask.GetAwaiter().GetResult();
+            _ = errorTask.GetAwaiter().GetResult();
 
             int assistantIdx = output.IndexOf("<|im_start|>assistant");
             if (assistantIdx >= 0)
@@ -125,7 +139,7 @@ public class TacticalAiAdvisor
 
             if (sb.Length == 0)
             {
-                sb.Append($"تقرير المستشار التكتيكي بالذكاء الاصطناعي في الدقيقة {minute}: ");
+                sb.Append($"تقرير تكتيكي بالقواعد المحلية، وليس نموذج Qwen، في الدقيقة {minute}: ");
 
                 // 1. تقييم الموقف الحالي للنتيجة
                 if (goalDiff > 1)
@@ -193,7 +207,7 @@ public class TacticalAiAdvisor
         }
         else
         {
-            sb.Append($"AI Tactical Advisor Report at minute {minute}: ");
+            sb.Append($"Native-rule tactical report (not Qwen inference) at minute {minute}: ");
 
             if (goalDiff > 0)
                 sb.Append($"Your team is leading ({homeScore} - {awayScore}). Solid tactical game. ");
