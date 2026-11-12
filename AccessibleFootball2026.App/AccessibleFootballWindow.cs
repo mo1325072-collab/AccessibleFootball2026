@@ -781,6 +781,13 @@ public class AccessibleFootballWindow : Form
 
     private void StartInteractiveMatch(Team homeTeam, Team awayTeam, bool cupFinal = false, bool rivalry = false)
     {
+        string? lineupIssue = homeTeam.GetMatchStartIssue() ?? awayTeam.GetMatchStartIssue();
+        if (lineupIssue != null)
+        {
+            // Keep the current selection/plan menu and describe the data gap; never invent missing players.
+            _screenReader.Speak(lineupIssue);
+            return;
+        }
         _commentaryEngine.ClearPendingLines();
         _coordinator.CancelPendingGoalSequence();
         _currentMenu = null;
