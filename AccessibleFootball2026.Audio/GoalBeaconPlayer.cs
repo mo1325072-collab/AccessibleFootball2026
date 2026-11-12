@@ -12,8 +12,6 @@ namespace AccessibleFootball2026.Audio;
 /// </summary>
 public static class GoalBeaconPlayer
 {
-    [DllImport("winmm.dll", CharSet = CharSet.Auto)]
-    private static extern int mciSendString(string command, StringBuilder? buffer, int bufferSize, IntPtr hwndCallback);
 
     private static string _beaconWavPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio", "SFX", "Beacon", "GoalBeacon.wav");
     private static DateTime _lastPulseTime = DateTime.MinValue;
@@ -89,39 +87,45 @@ public static class GoalBeaconPlayer
         }
     }
 
+    private static float _pulseStrength, _pulsePan;
     public static void PlayBeaconPulse(float volume, float pan)
     {
-        if (!_initialized)
+        lock (_lock)
         {
-            Initialize();
+            _pulseStrength = Math.Clamp(volume, 0, 1); _pulsePan = Math.Clamp(pan, -1, 1);
+            float effective = _pulseStrength * SoundEffectsPlayer.GetEffectiveBeaconVolume();
+            if (effective <= .001f) { Stop(); return; }
+            if (!_initialized) Initialize();
+            MciPlayback.SendString("close beacon_ch", null, 0, IntPtr.Zero);
+            if (MciPlayback.SendString($"open \"{_beaconWavPath}\" type mpegvideo alias beacon_ch", null, 0, IntPtr.Zero) != 0) return;
+            if (!ApplyLiveVolume()) { Stop(); return; }
+            MciPlayback.SendString("play beacon_ch from 0", null, 0, IntPtr.Zero);
         }
+    }
 
-        ThreadPool.QueueUserWorkItem(_ =>
+    public static bool ApplyLiveVolume()
+    {
+        lock (_lock)
         {
-            try
-            {
-                int mciVol = Math.Clamp((int)(volume * 1000), 0, 1000);
-                int leftVol = Math.Clamp((int)(mciVol * (pan > 0 ? 1.0f - pan : 1.0f)), 0, 1000);
-                int rightVol = Math.Clamp((int)(mciVol * (pan < 0 ? 1.0f + pan : 1.0f)), 0, 1000);
-                mciSendString("close beacon_ch", null, 0, IntPtr.Zero);
-                mciSendString($"open \"{_beaconWavPath}\" type mpegvideo alias beacon_ch", null, 0, IntPtr.Zero);
-                mciSendString($"setaudio beacon_ch volume to {mciVol}", null, 0, IntPtr.Zero);
-                mciSendString($"setaudio beacon_ch left volume to {leftVol}", null, 0, IntPtr.Zero);
-                mciSendString($"setaudio beacon_ch right volume to {rightVol}", null, 0, IntPtr.Zero);
-                mciSendString("play beacon_ch from 0", null, 0, IntPtr.Zero);
-            }
-            catch { }
-        });
+            int volume = Math.Clamp((int)(_pulseStrength * SoundEffectsPlayer.GetEffectiveBeaconVolume() * 1000), 0, 1000);
+            if (volume == 0) { Stop(); return false; }
+            int left = (int)(volume * (_pulsePan > 0 ? 1 - _pulsePan : 1));
+            int right = (int)(volume * (_pulsePan < 0 ? 1 + _pulsePan : 1));
+            bool applied = MciPlayback.SendString($"setaudio beacon_ch volume to {volume}", null, 0, IntPtr.Zero) == 0 &&
+                MciPlayback.SendString($"setaudio beacon_ch left volume to {left}", null, 0, IntPtr.Zero) == 0 &&
+                MciPlayback.SendString($"setaudio beacon_ch right volume to {right}", null, 0, IntPtr.Zero) == 0;
+            if (!applied) Stop();
+            return applied;
+        }
     }
 
     public static void Stop()
     {
-        try
+        lock (_lock)
         {
-            mciSendString("stop beacon_ch", null, 0, IntPtr.Zero);
-            mciSendString("close beacon_ch", null, 0, IntPtr.Zero);
+            MciPlayback.SendString("stop beacon_ch", null, 0, IntPtr.Zero);
+            MciPlayback.SendString("close beacon_ch", null, 0, IntPtr.Zero);
         }
-        catch { }
     }
 
     /// <summary>
