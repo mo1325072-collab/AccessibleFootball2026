@@ -156,15 +156,26 @@ public static class GamePlanMenuBuilder
 
         menu.AddItem(T("تبديل الموضع", "Swap positions"), () =>
         {
+            if (!player.IsActiveOnPitch || !userTeam.Players.Contains(player))
+            {
+                screenReader.Speak(T("هذا اللاعب لم يعد متاحاً في الملعب.", "This player is no longer available on the pitch."));
+                return;
+            }
             var swapMenu = new AccessibleMenu(T("اختر اللاعب المراد التبديل معه", "Swap with player"), screenReader);
             for (int j = 0; j < userTeam.Players.Count; j++)
             {
-                if (j == playerIndex) continue;
+                if (j == playerIndex || !userTeam.Players[j].IsActiveOnPitch) continue;
                 int targetIdx = j;
                 var targetP = userTeam.Players[targetIdx];
                 swapMenu.AddItem(T($"{targetP.Name}، مركز {targetP.CurrentAssignedPosition}، طاقة {targetP.EffectiveOverallRating}", $"{targetP.Name}, {targetP.CurrentAssignedPosition}, rating {targetP.EffectiveOverallRating}"), () =>
                 {
-                    userTeam.SwapPositions(playerIndex, targetIdx);
+                    int currentIndex = userTeam.Players.IndexOf(player);
+                    int targetIndex = userTeam.Players.IndexOf(targetP);
+                    if (!userTeam.SwapPositions(currentIndex, targetIndex))
+                    {
+                        screenReader.Speak(T("تعذر تبديل الموضعين: أحد اللاعبين لم يعد متاحاً.", "Cannot swap positions: a player is no longer available."));
+                        return;
+                    }
                     screenReader.Speak(T($"تم تبديل الموضعين بنجاح بين {player.Name} و {targetP.Name}.", $"{player.Name} and {targetP.Name} swapped positions."));
                     popMenu(); // back to options
                     popMenu(); // back to lineup
@@ -345,11 +356,16 @@ public static class GamePlanMenuBuilder
         menu.AddItem(T("قائد الفريق", "Captain") + $": {userTeam.Captain?.Name ?? T("غير محدد", "Unassigned")}", () =>
         {
             var capMenu = new AccessibleMenu(T("اختر قائد الفريق", "Select captain"), screenReader);
-            foreach (var p in userTeam.Players)
+            foreach (var p in userTeam.Players.Where(p => p.IsActiveOnPitch))
             {
                 var candidate = p;
                 capMenu.AddItem(T($"{candidate.Name}، {candidate.CurrentAssignedPosition}", $"{candidate.Name}, {candidate.CurrentAssignedPosition}"), () =>
                 {
+                    if (!userTeam.Players.Contains(candidate) || !candidate.IsActiveOnPitch)
+                    {
+                        screenReader.Speak(T("هذا اللاعب لم يعد متاحاً في الملعب.", "This player is no longer available on the pitch."));
+                        return;
+                    }
                     userTeam.Captain = candidate;
                     screenReader.Speak(T($"تم تعيين {candidate.Name} قائداً للفريق.", $"Captain: {candidate.Name}"));
                     popMenu();
@@ -363,11 +379,16 @@ public static class GamePlanMenuBuilder
         menu.AddItem(T("ركلات الجزاء", "Penalty taker") + $": {userTeam.PenaltyTaker?.Name ?? T("غير محدد", "Unassigned")}", () =>
         {
             var penMenu = new AccessibleMenu(T("اختر مسدد ركلات الجزاء", "Select penalty taker"), screenReader);
-            foreach (var p in userTeam.Players)
+            foreach (var p in userTeam.Players.Where(p => p.IsActiveOnPitch))
             {
                 var candidate = p;
                 penMenu.AddItem(T($"{candidate.Name}، تسديد {candidate.Shooting}", $"{candidate.Name}, shooting {candidate.Shooting}"), () =>
                 {
+                    if (!userTeam.Players.Contains(candidate) || !candidate.IsActiveOnPitch)
+                    {
+                        screenReader.Speak(T("هذا اللاعب لم يعد متاحاً في الملعب.", "This player is no longer available on the pitch."));
+                        return;
+                    }
                     userTeam.PenaltyTaker = candidate;
                     screenReader.Speak(T($"تم تعيين {candidate.Name} مسدداً أول لركلات الجزاء.", $"Penalty taker: {candidate.Name}"));
                     popMenu();
@@ -381,11 +402,16 @@ public static class GamePlanMenuBuilder
         menu.AddItem(T("الركلات الحرة", "Free-kick taker") + $": {userTeam.FreeKickTaker?.Name ?? T("غير محدد", "Unassigned")}", () =>
         {
             var fkMenu = new AccessibleMenu(T("اختر مسدد الركلات الحرة", "Select free-kick taker"), screenReader);
-            foreach (var p in userTeam.Players)
+            foreach (var p in userTeam.Players.Where(p => p.IsActiveOnPitch))
             {
                 var candidate = p;
                 fkMenu.AddItem(T($"{candidate.Name}، تسديد {candidate.Shooting}، تمرير {candidate.Passing}", $"{candidate.Name}, shooting {candidate.Shooting}, passing {candidate.Passing}"), () =>
                 {
+                    if (!userTeam.Players.Contains(candidate) || !candidate.IsActiveOnPitch)
+                    {
+                        screenReader.Speak(T("هذا اللاعب لم يعد متاحاً في الملعب.", "This player is no longer available on the pitch."));
+                        return;
+                    }
                     userTeam.FreeKickTaker = candidate;
                     screenReader.Speak(T($"تم تعيين {candidate.Name} مسدداً للركلات الحرة المباشرة.", $"Free-kick taker: {candidate.Name}"));
                     popMenu();
@@ -399,11 +425,16 @@ public static class GamePlanMenuBuilder
         menu.AddItem(T("الركلات الركنية", "Corner taker") + $": {userTeam.CornerTaker?.Name ?? T("غير محدد", "Unassigned")}", () =>
         {
             var crnMenu = new AccessibleMenu(T("اختر منفذ الركلات الركنية", "Select corner taker"), screenReader);
-            foreach (var p in userTeam.Players)
+            foreach (var p in userTeam.Players.Where(p => p.IsActiveOnPitch))
             {
                 var candidate = p;
                 crnMenu.AddItem(T($"{candidate.Name}، تمرير {candidate.Passing}", $"{candidate.Name}, passing {candidate.Passing}"), () =>
                 {
+                    if (!userTeam.Players.Contains(candidate) || !candidate.IsActiveOnPitch)
+                    {
+                        screenReader.Speak(T("هذا اللاعب لم يعد متاحاً في الملعب.", "This player is no longer available on the pitch."));
+                        return;
+                    }
                     userTeam.CornerTaker = candidate;
                     screenReader.Speak(T($"تم تعيين {candidate.Name} منفذاً للركلات الركنية.", $"Corner taker: {candidate.Name}"));
                     popMenu();
@@ -649,7 +680,7 @@ public static class GamePlanMenuBuilder
 
         menu.AddItem(T("إحصائيات المباراة", "Match statistics"), () =>
         {
-            var stats = new AccessibleMenu(T("إحصائيات المباراة. استخدم السهمين للتنقل، وإسكيب للرجوع", "Match statistics"), screenReader);
+            var stats = new AccessibleMenu(T("إحصائيات المباراة", "Match statistics"), screenReader);
             foreach (string line in match.GetStatisticsAnnouncements())
             {
                 string item = line;
