@@ -11,6 +11,8 @@ public partial class MatchEngine
     private void SwapPlayingEnds()
     {
         UserAttackingRight = !UserAttackingRight;
+        HomeTeam.MatchAttackingRight = UserAttackingRight;
+        AwayTeam.MatchAttackingRight = !UserAttackingRight;
         foreach (var player in HomeTeam.Players.Concat(AwayTeam.Players).Where(p => p.IsActiveOnPitch))
         {
             player.Position2D = new Vector2(Pitch.Length - player.Position2D.X, Pitch.Width - player.Position2D.Y);
