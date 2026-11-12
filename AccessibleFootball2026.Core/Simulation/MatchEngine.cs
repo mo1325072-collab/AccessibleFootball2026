@@ -811,7 +811,7 @@ public partial class MatchEngine
         {
             ActiveUserPlayer = closest;
             // إعلان عالي الإشارة وموجز: اسم اللاعب ومركزه فقط بدون حشو تعليمي
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, $"{closest.Name} - {GetArabicPositionName(closest.CurrentAssignedPosition)}"));
+            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, $"{closest.Name} - {GetArabicPositionName(closest.CurrentAssignedPosition)}"), ("radar.reason", "playerSwitch"));
         }
     }
 
@@ -884,7 +884,7 @@ public partial class MatchEngine
             string outOfReachMsg = carrier != null 
                 ? $"بعيد عن حامل الكرة: {distToOpponent:F1} متر"
                 : $"بعيد: {distToBall:F1} م";
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, outOfReachMsg));
+            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, outOfReachMsg), ("radar.reason", "tackleMissed"));
             return;
         }
 
@@ -1183,39 +1183,16 @@ public partial class MatchEngine
         float winProbability = 42.0f + (deltaSkill * 0.55f) + tacticalModifier + diffModifier;
         winProbability = Math.Clamp(winProbability, 5.0f, 92.0f);
 
-        int roll = forcedRandomRoll ?? Random.Shared.Next(100);
-        bool tacklerWon = roll < winProbability;
-
-        // فحص ارتكاب خطأ
-        bool isFoul = false;
-        bool severeInjuryRisk = false;
-
-        if (!tacklerWon)
-        {
-            float foulChance = baseFoulRisk;
-            if (isFromBehind) foulChance += 25.0f;
-            foulChance -= (tackler.Defending - 65) * 0.4f;
-            foulChance = Math.Clamp(foulChance, 2.0f, 85.0f);
-
-            int foulRoll = forcedFoulRoll ?? (forcedRandomRoll ?? Random.Shared.Next(100));
-            isFoul = foulRoll < foulChance;
-
-            if (isFoul && isReckless)
-            {
-                severeInjuryRisk = true; // خطر إصابة جسيمة بالغة عند التدخل المتهور
-            }
-        }
-        else if (isReckless)
-        {
-            // حتى لو استخلص الكرة بتهور، هناك احتمال 20% لارتكاب مخالفة عنف زائد
-            int recklessFoulRoll = forcedFoulRoll ?? (forcedRandomRoll ?? Random.Shared.Next(100));
-            if (recklessFoulRoll < 20)
-            {
-                tacklerWon = false;
-                isFoul = true;
-                severeInjuryRisk = true;
-            }
-        }
+        // Tactical_Design_Specs: identical positions and attributes have identical outcomes.
+        // Optional legacy rolls remain test fixtures only; production never samples a random die.
+        bool tacklerWon = forcedRandomRoll.HasValue ? forcedRandomRoll.Value < winProbability : winProbability >= 50;
+        float foulDanger = Math.Clamp(baseFoulRisk + (isFromBehind ? 25 : 0) - (tackler.Defending - 65) * .4f, 2, 85);
+        bool bodyFirst = distToCarrier < distToBall;
+        bool isFoul = forcedFoulRoll.HasValue
+            ? (!tacklerWon && forcedFoulRoll.Value < foulDanger) || (isReckless && forcedFoulRoll.Value < 20)
+            : bodyFirst && (isReckless || (!tacklerWon && foulDanger >= 35));
+        bool severeInjuryRisk = isFoul && isReckless && isFromBehind;
+        if (isFoul) tacklerWon = false;
 
         string reasonStr = reasons.Count > 0 ? string.Join("، ", reasons) : "صراع متكافئ";
 
@@ -1368,8 +1345,6 @@ public partial class MatchEngine
         bool isDogso = CheckDogso(tackler, carrier);
         _foulVictim=carrier;
         if(isSlideTackle) Count("stats.severeFouls");
-        if (isSlideTackle && carrier.InjuryStatus == PlayerInjuryStatus.None)
-            ApplyInjury(carrier,PlayerInjuryStatus.MinorKnock);
 
         if (isDogso)
         {
@@ -1385,13 +1360,13 @@ public partial class MatchEngine
             IssueCard(tackler, isDirectRed: false, reason: "تدخل متهور");
         }
 
-        // فحص الإصابة على اللاعب المتعرض للعرقلة: التدخلات العنيفة والانزلاقية قد تسفر عن كدمات
-        if (isSlideTackle && carrier.InjuryStatus == PlayerInjuryStatus.None)
-        {
-            ApplyInjury(carrier, PlayerInjuryStatus.MinorKnock);
-        }
+        // Capture the restart before a seriously injured victim is substituted or leaves the pitch.
+        var incidentSpot = carrier.Position2D;
+        bool severeInjury = isSlideTackle && isFromBehind && TeamOf(tackler)?.Tactics.Tackling == TacklingAggression.Reckless;
+        if (!TryPlayAdvantage(carrier,isSlideTackle,isDogso)) AwardFoulRestart(carrier, incidentSpot);
+        if (isSlideTackle && carrier.IsActiveOnPitch)
+            ApplyInjury(carrier, severeInjury ? PlayerInjuryStatus.SevereInjury : PlayerInjuryStatus.MinorKnock);
         _foulVictim=null;
-        if (!TryPlayAdvantage(carrier,isSlideTackle,isDogso)) AwardFoulRestart(carrier);
     }
 
     public void IssueCard(Player player, bool isDirectRed, string reason = "")
@@ -1429,7 +1404,9 @@ public partial class MatchEngine
         }
     }
 
-    private void DismissPlayer(Player player, Team playerTeam)
+    private void DismissPlayer(Player player, Team playerTeam) => RemovePlayerFromPlay(player, playerTeam, sentOff: true);
+
+    private void RemovePlayerFromPlay(Player player, Team playerTeam, bool sentOff)
     {
         // 1. فك ارتباط الكرة فوراً إذا كان اللاعب المستبعد هو حامل الكرة لمنع انتقالها خارج الملعب
         if (player.HasBall || Ball.Owner == player)
@@ -1452,7 +1429,7 @@ public partial class MatchEngine
         }
 
         // 3. طرد اللاعب ونقله خارج أرضية الملعب وتصفير سرعته
-        player.IsSentOff = true;
+        player.IsSentOff |= sentOff;
         player.IsOffPitch = true;
         player.Position2D = new Vector2(-100f, -100f);
         player.HomePosition = new Vector2(-100f, -100f);
@@ -1480,6 +1457,8 @@ public partial class MatchEngine
 
     public void ApplyInjury(Player player, PlayerInjuryStatus status)
     {
+        if ((!HomeTeam.Players.Contains(player) && !AwayTeam.Players.Contains(player)) || !player.IsActiveOnPitch ||
+            status == PlayerInjuryStatus.None || player.InjuryStatus == status) return;
         player.InjuryStatus = status;
         Team playerTeam = HomeTeam.Players.Contains(player) ? HomeTeam : AwayTeam;
 
@@ -1496,38 +1475,24 @@ public partial class MatchEngine
             bool substituted = ExecuteForcedSubstitution(playerTeam, player);
             if (!substituted)
             {
-                // استنفاد التبديلات: يخرج اللاعب المصاب ويكمل الفريق بـ 10 لاعبين
-                if (player.HasBall || Ball.Owner == player)
+                RemovePlayerFromPlay(player, playerTeam, sentOff: false);
+                if (Restart is { } pending && pending.Taker == player)
                 {
-                    player.HasBall = false;
-                    Ball.Owner = null;
-                    Ball.State = BallState.Free;
-                    Ball.Velocity = Vector3.Zero;
-                    Ball.Position = new Vector3(
-                        Math.Clamp(player.Position2D.X, 1.0f, Pitch.Length - 1.0f),
-                        Math.Clamp(player.Position2D.Y, 1.0f, Pitch.Width - 1.0f),
-                        0.0f);
-                }
-
-                player.IsOffPitch = true;
-                player.Position2D = new Vector2(-100f, -100f);
-                player.HomePosition = new Vector2(-100f, -100f);
-                player.Velocity = Vector2.Zero;
-
-                if (ActiveUserPlayer == player)
-                {
-                    _lastSwitchTime = DateTime.MinValue;
-                    SwitchToClosestPlayer();
-                    if (ActiveUserPlayer == player)
+                    var availableTaker = playerTeam.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper)
+                        ?? playerTeam.Players.FirstOrDefault(p => p.IsActiveOnPitch);
+                    if (availableTaker != null)
                     {
-                        ActiveUserPlayer = playerTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch && p.Role != PlayerRole.Goalkeeper)
-                            ?? playerTeam.Players.FirstOrDefault(p => !p.IsSentOff && !p.IsOffPitch)
-                            ?? playerTeam.Players[0];
+                        Restart = pending with { Taker = availableTaker };
+                        availableTaker.Position2D = pending.Spot;
+                        Ball.CatchOrTackle(availableTaker);
+                        RecordBallTouch(availableTaker);
+                        if (playerTeam == HomeTeam) ActiveUserPlayer = availableTaker;
                     }
                 }
-
-                string exhaustedDesc = $"استنفد {playerTeam.Name} جميع التبديلات! يغادر {player.Name} الملعب مصاباً، والفريق يكمل بـ 10 لاعبين.";
-                Publish(new MatchEvent(MatchEventType.PlayerInjured, exhaustedDesc, CurrentZone, spatialPan: CalculateBallPan()));
+                int remaining = playerTeam.Players.Count(p => p.IsActiveOnPitch);
+                string exhaustedDesc = $"لا يوجد تبديل قانوني مناسب لـ {player.Name}. يغادر مصاباً، ويتبقى {remaining} لاعبين في {playerTeam.Name}.";
+                Publish(new MatchEvent(MatchEventType.PlayerInjured, exhaustedDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: player),
+                    ("injury.severity", "severe"), ("injury.replaced", false));
             }
         }
     }
@@ -1536,7 +1501,7 @@ public partial class MatchEngine
     {
         if (team.CanMakeSubstitution(State == MatchState.HalfTime) && team.Bench.Count > 0)
         {
-            var replacement = team.Bench.FirstOrDefault(team.CanEnterAsSubstitute);
+            var replacement = AccessibleFootball2026.Core.Tactics.TacticalAiAdvisor.FindBestBenchReplacement(team, injuredPlayer);
             return replacement != null && MakeSubstitution(team, injuredPlayer, replacement);
         }
         return false;
@@ -1549,7 +1514,8 @@ public partial class MatchEngine
 
     private void UpdateCrowdProximity(float deltaTime)
     {
-        float distToGoal = (AwayTeam.Side == TeamSide.Away) ? (Pitch.Length - Ball.Position2D.X) : Ball.Position2D.X;
+        bool attacksRight = Ball.Owner != null && AwayTeam.Players.Contains(Ball.Owner) ? !UserAttackingRight : UserAttackingRight;
+        float distToGoal = attacksRight ? Pitch.Length - Ball.Position2D.X : Ball.Position2D.X;
         
         float targetVolume;
         if (distToGoal > 55.0f)
@@ -1885,10 +1851,6 @@ public partial class MatchEngine
                                 Publish(new MatchEvent(MatchEventType.FoulCommitted, foulDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: opponent), ("foul.intentional", false));
                                 HandleFoulSanction(opponent, carrier, isSlideTackle: duel.IsSevereInjuryRisk, isFromBehind: true);
 
-                                if (duel.IsSevereInjuryRisk && carrier.InjuryStatus == PlayerInjuryStatus.None)
-                                {
-                                    ApplyInjury(carrier, PlayerInjuryStatus.MinorKnock);
-                                }
                             }
                             else
                             {
