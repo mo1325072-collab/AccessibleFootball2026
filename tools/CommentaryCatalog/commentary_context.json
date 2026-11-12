@@ -5110,6 +5110,26 @@
    "priority": 0
   },
   {
+   "id": "02574",
+   "file": "Library/02574.mp3",
+   "event": "BallTrapped",
+   "transcript": "González",
+   "review": "verified",
+   "all": [
+    {
+     "fact": "player.alias",
+     "op": "eq",
+     "value": "NicoGonzalez"
+    },
+    {
+     "fact": "team.name",
+     "op": "eq",
+     "value": "Juventus FC"
+    }
+   ],
+   "priority": 0
+  },
+  {
    "id": "02579",
    "file": "Library/02579.mp3",
    "event": "BallTrapped",
