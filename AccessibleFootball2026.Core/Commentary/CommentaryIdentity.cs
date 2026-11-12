@@ -18,6 +18,7 @@ public static class CommentaryIdentity
         "mikel oyarzabal" or "أويارزابال" or "أوريزابال" or "اويارزابال" => "MikelOyarzabal",
         "thibaut courtois" or "تيبو كورتوا" => "ThibautCourtois",
         "luka modric" or "لوكا مودريتش" => "LukaModric",
+        "pedri" or "بيدري" => "Pedri",
         "michael olise" or "مايكيل أوليسيه" or "مايكل أوليسيه" or "مايكل أوليسي" => "MichaelOlise",
         "n'golo kante" or "كانتي" or "نجولو كانتي" or "إنجولو كانتي" => "NGoloKante",
         "ngolo kante" => "NGoloKante",
@@ -38,3 +39,4 @@ public static class CommentaryIdentity
         return result.ToString().Normalize(NormalizationForm.FormC).Trim();
     }
 }
+
