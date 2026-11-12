@@ -22,9 +22,41 @@ public partial class MatchEngine
         _replayFrames.Clear();
     }
 
-    private void PlaceKickoff(Team team)
+    private void ResetPeriodPlayState()
     {
-        var kicker = team.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper);
+        AwaitingStoppageConfirmation = false;
+        CompleteAnalysisReplay();
+        ActivePassTransit = null;
+        Restart = null;
+        _commentaryPass = null;
+        _isShotInProgress = false;
+        _shotContextValid = false;
+        _shotShooter = null;
+        _offsidePositions.Clear();
+        _offsideOffence = null;
+        _offsideExemptKicker = null;
+        _restartReadySeconds = 0;
+        _gkHoldTimer = 0;
+        _ballFreeTimer = 0;
+        PreviousKicker = null;
+        LastKicker = null;
+    }
+
+    private void PlaceKickoff(Team team, Player? preferredKicker = null)
+    {
+        ResetPeriodPlayState();
+        // Law 8: everyone except the kicker starts in their own half.
+        foreach (var squad in new[] { HomeTeam, AwayTeam })
+        {
+            bool attacksRight = squad == HomeTeam ? UserAttackingRight : !UserAttackingRight;
+            foreach (var player in squad.Players.Where(p => p.IsActiveOnPitch))
+            {
+                player.Position2D = new Vector2(attacksRight ? Math.Min(player.HomePosition.X, Pitch.HalfLength - .5f) : Math.Max(player.HomePosition.X, Pitch.HalfLength + .5f), player.HomePosition.Y);
+                player.Velocity = Vector2.Zero;
+                player.FacingDirection = new Vector2(attacksRight ? 1 : -1, 0);
+            }
+        }
+        var kicker = preferredKicker?.IsActiveOnPitch == true && team.Players.Contains(preferredKicker) ? preferredKicker : team.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper);
         if (kicker == null) return;
         kicker.Position2D = Pitch.CenterSpot;
         kicker.FacingDirection = new Vector2(team == HomeTeam == UserAttackingRight ? 1 : -1, 0);
