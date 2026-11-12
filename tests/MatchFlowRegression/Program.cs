@@ -191,6 +191,102 @@ m = New(); AddBench(m.HomeTeam); var sentOff = m.HomeTeam.Players[9]; sentOff.Is
 m.AwardFoulRestart(m.HomeTeam.Players[8], new Vector2(60, 30)); m.Update(.02f);
 Check(m.HomeTeam.SubstitutionsUsed == 0 && m.HomeTeam.Players.Contains(sentOff), "red-card vacancy is never filled by automatic replacement");
 MatchSettings.Current.AutoSubstitutionsEnabled = false;
+
+// Broad audit: database/draft, input, persistence, and complete period boundaries.
+var keyboard = new AccessibleFootball2026.Input.KeyboardInputHandler();
+keyboard.HandleKeyDown(0x51, true);
+Check(keyboard.PollCurrentActions(true).Contains(GameAction.LoftedThroughBall), "Q is a lofted through ball in the input handler");
+keyboard.HandleKeyDown(0x51, true);
+Check(!keyboard.PollCurrentActions(true).Contains(GameAction.LoftedThroughBall), "held action cannot auto-repeat");
+keyboard.HandleKeyUp(0x51); keyboard.HandleKeyDown(0x51, true);
+Check(keyboard.PollCurrentActions(true).Contains(GameAction.LoftedThroughBall), "released action can trigger again");
+keyboard.HandleKeyDown(0x26, true); keyboard.HandleKeyDown(0xA0, true);
+Check(keyboard.PollCurrentActions(true).SetEquals(new[] {GameAction.MoveUp, GameAction.Sprint}), "movement and sprint remain continuous together");
+keyboard.Reset(); Check(keyboard.PollCurrentActions(true).Count == 0, "pause/focus reset clears held keys and pending actions");
+
+bool KickoffLegal(MatchEngine game, Team kicking)
+{
+    return game.Ball.Position2D == game.Pitch.CenterSpot && game.Ball.Velocity == Vector3.Zero &&
+        new[] { game.HomeTeam, game.AwayTeam }.All(t => t.Players.Where(p => p.IsActiveOnPitch && p != game.Ball.Owner).All(p =>
+            (t == game.HomeTeam ? game.UserAttackingRight : !game.UserAttackingRight) ? p.Position2D.X < Pitch.HalfLength : p.Position2D.X > Pitch.HalfLength)) &&
+        (kicking == game.HomeTeam ? game.AwayTeam : game.HomeTeam).Players.Where(p => p.IsActiveOnPitch).All(p => Vector2.Distance(p.Position2D,game.Pitch.CenterSpot) >= 9.15f);
+}
+m = New(); Check(KickoffLegal(m,m.HomeTeam), "initial kickoff places teams in own halves and opponents outside centre circle");
+m.TriggerHalfTime(); Check(KickoffLegal(m,m.AwayTeam), "second-half kickoff obeys own-half and circle rules");
+m.ResumeMatch(); m.AwardFoulRestart(m.HomeTeam.Players[9]);
+Set(m,"_isShotInProgress",true); Set(m,"_shotContextValid",true);
+m.TriggerExtraTime();
+Check(m.State == MatchState.HalfTime && m.IsExtraTimeStartInterval && m.Restart == null && !m.AwaitingStoppageConfirmation, "extra time clears stale restart and held state");
+Check((bool)m.GetType().GetField("_isShotInProgress",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(m)! == false, "extra time clears old shot state");
+Check(KickoffLegal(m,m.AwayTeam), "extra-time kickoff correctly positioned");
+var direction = m.UserAttackingRight; m.TriggerExtraTime(); Check(direction == m.UserAttackingRight, "extra-time transition is idempotent");
+m.ResumeMatch(); m.SetMatchTimeMinutes(104.999f); m.Update(.2f);
+Check(m.State == MatchState.HalfTime && m.MatchTimeMinutes == 105 && KickoffLegal(m,m.HomeTeam), "extra-time halftime freezes exactly at 105 with correct kickoff");
+m.ResumeMatch(); m.SetMatchTimeMinutes(119.999f); m.Update(.2f);
+Check(m.State == MatchState.GameOver, "drawn extra time ends without shootout when shootout disabled");
+MatchSettings.Current.PenaltyShootoutEnabled = true;
+m = New(); m.SetStoppageMinutes(0,0); m.TriggerHalfTime(); m.ResumeMatch(); m.SetMatchTimeMinutes(89.999f); m.Update(.2f);
+Check(m.State == MatchState.PenaltyShootout, "tied regulation can go directly to shootout when extra time disabled");
+Check(!PenaltyShootoutRules.IsDecided(4,3,6,5) && PenaltyShootoutRules.IsDecided(4,3,6,6), "sudden death must wait for equal kick counts");
+Check(PenaltyShootoutRules.IsDecided(3,0,3,3) && !PenaltyShootoutRules.IsDecided(2,0,2,2), "five-kick shootout ends early only when catch-up impossible");
+MatchSettings.Current.PenaltyShootoutEnabled = false;
+
+string settingsPath = Path.Combine(Path.GetTempPath(),Guid.NewGuid()+"-settings.json");
+MatchSettings.Current.AutoSubstitutionsEnabled = true; MatchSettings.Current.AutoTacticalAdjustmentsEnabled = true;
+MatchSettings.Current.MusicVolumePercent = 27; MatchSettings.Current.Save(settingsPath);
+MatchSettings.Current.AutoSubstitutionsEnabled = false; MatchSettings.Current.AutoTacticalAdjustmentsEnabled = false; MatchSettings.Current.MusicVolumePercent = 1;
+MatchSettings.Load(settingsPath);
+Check(MatchSettings.Current.AutoSubstitutionsEnabled && MatchSettings.Current.AutoTacticalAdjustmentsEnabled && MatchSettings.Current.MusicVolumePercent == 27, "settings save/load preserves opt-ins and volume through a real temporary file");
+File.Delete(settingsPath); MatchSettings.Current.AutoSubstitutionsEnabled = false; MatchSettings.Current.AutoTacticalAdjustmentsEnabled = false;
+
+string dbPath = Path.Combine(Path.GetTempPath(),Guid.NewGuid()+"-teams.json");
+var fixtureTeams = Enumerable.Range(0,8).Select(t => new {team="fixture club "+t, group="test",type="club",players=Enumerable.Range(0,24).Select(i=>new {name="player "+t+"-"+i, age=24,position=i<2?"GK":i<10?"CB":i<17?"CM":"ST",power=80}).ToArray()}).ToArray();
+File.WriteAllText(dbPath,System.Text.Json.JsonSerializer.Serialize(new {teams=fixtureTeams}));
+var dbType = typeof(JsonDatabaseProvider);
+dbType.GetMethod("ClearLoadedTeams",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,null);
+dbType.GetMethod("LoadDatabaseFromFile",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{dbPath});
+dbType.GetField("_isInitialized",BindingFlags.Static|BindingFlags.NonPublic)!.SetValue(null,true);
+var clubs=JsonDatabaseProvider.AllTeams.ToArray();
+Check(clubs.Length == 8 && clubs.SelectMany(t=>t.Players.Concat(t.Bench)).Select(p=>p.Id).Distinct().Count() == 192, "JSON unrelated players have globally distinct IDs not squad-row IDs");
+var draft = new DreamTeamBuilder(); foreach(var club in clubs.Take(4))draft.AddUserSourceClub(club);foreach(var club in clubs.Skip(4))draft.AddCpuSourceClub(club);
+draft.DraftBothTeams(new Random(17));
+Check(draft.UserDreamTeam.Players.Count == 11 && draft.CpuDreamTeam.Players.Count == 11 && draft.UserDreamTeam.Bench.Count == 7 && draft.CpuDreamTeam.Bench.Count == 7, "both four-club draft teams receive complete squads");
+Check(!draft.UserDreamTeam.Players.Concat(draft.UserDreamTeam.Bench).Select(p=>p.Id).Intersect(draft.CpuDreamTeam.Players.Concat(draft.CpuDreamTeam.Bench).Select(p=>p.Id)).Any(), "draft squads are independent and duplicate-free");
+File.Delete(dbPath);
+
+var emergencyKeeper = new Player(990, "emergency", 29, SpecificPosition.CB, 70,70,70,70,70);
+emergencyKeeper.CurrentAssignedPosition = SpecificPosition.GK;
+Check(emergencyKeeper.Position == SpecificPosition.GK && emergencyKeeper.Role == PlayerRole.Goalkeeper, "GK enum zero remains an assigned position for emergency goalkeeper");
+m = New(); m.HomeTeam.Players[0].IsSentOff = true; m.HomeTeam.Players[1].CurrentAssignedPosition = SpecificPosition.GK;
+Invoke(m,"AwardGoalKick",true);
+Check(m.Restart!.Taker == m.HomeTeam.Players[1] && m.Restart.Taker.IsActiveOnPitch, "goal kick uses active reassigned keeper not sent-off first squad entry");
+m = New(); m.ResumePlayAfterGoalCelebration(m.AwayTeam);
+Check(KickoffLegal(m,m.AwayTeam) && m.PreviousKicker == null, "goal restart repositions both teams and clears stale assist attribution");
+var shortHome=Make("short",TeamSide.Home); shortHome.Players.RemoveRange(7,4);
+var shortAway=Make("short-away",TeamSide.Away); shortAway.Players.RemoveRange(7,4);
+var shortMatch = new MatchEngine(shortHome,shortAway,new MatchEventBus(),new Input());
+Check(KickoffLegal(shortMatch,shortHome), "seven-player match starts without fixed index9 access");
+shortHome.CornerTaker = null; Invoke(shortMatch,"AwardCornerKick",true);
+Check(shortMatch.Restart!.Taker.IsActiveOnPitch, "short squad corner uses an available player without index9 access");
+shortHome.Players.RemoveAt(6); bool rejected=false;
+try { _ = new MatchEngine(shortHome,shortAway,new MatchEventBus(),new Input()); } catch(ArgumentException) { rejected=true; }
+Check(rejected,"fewer than seven players rejected cleanly before kickoff");
+for(int scenario=0;scenario<3;scenario++)
+{
+    MatchSettings.Current.ExtraTimeEnabled = scenario > 0; MatchSettings.Current.PenaltyShootoutEnabled = scenario == 2;
+    MatchSettings.Current.MatchDurationMinutes = 1;
+    m=New();m.SetStoppageMinutes(0,0);bool finite=true;
+    for(int frame=0;frame<5000 && m.State is not MatchState.GameOver and not MatchState.PenaltyShootout;frame++)
+    {
+        if(m.State==MatchState.HalfTime)m.ResumeMatch();
+        if(m.AwaitingStoppageConfirmation)m.DismissStoppageReplay();
+        m.Update(.1f);
+        finite &= float.IsFinite(m.Ball.Position.X) && float.IsFinite(m.Ball.Position.Y) &&
+            m.HomeTeam.Players.Concat(m.AwayTeam.Players).All(p=>float.IsFinite(p.Position2D.X)&&float.IsFinite(p.Position2D.Y));
+    }
+    Check(finite && m.State is MatchState.GameOver or MatchState.PenaltyShootout, "whole-match smoke path completes with finite physics scenario "+scenario);
+}
+MatchSettings.Current.ExtraTimeEnabled=false;MatchSettings.Current.PenaltyShootoutEnabled=false;
 Console.WriteLine($"{passed} assertions passed. No Windows/MCI/NVDA runtime was exercised.");
 
 sealed class Input : IInputHandler
