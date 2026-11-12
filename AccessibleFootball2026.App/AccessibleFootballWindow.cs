@@ -25,6 +25,8 @@ namespace AccessibleFootball2026.App;
 /// </summary>
 public class AccessibleFootballWindow : Form
 {
+    private static string T(string ar, string en) => LocalizationService.Text(ar, en);
+
     private readonly IScreenReader _screenReader;
     private readonly MatchEventBus _eventBus;
     private readonly KeyboardInputHandler _inputHandler;
@@ -91,7 +93,7 @@ public class AccessibleFootballWindow : Form
 
         _statusLabel = new Label
         {
-            Text = "جاري التحميل...",
+            Text = T("جاري التحميل...", "Loading"),
             Dock = DockStyle.Top,
             Height = 40,
             Font = new Font("Segoe UI", 13F, FontStyle.Bold),
@@ -242,12 +244,12 @@ public class AccessibleFootballWindow : Form
         _displayListBox.Visible = true;
         _displayListBox.Enabled = true;
         _displayListBox.Items.Clear();
-        _displayListBox.Items.Add($"المباراة جارية الآن: {homeTeam.Name} ضد {awayTeam.Name}");
-        _displayListBox.Items.Add("التحكم: S للتمرير | D للرفع والعرضيات | W للتسديد | A للبينية | Shift للجري | Ctrl لتبديل المدافع | Space للرادار");
-        _displayListBox.Items.Add("Q بينية عالية | K إبعاد | B عرضية أرضية | N القائم البعيد | T التشكيلة | R اقتراب بطيء ثم تسديد");
-        _displayListBox.Items.Add("التسديد: H رأسية | J مقصية | V على الطائر | L ساقطة | F مقوسة");
-        _displayListBox.Items.Add("الدفاع: Ctrl لتبديل المدافع | S للاستخلاص الهادئ | W/D/A للاستخلاص القوي");
-        _displayListBox.Items.Add("التكتيك: Space أو C للرادار التكتيكي | Esc للإيقاف المؤقت | الانسحاب من قائمة الإيقاف");
+        _displayListBox.Items.Add(T($"المباراة جارية الآن: {homeTeam.Name} ضد {awayTeam.Name}", $"Match: {homeTeam.Name} versus {awayTeam.Name}"));
+        _displayListBox.Items.Add(T("التحكم: S للتمرير | D للرفع والعرضيات | W للتسديد | A للبينية | Shift للجري | Ctrl لتبديل المدافع | Space للرادار", "S pass | D cross | W shoot | A through ball | Shift sprint | Ctrl switch | Space radar"));
+        _displayListBox.Items.Add(T("Q بينية عالية | K إبعاد | B عرضية أرضية | N القائم البعيد | T التشكيلة | R اقتراب بطيء ثم تسديد", "Q lofted through ball | K clear | B low cross | N far post | T lineup | R slow run-up"));
+        _displayListBox.Items.Add(T("التسديد: H رأسية | J مقصية | V على الطائر | L ساقطة | F مقوسة", "H header | J bicycle kick | V volley | L chip | F curved shot"));
+        _displayListBox.Items.Add(T("الدفاع: Ctrl لتبديل المدافع | S للاستخلاص الهادئ | W/D/A للاستخلاص القوي", "Defence: Ctrl switch | S standing tackle | W/D/A slide tackle"));
+        _displayListBox.Items.Add(T("التكتيك: Space أو C للرادار التكتيكي | Esc للإيقاف المؤقت | الانسحاب من قائمة الإيقاف", "Space or C radar | Esc pause | End match in pause menu"));
         _displayListBox.SelectedIndex = 0;
         if (_displayListBox.CanFocus)
         {
@@ -340,9 +342,9 @@ public class AccessibleFootballWindow : Form
             StartMatchWizardFlow();
         });
 
-        menu.AddItem("نهائي كأس مخصص", () => StartMatchWizardFlow(cupFinal: true));
+        menu.AddItem(T("نهائي كأس مخصص", "Custom cup final"), () => StartMatchWizardFlow(cupFinal: true));
 
-        menu.AddItem("الكلاسيكو (ريال مدريد × برشلونة)", () =>
+        menu.AddItem(T("الكلاسيكو (ريال مدريد × برشلونة)", "El Clasico"), () =>
         {
             StartClasicoWizardFlow();
         });
@@ -372,7 +374,7 @@ public class AccessibleFootballWindow : Form
             StartSoundAcademyFlow();
         });
 
-        menu.AddItem("مكتبة تسجيلات فارس كاملة",()=>PushMenu(CommentaryLibraryMenuBuilder.Create(_commentaryEngine,_screenReader,PushMenu,PopMenu)));
+        menu.AddItem(T("مكتبة تسجيلات فارس كاملة", "Fares recording library"),()=>PushMenu(CommentaryLibraryMenuBuilder.Create(_commentaryEngine,_screenReader,PushMenu,PopMenu)));
 
         menu.AddItem(LocalizationService.GetString("UserGuide"), () =>
         {
@@ -419,52 +421,52 @@ public class AccessibleFootballWindow : Form
 
     private void StartClasicoWizardFlow()
     {
-        var teamMenu = new AccessibleMenu("اختر فريقك في الكلاسيكو", _screenReader);
+        var teamMenu = new AccessibleMenu(T("اختر فريقك في الكلاسيكو", "El Clasico team"), _screenReader);
 
-        teamMenu.AddItem("ريال مدريد (أنت تلعب بريال مدريد ضد برشلونة)", () =>
+        teamMenu.AddItem(T("ريال مدريد (أنت تلعب بريال مدريد ضد برشلونة)", "Real Madrid"), () =>
         {
             var rma = GetClasicoRealMadrid(TeamSide.Home);
             var bar = GetClasicoBarcelona(TeamSide.Away);
             ChooseStadiumFlow(rma, bar);
         });
 
-        teamMenu.AddItem("برشلونة (أنت تلعب ببرشلونة ضد ريال مدريد)", () =>
+        teamMenu.AddItem(T("برشلونة (أنت تلعب ببرشلونة ضد ريال مدريد)", "Barcelona"), () =>
         {
             var bar = GetClasicoBarcelona(TeamSide.Home);
             var rma = GetClasicoRealMadrid(TeamSide.Away);
             ChooseStadiumFlow(bar, rma);
         });
 
-        teamMenu.AddItem("رجوع للقائمة الرئيسية", () => PopMenu());
+        teamMenu.AddItem(T("رجوع للقائمة الرئيسية", "Back to main menu"), () => PopMenu());
         PushMenu(teamMenu);
     }
 
     private void ChooseStadiumFlow(Team home, Team away)
     {
-        var stadiumMenu = new AccessibleMenu("اختر ملعب المباراة لاختبار شرط الأهازيج والجماهير", _screenReader);
+        var stadiumMenu = new AccessibleMenu(T("اختر ملعب المباراة لاختبار شرط الأهازيج والجماهير", "Select stadium"), _screenReader);
 
-        stadiumMenu.AddItem("ملعب سانتياجو برنابيو (معقل ريال مدريد)", () =>
+        stadiumMenu.AddItem(T("ملعب سانتياجو برنابيو (معقل ريال مدريد)", "Santiago Bernabeu"), () =>
         {
             _stadiumSoundEngine.ActiveStadiumKey = "SantiagoBernabeu";
-            _screenReader.Speak("تم اختيار ملعب سانتياجو برنابيو.");
+            _screenReader.Speak(T("تم اختيار ملعب سانتياجو برنابيو.", "Santiago Bernabeu selected"));
             StartInteractiveMatch(home, away, rivalry: true);
         });
 
-        stadiumMenu.AddItem("ملعب كامب نو (معقل برشلونة)", () =>
+        stadiumMenu.AddItem(T("ملعب كامب نو (معقل برشلونة)", "Camp Nou"), () =>
         {
             _stadiumSoundEngine.ActiveStadiumKey = "CampNou";
-            _screenReader.Speak("تم اختيار ملعب كامب نو.");
+            _screenReader.Speak(T("تم اختيار ملعب كامب نو.", "Camp Nou selected"));
             StartInteractiveMatch(home, away, rivalry: true);
         });
 
-        stadiumMenu.AddItem("ملعب محايد (لاختبار الجماهير بصوت محايد وبدون أهازيج خاصة)", () =>
+        stadiumMenu.AddItem(T("ملعب محايد (لاختبار الجماهير بصوت محايد وبدون أهازيج خاصة)", "Neutral stadium"), () =>
         {
             _stadiumSoundEngine.ActiveStadiumKey = "NeutralStadium";
-            _screenReader.Speak("تم اختيار ملعب محايد. صوت الجماهير سيعمل بشكل محايد تماماً.");
+            _screenReader.Speak(T("تم اختيار ملعب محايد. صوت الجماهير سيعمل بشكل محايد تماماً.", "Neutral stadium selected"));
             StartInteractiveMatch(home, away, rivalry: true);
         });
 
-        stadiumMenu.AddItem("رجوع لاختيار الفريق", () => PopMenu());
+        stadiumMenu.AddItem(T("رجوع لاختيار الفريق", "Back to team selection"), () => PopMenu());
         PushMenu(stadiumMenu);
     }
 
@@ -530,7 +532,7 @@ public class AccessibleFootballWindow : Form
 
     private void ChooseClubsForUserTeam(DreamTeamBuilder builder, List<Team> allClubs, int clubNumber)
     {
-        var menu = new AccessibleMenu($"اختر النادي رقم {clubNumber} من 4 لتشكيلة فريقك", _screenReader);
+        var menu = new AccessibleMenu(T($"اختر النادي رقم {clubNumber} من 4 لتشكيلة فريقك", $"Your club {clubNumber}/4"), _screenReader);
         var availableClubs = allClubs.Where(c => !builder.UserSourceClubs.Any(u => u.Id == c.Id)).ToList();
 
         foreach (var c in availableClubs)
@@ -539,7 +541,7 @@ public class AccessibleFootballWindow : Form
             menu.AddItem(club.Name, () =>
             {
                 builder.AddUserSourceClub(club);
-                _screenReader.Speak($"تم اختيار {club.Name} لفريقك ({clubNumber} من 4).");
+                _screenReader.Speak(T($"تم اختيار {club.Name} لفريقك ({clubNumber} من 4).", $"Your club {clubNumber}/4: {club.Name}"));
 
                 if (clubNumber < 4)
                 {
@@ -547,19 +549,19 @@ public class AccessibleFootballWindow : Form
                 }
                 else
                 {
-                    _screenReader.Speak("تم اختيار الأندية الأربعة لفريقك بنجاح! الآن اختر 4 أندية لفريق الكمبيوتر الخصم.");
+                    _screenReader.Speak(T("تم اختيار الأندية الأربعة لفريقك بنجاح! الآن اختر 4 أندية لفريق الكمبيوتر الخصم.", "Your four clubs selected. Opponent clubs next."));
                     ChooseClubsForCpuTeam(builder, allClubs, 1);
                 }
             });
         }
 
-        menu.AddItem("رجوع للقائمة السابقة", () => PopMenu());
+        menu.AddItem(T("رجوع للقائمة السابقة", "Back"), () => PopMenu());
         PushMenu(menu);
     }
 
     private void ChooseClubsForCpuTeam(DreamTeamBuilder builder, List<Team> allClubs, int clubNumber)
     {
-        var menu = new AccessibleMenu($"اختر النادي رقم {clubNumber} من 4 لتشكيلة الكمبيوتر (الخصم)", _screenReader);
+        var menu = new AccessibleMenu(T($"اختر النادي رقم {clubNumber} من 4 لتشكيلة الكمبيوتر (الخصم)", $"Opponent club {clubNumber}/4"), _screenReader);
         var availableClubs = allClubs.Where(c => !builder.CpuSourceClubs.Any(cpu => cpu.Id == c.Id)).ToList();
 
         foreach (var c in availableClubs)
@@ -568,7 +570,7 @@ public class AccessibleFootballWindow : Form
             menu.AddItem(club.Name, () =>
             {
                 builder.AddCpuSourceClub(club);
-                _screenReader.Speak($"تم اختيار {club.Name} للكمبيوتر ({clubNumber} من 4).");
+                _screenReader.Speak(T($"تم اختيار {club.Name} للكمبيوتر ({clubNumber} من 4).", $"Opponent club {clubNumber}/4: {club.Name}"));
 
                 if (clubNumber < 4)
                 {
@@ -581,7 +583,7 @@ public class AccessibleFootballWindow : Form
             });
         }
 
-        menu.AddItem("رجوع", () => PopMenu());
+        menu.AddItem(T("رجوع", "Back"), () => PopMenu());
         PushMenu(menu);
     }
 
@@ -595,10 +597,8 @@ public class AccessibleFootballWindow : Form
         string stars = string.Join("، ", builder.UserDreamTeam.Players.Take(4).Select(p => $"{p.Name} ({p.CurrentAssignedPosition})"));
         string cpuStars = string.Join("، ", builder.CpuDreamTeam.Players.Take(4).Select(p => $"{p.Name} ({p.CurrentAssignedPosition})"));
 
-        string msg = $"اكتمل سحب القرعة العشوائية بواسطة الكمبيوتر بنجاح! " +
-                     $"تشكيلة فريقك من أندية: {userClubsNames}. أبرز نجومك: {stars}. " +
-                     $"تشكيلة الخصم من أندية: {cpuClubsNames}. أبرز نجومه: {cpuStars}. " +
-                     $"نظام مانع التكرار الصوتي مفعّل: لا يوجد أي لاعب مكرر بين الفريقين.";
+        string msg = T($"فريقك: {userClubsNames}. اللاعبون: {stars}. الخصم: {cpuClubsNames}. اللاعبون: {cpuStars}. لا يوجد لاعب مكرر بين الفريقين.",
+            $"Your clubs: {userClubsNames}. Players: {stars}. Opponent clubs: {cpuClubsNames}. Players: {cpuStars}. No player appears on both teams.");
         _screenReader.Speak(msg);
 
         ShowDraftPreMatchMenu(builder);
@@ -606,9 +606,9 @@ public class AccessibleFootballWindow : Form
 
     private void ShowDraftPreMatchMenu(DreamTeamBuilder builder)
     {
-        var menu = new AccessibleMenu("خيارات وضع الـ 4 فرق", _screenReader);
+        var menu = new AccessibleMenu(T("خيارات وضع الـ 4 فرق", "Four-club draft"), _screenReader);
 
-        menu.AddItem("بدء المباراة", () =>
+        menu.AddItem(T("بدء المباراة", "Start match"), () =>
         {
             var commMenu = CreateCommentatorSelectMenu(_ =>
             {
@@ -617,42 +617,42 @@ public class AccessibleFootballWindow : Form
             PushMenu(commMenu);
         });
 
-        menu.AddItem("التشكيلة الأساسية", () =>
+        menu.AddItem(T("التشكيلة الأساسية", "Starting lineup"), () =>
         {
             var lineup = GamePlanMenuBuilder.CreateLineupMenu(builder.UserDreamTeam, _screenReader, PushMenu, PopMenu);
             PushMenu(lineup);
         });
 
-        menu.AddItem("دكة البدلاء", () =>
+        menu.AddItem(T("دكة البدلاء", "Bench"), () =>
         {
             var bench = GamePlanMenuBuilder.CreateBenchMenu(builder.UserDreamTeam, _screenReader, PushMenu, PopMenu);
             PushMenu(bench);
         });
 
-        menu.AddItem("أدوار المتخصصين", () =>
+        menu.AddItem(T("أدوار المتخصصين", "Specialist roles"), () =>
         {
             var spec = GamePlanMenuBuilder.CreateSpecialistsMenu(builder.UserDreamTeam, _screenReader, PushMenu, PopMenu);
             PushMenu(spec);
         });
 
-        menu.AddItem("تغيير الخطة التكتيكية", () =>
+        menu.AddItem(T("تغيير الخطة التكتيكية", "Change formation"), () =>
         {
             var form = GamePlanMenuBuilder.CreateFormationMenu(builder.UserDreamTeam, _screenReader, PopMenu);
             PushMenu(form);
         });
 
-        menu.AddItem("إعادة السحب العشوائي", () =>
+        menu.AddItem(T("إعادة السحب العشوائي", "Redraw players"), () =>
         {
             builder.DraftBothTeams();
-            _screenReader.Speak("تمت إعادة السحب العشوائي بواسطة الكمبيوتر لتشكيلتي الفريقين بنجاح!");
+            _screenReader.Speak(T("تمت إعادة السحب العشوائي بواسطة الكمبيوتر لتشكيلتي الفريقين بنجاح!", "Both lineups redrawn"));
         });
 
-        menu.AddItem("إعادة اختيار الأندية", () =>
+        menu.AddItem(T("إعادة اختيار الأندية", "Choose clubs again"), () =>
         {
             StartDreamTeamBuilderFlow();
         });
 
-        menu.AddItem("رجوع", () =>
+        menu.AddItem(T("رجوع", "Back"), () =>
         {
             OpenMainMenu();
         });
@@ -666,21 +666,23 @@ public class AccessibleFootballWindow : Form
 
     private void StartMatchSettingsFlow()
     {
+        var languageBefore = MatchSettings.Current.Language;
         using var settingsForm = new AccessibleSettingsForm(_screenReader);
         settingsForm.ShowDialog(this);
         UpdateWindowHeadings();
-        RefreshMenuDisplay();
+        if (languageBefore != MatchSettings.Current.Language) OpenMainMenu();
+        else RefreshMenuDisplay();
     }
 
     private AccessibleMenu CreateCommentatorSelectMenu(Action<CommentatorProfile> onSelected)
     {
-        var menu = new AccessibleMenu("اختر المعلق الصوتي المعتمد للمباراة", _screenReader);
+        var menu = new AccessibleMenu(T("اختر المعلق الصوتي المعتمد للمباراة", "Select commentator"), _screenReader);
         var list = _commentaryEngine.GetAvailableCommentators();
 
         foreach (var c in list)
         {
             var current = c;
-            menu.AddItem($"{current.DisplayName}، {current.Region}", () =>
+            menu.AddItem(T($"{current.DisplayName}، {current.Region}", $"{current.DisplayName}, {current.Region}"), () =>
             {
                 _commentaryEngine.SwitchCommentator(current.Id);
                 // حفظ الاختيار حتى يبقى معتمداً في المباريات القادمة ولا ترجعه مزامنة الإعدادات
@@ -688,62 +690,62 @@ public class AccessibleFootballWindow : Form
                 MatchSettings.Current.CommentaryVoice = current.Id == CommentatorId.FaresAwad ? CommentaryVoiceOption.FaresAwad : CommentaryVoiceOption.RaoufKhlif;
                 MatchSettings.Current.CommentaryEnabled = true;
                 MatchSettings.Current.Save();
-                _screenReader.Speak($"تم اعتماد المعلق {current.DisplayName}");
+                _screenReader.Speak(T($"تم اعتماد المعلق {current.DisplayName}", $"Commentator: {current.DisplayName}"));
                 onSelected(current);
             });
         }
 
-        menu.AddItem("رجوع", () => PopMenu());
+        menu.AddItem(T("رجوع", "Back"), () => PopMenu());
         return menu;
     }
 
     private void StartTournamentsBrowserFlow()
     {
         var tournaments = TournamentDatabase.GetAllTournaments();
-        var menu = new AccessibleMenu("البطولات والدوريات", _screenReader);
+        var menu = new AccessibleMenu(T("البطولات والدوريات", "Competitions"), _screenReader);
 
         foreach (var t in tournaments)
         {
             var currentTourney = t;
-            menu.AddItem(currentTourney.Name, () =>
+            menu.AddItem(currentTourney.DisplayName, () =>
             {
-                var tourneyMenu = new AccessibleMenu(currentTourney.Name, _screenReader);
+                var tourneyMenu = new AccessibleMenu(currentTourney.DisplayName, _screenReader);
 
-                tourneyMenu.AddItem("الفرق المشاركة", () =>
+                tourneyMenu.AddItem(T("الفرق المشاركة", "Participating teams"), () =>
                 {
                     string names = string.Join("، ", currentTourney.Teams.Select(tm => tm.Name));
-                    _screenReader.Speak($"المشاركون في {currentTourney.Name} هم: {names}");
+                    _screenReader.Speak(T($"المشاركون في {currentTourney.DisplayName} هم: {names}", $"{currentTourney.DisplayName}: {names}"));
                 });
 
-                tourneyMenu.AddItem("اختيار مباراة", () =>
+                tourneyMenu.AddItem(T("اختيار مباراة", "Choose matchup"), () =>
                 {
-                    var homeMenu = new AccessibleMenu("اختر فريقك", _screenReader);
+                    var homeMenu = new AccessibleMenu(T("اختر فريقك", "Your team"), _screenReader);
                     foreach (var availableHome in currentTourney.Teams)
                     {
                         var team1 = availableHome;
                         homeMenu.AddItem(team1.Name, () =>
                         {
-                            var awayMenu = new AccessibleMenu("اختر الخصم", _screenReader);
+                            var awayMenu = new AccessibleMenu(T("اختر الخصم", "Opponent"), _screenReader);
                             foreach (var availableAway in currentTourney.Teams.Where(t => t.Id != team1.Id))
                             {
                                 var team2 = availableAway;
                                 awayMenu.AddItem(team2.Name, () => PushMenu(CreateCommentatorSelectMenu(_ =>
                                     StartInteractiveMatch(team1.Clone(TeamSide.Home), team2.Clone(TeamSide.Away)))));
                             }
-                            awayMenu.AddItem("رجوع", PopMenu);
+                            awayMenu.AddItem(T("رجوع", "Back"), PopMenu);
                             PushMenu(awayMenu);
                         });
                     }
-                    homeMenu.AddItem("رجوع", PopMenu);
+                    homeMenu.AddItem(T("رجوع", "Back"), PopMenu);
                     PushMenu(homeMenu);
                 });
 
-                tourneyMenu.AddItem("رجوع", () => PopMenu());
+                tourneyMenu.AddItem(T("رجوع", "Back"), () => PopMenu());
                 PushMenu(tourneyMenu);
             });
         }
 
-        menu.AddItem("رجوع", () => PopMenu());
+        menu.AddItem(T("رجوع", "Back"), () => PopMenu());
         PushMenu(menu);
     }
 
@@ -754,7 +756,7 @@ public class AccessibleFootballWindow : Form
         {
             var planMenu = GamePlanMenuBuilder.CreatePreMatchMenu(team, _screenReader, PushMenu, PopMenu, onStartMatch: () =>
             {
-                _screenReader.Speak("تم حفظ الخطة التكتيكية بنجاح!");
+                _screenReader.Speak(T("تم حفظ الخطة التكتيكية بنجاح!", "Game plan saved"));
                 PopMenu();
             });
             PushMenu(planMenu);
@@ -770,7 +772,7 @@ public class AccessibleFootballWindow : Form
 
     private void ShowControlsGuide()
     {
-        string guide = "دليل التحكم الكامل لأزرار اللعب: " +
+        string guide = T("دليل التحكم الكامل لأزرار اللعب: " +
                        "الأسهم للتحرك مع الكرة في الاتجاهات الأربعة وضبط زاوية التسديد نحو المرمى. " +
                        "زر Shift الأيسر للجري السريع والانطلاق في المساحات. " +
                        "زر S للتمرير الأرضي المباشر لأقرب زميل. " +
@@ -779,7 +781,7 @@ public class AccessibleFootballWindow : Form
                        "زر A للتمريرة البينية في المساحة. " +
                        "زر المسافة أو C لتشغيل الرادار التكتيكي وسماع مكان الكرة والمسافة نحو المرمى. " +
                        "زر Escape لفتح قائمة الإيقاف المؤقت والتبديلات وتعديل التكتيك. " +
-                       "زر Q للتمريرة البينية العالية. للانسحاب اختر إنهاء المباراة من قائمة الإيقاف المؤقت.";
+                       "زر Q للتمريرة البينية العالية. للانسحاب اختر إنهاء المباراة من قائمة الإيقاف المؤقت.", "Arrows move and aim. Shift sprints. S passes, D crosses, W shoots, A through ball, Q lofted through ball. Space or C radar. Escape pauses for tactics and substitutions.");
         _screenReader.Speak(guide);
     }
 
@@ -827,7 +829,7 @@ public class AccessibleFootballWindow : Form
         match.OnAnalysisReplayReady += replay =>
         {
             _commentaryEngine.QueuePlayReplay(replay);
-            _screenReader.Speak("إعادة اللقطة.");
+            _screenReader.Speak(T("إعادة اللقطة.", "Replay"));
             // Even when a replay sound is missing, keep the incident held for Enter.
         };
 
@@ -846,18 +848,18 @@ public class AccessibleFootballWindow : Form
         bool introPlayed = _commentaryEngine.TryPlayMatchIntro(match.GetCommentarySnapshot().With(("crowd.active",SoundEffectsPlayer.IsCrowdActive)));
         if (!introPlayed)
         {
-            string introSpeech = $"انطلاق المباراة! {homeTeam.Name} ضد {awayTeam.Name}، بصوت المعلق {_commentaryEngine.ActiveCommentator.DisplayName}. " +
-                                 $"الكرة معك الآن مع {match.ActiveUserPlayer.Name} في دائرة منتصف الملعب.";
+            string introSpeech = T($"{homeTeam.Name} ضد {awayTeam.Name}. الكرة مع {match.ActiveUserPlayer.Name}.",
+                $"{homeTeam.Name} versus {awayTeam.Name}. {match.ActiveUserPlayer.Name} has the ball.");
             _screenReader.Speak(introSpeech);
         }
         else
         {
             _commentaryEngine.RunAfterRecordedCommentary(() =>
-                _screenReader.Speak($"{homeTeam.Name} ضد {awayTeam.Name}. الكرة معك الآن مع {match.ActiveUserPlayer.Name}.", interrupt: false));
+                _screenReader.Speak(T($"{homeTeam.Name} ضد {awayTeam.Name}. الكرة معك الآن مع {match.ActiveUserPlayer.Name}.", $"{homeTeam.Name} versus {awayTeam.Name}. {match.ActiveUserPlayer.Name} has the ball."), interrupt: false));
         }
 
-        _titleLabel.Text = $"{homeTeam.Name} ضد {awayTeam.Name}";
-        _statusLabel.Text = $"النتيجة: {homeTeam.Score} - {awayTeam.Score} | المعلق: {_commentaryEngine.ActiveCommentator.DisplayName}";
+        _titleLabel.Text = T($"{homeTeam.Name} ضد {awayTeam.Name}", $"{homeTeam.Name} versus {awayTeam.Name}");
+        _statusLabel.Text = T($"النتيجة: {homeTeam.Score} - {awayTeam.Score} | المعلق: {_commentaryEngine.ActiveCommentator.DisplayName}", $"Score: {homeTeam.Score} - {awayTeam.Score} | Commentator: {_commentaryEngine.ActiveCommentator.DisplayName}");
 
         _lastFrameTime = DateTime.UtcNow;
 
@@ -904,7 +906,7 @@ public class AccessibleFootballWindow : Form
                 );
             }
 
-            string matchStatus = $"المباراة جارية (الدقيقة {(int)_activeMatch.MatchTimeMinutes}): {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score} - {_activeMatch.AwayTeam.Score} {_activeMatch.AwayTeam.Name}";
+            string matchStatus = T($"المباراة جارية (الدقيقة {(int)_activeMatch.MatchTimeMinutes}): {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score} - {_activeMatch.AwayTeam.Score} {_activeMatch.AwayTeam.Name}", $"Minute {(int)_activeMatch.MatchTimeMinutes}: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score} - {_activeMatch.AwayTeam.Score} {_activeMatch.AwayTeam.Name}");
             _statusLabel.Text=matchStatus;
             // أثناء اللعب النشط: نحدث _statusLabel المرئي فقط ونمنع تعديل _displayListBox لمنع تشويش قارئ الشاشة NVDA
             if (_currentMenu == null && _activeMatch.State != MatchState.InPlay)
@@ -922,7 +924,7 @@ public class AccessibleFootballWindow : Form
                 SoundEffectsPlayer.PauseCrowdAmbiance();
                 SoundEffectsPlayer.PlayWhistle();
 
-                string nextPeriodAnnouncement = _activeMatch.IsExtraTimeStartInterval ? "انطلاق الشوط الإضافي الأول" : _activeMatch.IsExtraTime ? "انطلاق الشوط الإضافي الثاني" : "صافرة انطلاق الشوط الثاني!";
+                string nextPeriodAnnouncement = _activeMatch.IsExtraTimeStartInterval ? T("انطلاق الشوط الإضافي الأول", "First extra-time period") : _activeMatch.IsExtraTime ? T("انطلاق الشوط الإضافي الثاني", "Second extra-time period") : T("صافرة انطلاق الشوط الثاني!", "Second half");
                 var halfTimeMenu = GamePlanMenuBuilder.CreatePauseMenu(
                     _activeMatch, 
                     _screenReader, 
@@ -1032,16 +1034,16 @@ public class AccessibleFootballWindow : Form
             if (userKicksTaken >= 5 && !suddenDeathAnnounced)
             {
                 suddenDeathAnnounced = true;
-                _screenReader.Speak("تعادل الفريقان بعد 5 ركلات! ننتقل للموت المفاجئ: ركلة مقابل ركلة.");
+                _screenReader.Speak(T("تعادل الفريقان بعد 5 ركلات! ننتقل للموت المفاجئ: ركلة مقابل ركلة.", "Level after five penalties. Sudden death."));
             }
 
-            var shotMenu = new AccessibleMenu($"ركلات الترجيح - الركلة رقم {userKicksTaken + 1} لفريقك ({userPenaltiesScored} - {cpuPenaltiesScored}) - اختر زاوية التسديد", _screenReader);
-            shotMenu.AddItem("التسديد في أقصى الزاوية اليمنى", () => ExecuteUserPenaltyShot(0));
-            shotMenu.AddItem("التسديد بقوة في منتصف المرمى", () => ExecuteUserPenaltyShot(1));
-            shotMenu.AddItem("التسديد في أقصى الزاوية اليسرى", () => ExecuteUserPenaltyShot(2));
-            shotMenu.AddItem("اقتراب بطيء والتسديد يميناً", () => ExecuteUserPenaltyShot(0,true));
-            shotMenu.AddItem("اقتراب بطيء والتسديد في المنتصف", () => ExecuteUserPenaltyShot(1,true));
-            shotMenu.AddItem("اقتراب بطيء والتسديد يساراً", () => ExecuteUserPenaltyShot(2,true));
+            var shotMenu = new AccessibleMenu(T($"ركلات الترجيح - الركلة رقم {userKicksTaken + 1} لفريقك ({userPenaltiesScored} - {cpuPenaltiesScored}) - اختر زاوية التسديد", $"Your penalty {userKicksTaken + 1}. Score {userPenaltiesScored} - {cpuPenaltiesScored}. Shot direction"), _screenReader);
+            shotMenu.AddItem(T("التسديد في أقصى الزاوية اليمنى", "Shoot right"), () => ExecuteUserPenaltyShot(0));
+            shotMenu.AddItem(T("التسديد بقوة في منتصف المرمى", "Shoot centre"), () => ExecuteUserPenaltyShot(1));
+            shotMenu.AddItem(T("التسديد في أقصى الزاوية اليسرى", "Shoot left"), () => ExecuteUserPenaltyShot(2));
+            shotMenu.AddItem(T("اقتراب بطيء والتسديد يميناً", "Slow run-up, right"), () => ExecuteUserPenaltyShot(0,true));
+            shotMenu.AddItem(T("اقتراب بطيء والتسديد في المنتصف", "Slow run-up, centre"), () => ExecuteUserPenaltyShot(1,true));
+            shotMenu.AddItem(T("اقتراب بطيء والتسديد يساراً", "Slow run-up, left"), () => ExecuteUserPenaltyShot(2,true));
             Ready(true);
             AfterCommentary(() => PushMenu(shotMenu));
         }
@@ -1063,8 +1065,8 @@ public class AccessibleFootballWindow : Form
             userKicksTaken++;
             if(result.Scored){userPenaltiesScored++;SoundEffectsPlayer.PlayGoalNet();SoundEffectsPlayer.PlayCrowdGoal();}
             else SoundEffectsPlayer.PlayCrowdMiss();
-            string description=result.Scored?"هدف في الشباك":result.KeeperHeld?"الحارس يمسك الركلة":result.Saved?"الحارس يبعد الركلة":"التسديدة خارج المرمى";
-            Outcome(true,result.Scored,result.Saved,$"{description}. النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.",PlayCpuTurn,result);
+            string description=result.Scored?T("هدف في الشباك", "Goal"):result.KeeperHeld?T("الحارس يمسك الركلة", "Keeper holds"):result.Saved?T("الحارس يبعد الركلة", "Keeper saves"):T("التسديدة خارج المرمى", "Shot wide");
+            Outcome(true,result.Scored,result.Saved,T($"{description}. النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.", $"{description}. Your team {userPenaltiesScored}, opponent {cpuPenaltiesScored}."),PlayCpuTurn,result);
         }
 
         void PlayCpuTurn()
@@ -1075,10 +1077,10 @@ public class AccessibleFootballWindow : Form
                 return;
             }
 
-            var diveMenu = new AccessibleMenu($"ركلات الترجيح - الركلة رقم {cpuKicksTaken + 1} للخصم ({userPenaltiesScored} - {cpuPenaltiesScored}) - اختر ارتماء حارسك", _screenReader);
-            diveMenu.AddItem("الارتماء نحو الزاوية اليمنى", () => ExecuteCpuPenaltyShot(0));
-            diveMenu.AddItem("الثبات في منتصف المرمى", () => ExecuteCpuPenaltyShot(1));
-            diveMenu.AddItem("الارتماء نحو الزاوية اليسرى", () => ExecuteCpuPenaltyShot(2));
+            var diveMenu = new AccessibleMenu(T($"ركلات الترجيح - الركلة رقم {cpuKicksTaken + 1} للخصم ({userPenaltiesScored} - {cpuPenaltiesScored}) - اختر ارتماء حارسك", $"Opponent penalty {cpuKicksTaken + 1}. Score {userPenaltiesScored} - {cpuPenaltiesScored}. Keeper direction"), _screenReader);
+            diveMenu.AddItem(T("الارتماء نحو الزاوية اليمنى", "Dive right"), () => ExecuteCpuPenaltyShot(0));
+            diveMenu.AddItem(T("الثبات في منتصف المرمى", "Stay centre"), () => ExecuteCpuPenaltyShot(1));
+            diveMenu.AddItem(T("الارتماء نحو الزاوية اليسرى", "Dive left"), () => ExecuteCpuPenaltyShot(2));
             Ready(false);
             AfterCommentary(() => PushMenu(diveMenu));
         }
@@ -1102,8 +1104,8 @@ public class AccessibleFootballWindow : Form
             cpuKicksTaken++;
             if(result.Scored){cpuPenaltiesScored++;SoundEffectsPlayer.PlayGoalNet();}
             else SoundEffectsPlayer.PlayCrowdCheer();
-            string description=result.Scored?"هدف لصالح الخصم":result.KeeperHeld?"حارسك يمسك ركلة الخصم":result.Saved?"حارسك يبعد ركلة الخصم":"ركلة الخصم خارج المرمى";
-            Outcome(false,result.Scored,result.Saved,$"{description}. النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.",PlayUserTurn,result);
+            string description=result.Scored?T("هدف لصالح الخصم", "Opponent scores"):result.KeeperHeld?T("حارسك يمسك ركلة الخصم", "Your keeper holds"):result.Saved?T("حارسك يبعد ركلة الخصم", "Your keeper saves"):T("ركلة الخصم خارج المرمى", "Opponent shoots wide");
+            Outcome(false,result.Scored,result.Saved,T($"{description}. النتيجة الآن: فريقك {userPenaltiesScored}، والخصم {cpuPenaltiesScored}.", $"{description}. Your team {userPenaltiesScored}, opponent {cpuPenaltiesScored}."),PlayUserTurn,result);
         }
 
         void FinishShootout(MatchEngine m, int uScore, int cScore)
@@ -1118,8 +1120,8 @@ public class AccessibleFootballWindow : Form
             SoundEffectsPlayer.PlayWhistle();
 
             string outcome = uScore > cScore
-                ? $"مبرووووك الفوز العظيم! فاز فريق {m.HomeTeam.Name} بركلات الترجيح بنتيجة {uScore} مقابل {cScore}!"
-                : $"هارد لك! فاز فريق {m.AwayTeam.Name} بركلات الترجيح بنتيجة {cScore} مقابل {uScore}.";
+                ? T($"مبرووووك الفوز العظيم! فاز فريق {m.HomeTeam.Name} بركلات الترجيح بنتيجة {uScore} مقابل {cScore}!", $"{m.HomeTeam.Name} win on penalties, {uScore} - {cScore}.")
+                : T($"هارد لك! فاز فريق {m.AwayTeam.Name} بركلات الترجيح بنتيجة {cScore} مقابل {uScore}.", $"{m.AwayTeam.Name} win on penalties, {cScore} - {uScore}.");
 
             await _screenReader.SpeakUntilFinishedAsync(outcome);
             if (IsDisposed || _activeMatch != null) return;
@@ -1130,7 +1132,7 @@ public class AccessibleFootballWindow : Form
 
         _commentaryEngine.RunAfterRecordedCommentaryAsync(async () =>
         {
-            await _screenReader.SpeakUntilFinishedAsync("انطلاق ركلات الترجيح الحاسمة! 5 ركلات لكل فريق.");
+            await _screenReader.SpeakUntilFinishedAsync(T("انطلاق ركلات الترجيح الحاسمة! 5 ركلات لكل فريق.", "Penalty shootout. Five kicks each."));
             if (!IsDisposed && IsHandleCreated) BeginInvoke(() => { if (_activeMatch == match) PlayUserTurn(); });
         });
     }
@@ -1160,7 +1162,7 @@ public class AccessibleFootballWindow : Form
         {
             SoundEffectsPlayer.StopCrowdAmbiance();
             SoundEffectsPlayer.PlayWhistle();
-            string finalSpeech = $"نهاية المباراة! النتيجة النهائية: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، مقابل {_activeMatch.AwayTeam.Score} لـ {_activeMatch.AwayTeam.Name}. العودة للقائمة الرئيسية.";
+            string finalSpeech = T($"نهاية المباراة! النتيجة النهائية: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، مقابل {_activeMatch.AwayTeam.Score} لـ {_activeMatch.AwayTeam.Name}. العودة للقائمة الرئيسية.", $"Full time: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}, {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.");
             _activeMatch = null;
             _currentMenu = null;
             _menuHistory.Clear();
@@ -1261,13 +1263,13 @@ public class AccessibleFootballWindow : Form
                     // استئناف المباراة مباشرة من قائمة الإيقاف المؤقت الرئيسية
                     if (_activeMatch.State == MatchState.PenaltyShootout)
                     {
-                        _screenReader.Speak("اختر التسديد أو ارتماء الحارس من قائمة ركلات الترجيح.");
+                        _screenReader.Speak(T("اختر التسديد أو ارتماء الحارس من قائمة ركلات الترجيح.", "Penalty direction pending"));
                         return;
                     }
                     bool wasHalfTime = _activeMatch.State == MatchState.HalfTime;
                     if (wasHalfTime)
                     {
-                        _screenReader.Speak("اختر بدء الشوط الثاني من القائمة لاستئناف المباراة.");
+                        _screenReader.Speak(T("اختر بدء الشوط الثاني من القائمة لاستئناف المباراة.", "Interval"));
                         return;
                     }
                     _currentMenu = null;
@@ -1278,18 +1280,18 @@ public class AccessibleFootballWindow : Form
                     if (wasHalfTime)
                     {
                         SoundEffectsPlayer.PlayWhistle();
-                        _commentaryEngine.RunAfterRecordedCommentary(() => _screenReader.Speak(_activeMatch?.IsExtraTime == true ? "انطلاق الشوط الإضافي الثاني" : "صافرة انطلاق الشوط الثاني!"));
+                        _commentaryEngine.RunAfterRecordedCommentary(() => _screenReader.Speak(_activeMatch?.IsExtraTime == true ? T("انطلاق الشوط الإضافي الثاني", "Second extra-time period") : T("صافرة انطلاق الشوط الثاني!", "Second half")));
                     }
                     else
                     {
-                        _screenReader.Speak("استئناف اللقاء");
+                        _screenReader.Speak(T("استئناف اللقاء", "Resuming match"));
                     }
                     _lastFrameTime = DateTime.UtcNow;
                     _gameLoopTimer?.Start();
                     return;
                 }
 
-                _screenReader.Speak("رجوع");
+                _screenReader.Speak(T("رجوع", "Back"));
                 PopMenu();
                 return;
             }
@@ -1386,4 +1388,3 @@ public class AccessibleFootballWindow : Form
         _ => false
     };
 }
-
