@@ -44,6 +44,19 @@ public class DreamTeamBuilder
         return false;
     }
 
+    public bool SelectSourceClubAt(bool opponent, int index, Team club)
+    {
+        var clubs = opponent ? CpuSourceClubs : UserSourceClubs;
+        if (club.IsNationalTeam || index < 0 || index >= 4 || index > clubs.Count ||
+            clubs.Take(index).Any(c => c.Id == club.Id)) return false;
+        // Numbered menu steps are revisitable. A new choice replaces that step and
+        // invalidates downstream choices rather than appending beyond four clubs.
+        clubs.RemoveRange(index, clubs.Count - index);
+        clubs.Add(club);
+        if (!opponent) CpuSourceClubs.Clear();
+        return true;
+    }
+
     /// <summary>
     /// إجراء السحب العشوائي الكامل للتشكيلتين الأساسيتين والاحتياط
     /// </summary>
@@ -60,6 +73,11 @@ public class DreamTeamBuilder
     {
         targetTeam.Players.Clear();
         targetTeam.Bench.Clear();
+        targetTeam.Captain = targetTeam.PenaltyTaker = targetTeam.FreeKickTaker = targetTeam.CornerTaker = null;
+        targetTeam.Score = targetTeam.SubstitutionsUsed = targetTeam.StoppageWindowsUsed = 0;
+        targetTeam.IsExtraTime = targetTeam.WindowConsumedThisStoppage = false;
+        targetTeam.MatchAttackingRight = null;
+        targetTeam.Tactics = new TeamTactics();
 
         var allGks = new List<Player>();
         var allDefs = new List<Player>();
@@ -108,6 +126,9 @@ public class DreamTeamBuilder
         foreach (var p in available)
         {
             if (added >= count) break;
+            // The same source player may occur in several club records or both lists.
+            // Revalidate after each pick, not only in the initial pool snapshot.
+            if (!PickedPlayerIds.Add(p.Id)) continue;
             if (isStartingXI)
             {
                 targetTeam.Players.Add(p);
@@ -116,9 +137,7 @@ public class DreamTeamBuilder
             {
                 targetTeam.Bench.Add(p);
             }
-            PickedPlayerIds.Add(p.Id);
             added++;
         }
     }
 }
-
