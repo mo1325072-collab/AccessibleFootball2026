@@ -50,7 +50,7 @@ public partial class MatchEngine
         }
         float distance = Vector2.Distance(spot, right ? Pitch.RightGoalCenter : Pitch.LeftGoalCenter);
         Publish(new MatchEvent(penalty ? MatchEventType.PenaltyAwarded : MatchEventType.FreeKickAwarded,
-            indirect ? "ركلة حرة غير مباشرة، اضغط S للتمرير" : penalty ? "ركلة جزاء، اضغط W للتسديد" : "ركلة حرة، W للتسديد أو S للتمرير", CurrentZone, subjectPlayer: taker),
+            indirect ? "ركلة حرة غير مباشرة" : penalty ? "ركلة جزاء" : "ركلة حرة", CurrentZone, subjectPlayer: taker),
             ("restart.phase", "ready"), ("foul.distanceToGoal", distance));
         if (!penalty) Publish(new MatchEvent(MatchEventType.FreeKickReady, "الاستعداد للركلة الحرة", CurrentZone, subjectPlayer: taker), ("restart.phase", "ready"), ("foul.distanceToGoal", distance));
     }
