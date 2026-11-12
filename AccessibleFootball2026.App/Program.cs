@@ -26,6 +26,15 @@ internal static class Program
     {
         bool runOnlyTest = args.Contains("--test") || args.Contains("-t");
 
+        if (runOnlyTest)
+        {
+            AttachConsole(ATTACH_PARENT_PROCESS);
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            try { return RunFullAutomatedDemonstration(); }
+            catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+        }
+
+
         string dDriveAudio = @"D:\AccessibleFootball2026\Assets\Audio";
         string appBaseAudio = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio");
         string desktopGameAudio = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "AccessibleFootball2026", "Assets", "Audio");
@@ -70,13 +79,6 @@ internal static class Program
         var coordinator = new SmartAudioCoordinator(screenReader, () => commentaryEngine.IsIdle);
         var anthemEngine = new AnthemEngine(screenReader, Path.Combine(baseAudioDir, "Anthems"));
 
-        if (runOnlyTest)
-        {
-            AttachConsole(ATTACH_PARENT_PROCESS);
-            Console.OutputEncoding = System.Text.Encoding.UTF8;
-            try { return RunFullAutomatedDemonstration(); }
-            catch (Exception error) { Console.Error.WriteLine(error); return 1; }
-        }
 
         ApplicationConfiguration.Initialize();
         var mainWindow = new AccessibleFootballWindow(
@@ -145,8 +147,9 @@ internal static class Program
 
         bool squadsComplete = dream.UserDreamTeam.Players.Count == 11 && dream.CpuDreamTeam.Players.Count == 11;
         Console.WriteLine($"Draft squad sizes: {(squadsComplete ? "PASS" : "FAIL")}");
-        Console.WriteLine("These diagnostics did not test match flow, Windows UI, NVDA or sound playback.");
+        Console.WriteLine("Roster checks above did not test Windows UI, NVDA or sound playback. Engine smoke checks follow.");
         Console.WriteLine("Run tests/MatchFlowRegression for portable match-flow assertions; run AccessibleFootball2026.Tests on Windows for UI tests.");
-        return overlap || !squadsComplete ? 1 : 0;
+        int simulationExit = SimulationDiagnostics.Run(Console.Out);
+        return overlap || !squadsComplete || simulationExit != 0 ? 1 : 0;
     }
 }
