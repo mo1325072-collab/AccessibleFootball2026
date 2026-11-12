@@ -40,6 +40,14 @@ public enum AttackingFocus
 
 public static class TacticsExtensions
 {
+    public static string ToDisplayName(this AttackingFocus value) => LocalizationService.CurrentLanguage == UiLanguage.English
+        ? value switch { AttackingFocus.Balanced => "Balanced", AttackingFocus.Wings => "Wings and crosses", AttackingFocus.Central => "Central passing", AttackingFocus.LongBall => "Long balls", AttackingFocus.ShootOnSight => "Shoot on sight", AttackingFocus.CounterAttack => "Counter-attack", _ => "Balanced" }
+        : value.ToArabicName();
+    public static string ToDisplayName(this DefensiveMarking value) => LocalizationService.CurrentLanguage == UiLanguage.English
+        ? value == DefensiveMarking.ManToMan ? "Man-to-man" : "Zonal" : value.ToArabicName();
+    public static string ToDisplayName(this TacklingAggression value) => LocalizationService.CurrentLanguage == UiLanguage.English
+        ? value.ToString() : value.ToArabicName();
+
     public static string ToArabicName(this AttackingFocus focus) => focus switch
     {
         AttackingFocus.Balanced => "متوازن",
@@ -238,65 +246,65 @@ public class TeamTactics
         if (Focus == AttackingFocus.LongBall && PassingDirectness < 35)
         {
             score -= 25;
-            conflicts.Add("تناقض تكتيكي: اعتماد أسلوب الكرات الطويلة بينما شريط التمرير منخفض (تحضير قصير) مما يشتت اللاعبين!");
+            conflicts.Add(LocalizationService.Text("تناقض تكتيكي: اعتماد أسلوب الكرات الطويلة بينما شريط التمرير منخفض (تحضير قصير) مما يشتت اللاعبين!", "Long-ball focus conflicts with short build-up."));
         }
 
         // 2. تناقض التمريرات البينية وعمق الملعب مع الكرات الطويلة
         if (Focus == AttackingFocus.Central && PassingDirectness > 70)
         {
             score -= 20;
-            conflicts.Add("تناقض تكتيكي: محاولة اختراق العمق بكرات طولية عشوائية تقتل دقة التمرير البيني!");
+            conflicts.Add(LocalizationService.Text("تناقض تكتيكي: محاولة اختراق العمق بكرات طولية عشوائية تقتل دقة التمرير البيني!", "Central passing conflicts with very direct long balls."));
         }
 
         // 3. تناقض الضغط العالي مع خط دفاع متراجع جداً (فجوة خطوط قاتلة)
         if (PressingIntensity > 75 && DefensiveLineDepth < 35)
         {
             score -= 25;
-            conflicts.Add("تفكك الخطوط: ضغط هجومي عالي جداً مع دفاع متراجع يترك مسافة 40 متراً خالية في وسط الملعب!");
+            conflicts.Add(LocalizationService.Text("تفكك الخطوط: ضغط هجومي عالي جداً مع دفاع متراجع يترك مسافة 40 متراً خالية في وسط الملعب!", "High pressing with a deep defensive line leaves gaps between the lines."));
         }
 
         // 4. خطأ مصيدة التسلل مع خط دفاع متراجع داخل الـ 18
         if (OffsideTrap && DefensiveLineDepth < 40)
         {
             score -= 20;
-            conflicts.Add("خلل دفاعي: تفعيل مصيدة التسلل مع خط دفاع متراجع وقريب من منطقة الجزاء يهدد بكسر التسلل وانفرادات كارثية!");
+            conflicts.Add(LocalizationService.Text("خلل دفاعي: تفعيل مصيدة التسلل مع خط دفاع متراجع وقريب من منطقة الجزاء يهدد بكسر التسلل وانفرادات كارثية!", "A deep defensive line weakens the offside trap."));
         }
 
         // 5. تناقض الهجمات المرتدة مع ريتم بطيء وتمرير قصير
         if (Focus == AttackingFocus.CounterAttack && PassingDirectness < 30 && Tempo < 40)
         {
             score -= 20;
-            conflicts.Add("بطء التحول: الهجمات المرتدة تتطلب سرعة وتمريرات مباشرة، والريتم البطيء يمنح الخصم فرصة العودة والتنظيم!");
+            conflicts.Add(LocalizationService.Text("بطء التحول: الهجمات المرتدة تتطلب سرعة وتمريرات مباشرة، والريتم البطيء يمنح الخصم فرصة العودة والتنظيم!", "Slow, short passing delays counter-attacks."));
         }
 
         // 6. تناغم الضغط العالي الخانق (Gegenpressing Harmony)
         if (PressingIntensity >= 70 && DefensiveLineDepth >= 60 && (Tackling == TacklingAggression.Aggressive || Tackling == TacklingAggression.Moderate))
         {
-            synergies.Add("تناغم الضغط العالي الخانق: تقارب الخطوط وشراسة الاستخلاص تخنق بناء الخصم من الخلف!");
+            synergies.Add(LocalizationService.Text("تناغم الضغط العالي الخانق: تقارب الخطوط وشراسة الاستخلاص تخنق بناء الخصم من الخلف!", "High pressing, a high line and committed tackling work together."));
         }
 
         // 7. تناغم الدفاع المحكم والتحولات الصاعقة (Low Block & Counter Harmony)
         if (DefensiveLineDepth <= 35 && Focus == AttackingFocus.CounterAttack && Tempo >= 60 && PassingDirectness >= 50)
         {
-            synergies.Add("تناغم الدفاع والتحول الخاطف: تكتل دفاعي منظم وانفجار ون-تاتش في المساحات خلف المدافعين!");
+            synergies.Add(LocalizationService.Text("تناغم الدفاع والتحول الخاطف: تكتل دفاعي منظم وانفجار ون-تاتش في المساحات خلف المدافعين!", "A deep block and quick direct counter-attacks work together."));
         }
 
         // 8. تناغم دفاع المنطقة والتكتل (Zonal Harmony)
         if (Marking == DefensiveMarking.Zonal && PressingIntensity <= 40)
         {
-            synergies.Add("تناغم دفاع المنطقة المتكتل: تماسك جماعي يغلق المساحات البينية ويعوض فوارق المهارة الفردية!");
+            synergies.Add(LocalizationService.Text("تناغم دفاع المنطقة المتكتل: تماسك جماعي يغلق المساحات البينية ويعوض فوارق المهارة الفردية!", "Zonal marking and a compact low block close passing lanes."));
         }
 
         // 9. تناغم الضغط العالي الخانق مع الرقابة اللصيقة
         if (Marking == DefensiveMarking.ManToMan && PressingIntensity >= 75)
         {
-            synergies.Add("تناغم الضغط الخانق والرقابة الفردية: محاصرة كل لاعب خيار تمرير ومنع بناء الهجمة!");
+            synergies.Add(LocalizationService.Text("تناغم الضغط الخانق والرقابة الفردية: محاصرة كل لاعب خيار تمرير ومنع بناء الهجمة!", "High pressing and man-to-man marking limit passing options."));
         }
 
         // 8. تناغم التيكي تاكا والاستحواذ (Tiki-Taka Harmony)
         if (PassingDirectness <= 30 && Focus == AttackingFocus.Central && Tempo >= 65 && PressingIntensity >= 55)
         {
-            synergies.Add("تناغم التيكي تاكا: انتشار ممتاز وتمريرات سريعة من لمسة ولمستين تضمن السيطرة على مجريات المباراة!");
+            synergies.Add(LocalizationService.Text("تناغم التيكي تاكا: انتشار ممتاز وتمريرات سريعة من لمسة ولمستين تضمن السيطرة على مجريات المباراة!", "Quick short central passing supports possession."));
         }
 
         // 10. فحص التناغم والتناقض الصارم مع الخطة (Formation Contradictions):
@@ -305,25 +313,25 @@ public class TeamTactics
         if (req.IsDefensive && PressingIntensity > 60)
         {
             score -= 30;
-            conflicts.Add($"تناقض تكتيكي كارثي: الخطة الحالية ({req.ArabicName}) دفاعية متكتلة بخمسة مدافعين، ولكن شريط الضغط مضبوط على مستوى عالي ({PressingIntensity}%)! هذا يمزق الخطوط ويترك ثغرات شاسعة بين الدفاع والهجوم ويستنزف اللياقة دون جدوى!");
+            conflicts.Add(LocalizationService.Text($"تناقض تكتيكي كارثي: الخطة الحالية ({req.ArabicName}) دفاعية متكتلة بخمسة مدافعين، ولكن شريط الضغط مضبوط على مستوى عالي ({PressingIntensity}%)! هذا يمزق الخطوط ويترك ثغرات شاسعة بين الدفاع والهجوم ويستنزف اللياقة دون جدوى!", "A defensive five-player back line conflicts with high pressing."));
         }
 
         // تناغم خطة 4-3-3A الهجومية مع الضغط العالي
         if (formation == FormationType.Formation433_Attack && PressingIntensity >= 70)
         {
-            synergies.Add("تناغم هجومي كاسح: تقارب خطوط 4-3-3 A والضغط العالي يخنق الخصم في مناطقه!");
+            synergies.Add(LocalizationService.Text("تناغم هجومي كاسح: تقارب خطوط 4-3-3 A والضغط العالي يخنق الخصم في مناطقه!", "Attacking 4-3-3 and high pressing work together."));
         }
 
         // تناغم خطة 4-3-3B الدفاعية مع محور الارتكاز والتوازن
         if (formation == FormationType.Formation433_Defend && (Focus == AttackingFocus.CounterAttack || Focus == AttackingFocus.Balanced))
         {
-            synergies.Add("تناغم 4-3-3 B المتوازنة: محور الارتكاز الصريح يؤمن ظهر الدفاع ويسهل التحول المنظم!");
+            synergies.Add(LocalizationService.Text("تناغم 4-3-3 B المتوازنة: محور الارتكاز الصريح يؤمن ظهر الدفاع ويسهل التحول المنظم!", "Holding 4-3-3 supports balanced play and counter-attacks."));
         }
 
         // تناغم خطة 5-3-2 و 5-4-1 مع التكتل الدفاعي والمرتدات
         if (req.IsDefensive && PressingIntensity <= 35 && Focus == AttackingFocus.CounterAttack)
         {
-            synergies.Add($"تناغم التكتل الدفاعي الكاتيناتشو ({req.ArabicName}): 5 مدافعين في الزون مع مرتدات سريعة يمنح الفريق أعلى درجات الصلابة!");
+            synergies.Add(LocalizationService.Text($"تناغم التكتل الدفاعي الكاتيناتشو ({req.ArabicName}): 5 مدافعين في الزون مع مرتدات سريعة يمنح الفريق أعلى درجات الصلابة!", "A five-player back line supports a low block and counter-attacks."));
         }
 
         score = Math.Clamp(score, 10, 100);
