@@ -47,23 +47,7 @@ internal static class Program
             walkDir = Path.GetDirectoryName(walkDir);
         }
 
-        string baseAudioDir = appBaseAudio;
-        if (Directory.Exists(dDriveAudio) && Directory.GetFiles(dDriveAudio, "*.*", SearchOption.AllDirectories).Length > 0)
-        {
-            baseAudioDir = dDriveAudio;
-        }
-        else if (slnAudio != null)
-        {
-            baseAudioDir = slnAudio;
-        }
-        else if (Directory.Exists(desktopGameAudio) && Directory.GetFiles(desktopGameAudio, "*.*", SearchOption.AllDirectories).Length > 0)
-        {
-            baseAudioDir = desktopGameAudio;
-        }
-        else if (Directory.Exists(appBaseAudio) && Directory.GetFiles(appBaseAudio, "*.*", SearchOption.AllDirectories).Length > 0)
-        {
-            baseAudioDir = appBaseAudio;
-        }
+        string baseAudioDir = SoundEffectsPlayer.ResolveBestAudioBaseDirectory(appBaseAudio, slnAudio, desktopGameAudio, dDriveAudio);
 
         MatchSettings.Load();
         SoundEffectsPlayer.MasterVolumeSetting = MatchSettings.Current.MasterVolumePercent;
