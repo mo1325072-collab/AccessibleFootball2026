@@ -97,9 +97,9 @@ public class Team
     public string? GetMatchStartIssue()
     {
         int active = Players.Count(p => p.IsActiveOnPitch);
-        if (active < 7) return $"لا يمكن بدء مباراة {Name}: التشكيلة تحتوي على {active} لاعبين متاحين فقط، والحد الأدنى سبعة. بيانات الفريق تحتاج إلى استكمال.";
+        if (active < 7) return LocalizationService.Text($"لا يمكن بدء مباراة {Name}: التشكيلة تحتوي على {active} لاعبين متاحين فقط، والحد الأدنى سبعة. بيانات الفريق تحتاج إلى استكمال.", $"Cannot start {Name}: only {active} active players, minimum seven. Source roster needs completion.");
         int keepers = Players.Count(p => p.IsActiveOnPitch && p.Role == PlayerRole.Goalkeeper);
-        if (keepers != 1) return $"لا يمكن بدء مباراة {Name}: يجب تعيين حارس مرمى واحد في التشكيلة الأساسية. راجع بيانات الفريق أو خطة اللعب.";
+        if (keepers != 1) return LocalizationService.Text($"لا يمكن بدء مباراة {Name}: يجب تعيين حارس مرمى واحد في التشكيلة الأساسية. راجع بيانات الفريق أو خطة اللعب.", $"Cannot start {Name}: exactly one starting goalkeeper is required. Check roster or formation.");
         return null;
     }
 
