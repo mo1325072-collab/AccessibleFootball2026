@@ -61,13 +61,13 @@ foreach(var technique in new[]{ShotTechnique.Driven,ShotTechnique.Lob,ShotTechni
 }
 {
  var(m,ev,input)=Fresh();var p=m.AwayTeam.Players[9];p.Position2D=new Vector2(5,34);m.AwardFoulRestart(p);
- Check(m.Restart?.Kind==RestartKind.Penalty,"Away-team attacking box mirrors home direction");var taker=m.Restart!.Taker;m.Update(2.6f);
+ Check(m.Restart?.Kind==RestartKind.Penalty,"Away-team attacking box mirrors home direction");var taker=m.Restart!.Taker;m.DismissStoppageReplay();m.Update(2.6f);
  Check(ev.Any(e=>e.Type==MatchEventType.ShotTaken && e.SubjectPlayer==taker),"CPU takes its actual set piece");
 }
 {
  var(m,ev,input)=Fresh();m.TriggerHalfTime();Check(ev.Last().Context.Facts["match.half"]=="1","Half-time line snapshots ended first half");m.ResumeMatch();
  Check(ev.Last().Type==MatchEventType.KickOff&&ev.Last().Context.Facts["match.half"]=="2","Resume produces second-half kickoff");
- m.TriggerExtraTime();Check(m.GetCommentarySnapshot().Facts["match.half"]=="3","Extra time starts first extra half");
+ m.TriggerExtraTime();m.ResumeMatch();Check(m.GetCommentarySnapshot().Facts["match.half"]=="3","Extra time starts first extra half");
  typeof(MatchEngine).GetProperty("MatchTimeMinutes")!.SetValue(m,104.99f);m.Update(.1f);
  Check(m.State==MatchState.HalfTime,"105 minutes pauses at extra-time interval");
  Check(ev.Last().Type==MatchEventType.ExtraTimeHalfTime&&ev.Last().Context.Facts["match.half"]=="3","Extra-time interval has ended-half snapshot");
@@ -236,13 +236,13 @@ foreach(var technique in new[]{ShotTechnique.Driven,ShotTechnique.Lob,ShotTechni
 {
  var(m,ev,input)=Fresh();typeof(MatchEngine).GetMethod("AwardCornerKick",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(m,new object[]{false});
  var start=m.Ball.Position;m.Update(1);Check(m.Restart?.Kind==RestartKind.Corner&&m.Ball.Position==start,"CPU corner waits in an actual stopped ready phase");
- m.Update(2);Check(m.Restart==null&&m.Ball.Velocity.Length()>1,"CPU corner is actually kicked only after readiness interval");
+ m.DismissStoppageReplay();m.Update(2.6f);Check(m.Restart==null&&m.Ball.Velocity.Length()>1,"CPU corner is actually kicked only after readiness interval");
  Check(ev.Last(e=>e.Type==MatchEventType.BallKicked).Context.Facts["attack.origin"]=="corner","Taken CPU corner preserves actual corner origin");
 }
 {
  var(m,ev,input)=Fresh();typeof(MatchEngine).GetMethod("AwardCornerKick",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(m,new object[]{true});
  Check(!m.TakeRestartShot(),"Corner cannot be relabeled as free-kick shot through public restart API");
- input.Actions.Add(GameAction.Cross);m.Update(.1f);Check(m.Restart==null&&ev.Last(e=>e.Type==MatchEventType.BallKicked).Context.Facts["attack.origin"]=="corner","User cross consumes corner restart without losing origin");
+ m.DismissStoppageReplay();input.Actions.Add(GameAction.Cross);m.Update(.1f);Check(m.Restart==null&&ev.Last(e=>e.Type==MatchEventType.BallKicked).Context.Facts["attack.origin"]=="corner","User cross consumes corner restart without losing origin");
 }
 {
  var(m,ev,input)=Fresh();var p=m.ActiveUserPlayer;p.Position2D=new Vector2(12,34);p.FacingDirection=Vector2.UnitX;m.Ball.CatchOrTackle(p);m.ExecuteClearance();
