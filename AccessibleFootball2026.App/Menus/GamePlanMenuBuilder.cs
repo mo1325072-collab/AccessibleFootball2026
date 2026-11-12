@@ -168,6 +168,7 @@ public static class GamePlanMenuBuilder
             for (int b = 0; b < userTeam.Bench.Count; b++)
             {
                 var benchPlayer = userTeam.Bench[b];
+                if (match != null && !userTeam.CanEnterAsSubstitute(benchPlayer)) continue;
                 subMenu.AddItem($"{benchPlayer.Name}، مركزه المفضل {benchPlayer.PrimaryPosition}، طاقة {benchPlayer.EffectiveOverallRating}", () =>
                 {
                     bool ok = match != null 
@@ -243,6 +244,7 @@ public static class GamePlanMenuBuilder
         {
             int benchIdx = i;
             var sub = userTeam.Bench[benchIdx];
+            if (match != null && !userTeam.CanEnterAsSubstitute(sub)) continue;
             string itemTitle = $"{benchIdx + 1}. {sub.Name}، {sub.PrimaryPosition}، طاقة {sub.EffectiveOverallRating}، {sub.ConditionDescription}";
 
             menu.AddItem(itemTitle, () =>
@@ -536,12 +538,11 @@ public static class GamePlanMenuBuilder
             : "قائمة الإيقاف المؤقت";
         var menu = new AccessibleMenu(pauseTitle, screenReader);
 
-        string resumeLabel = match.State == MatchState.HalfTime ? "انطلاق الشوط الثاني" : "استئناف المباراة";
+        string resumeLabel = match.State == MatchState.HalfTime ? (match.IsExtraTimeStartInterval ? "بدء الشوط الإضافي الأول" : match.IsExtraTime ? "بدء الشوط الإضافي الثاني" : "بدء الشوط الثاني") : "استئناف المباراة";
         menu.AddItem(resumeLabel, () =>
         {
             bool wasHalfTime = match.State == MatchState.HalfTime;
-            match.ResumeMatch();
-            screenReader.Speak(wasHalfTime ? "انطلاق الشوط الثاني" : "استئناف اللقاء");
+            screenReader.Speak(wasHalfTime ? "بدء الشوط التالي" : "استئناف اللقاء");
             // كلمة المدرب للأجنحة تُسمع فقط إن كانت تعليمة الأجناب مفعّلة فعلاً (مرة لكل تفعيل)
             if (commentaryEngine.ActiveCommentator.Id == CommentatorId.FaresAwad) match.RequestCoachWideInstruction(match.HomeTeam);
             onResumeMatch();
@@ -619,12 +620,14 @@ public static class GamePlanMenuBuilder
 
         menu.AddItem("إحصائيات المباراة", () =>
         {
-            int minute = (int)match.MatchTimeMinutes;
-            string ballOwner = match.Ball.Owner != null ? $"مع اللاعب {match.Ball.Owner.Name}" : "كرة حرة في العشب";
-            string info = $"معلومات المباراة: النتيجة: {match.HomeTeam.Name} {match.HomeTeam.Score}، مقابل {match.AwayTeam.Score} لـ {match.AwayTeam.Name}. " +
-                          $"الدقيقة {minute}. الكرة حالياً في {match.CurrentZone.ToArabicAnnouncement()}، {ballOwner}. " +
-                          $"خطة فريقك: {match.HomeTeam.CurrentFormation.ToArabicName()}";
-            screenReader.Speak(info);
+            var stats = new AccessibleMenu("إحصائيات المباراة. استخدم السهمين للتنقل، وإسكيب للرجوع", screenReader);
+            foreach (string line in match.GetStatisticsAnnouncements())
+            {
+                string item = line;
+                stats.AddItem(item, () => screenReader.Speak(item));
+            }
+            stats.AddItem("رجوع", popMenu);
+            pushMenu(stats);
         });
 
         menu.AddItem("خروج للقائمة الرئيسية", () =>
