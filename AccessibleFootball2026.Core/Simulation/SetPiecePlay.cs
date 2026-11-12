@@ -59,6 +59,12 @@ public partial class MatchEngine
     {
         if (Restart is not { } restart) return false;
         _restartReadySeconds += dt;
+        if (restart.Team == HomeTeam && restart.Kind is RestartKind.ThrowIn or RestartKind.GoalKick)
+        { Restart = null; return false; }
+        var actions = _inputHandler.PollCurrentActions(restart.Team == HomeTeam);
+        if (actions.Contains(GameAction.TacticalRadar)) ReportRequestedRadar();
+        if (actions.Contains(GameAction.RequestLineup)) RequestLineup();
+        if (actions.Contains(GameAction.Pause)) { PauseMatch(); return true; }
         if (restart.Kind is RestartKind.ThrowIn or RestartKind.GoalKick)
         {
             if (restart.Team == HomeTeam) { Restart = null; return false; }
@@ -77,8 +83,6 @@ public partial class MatchEngine
         }
         if (restart.Team == HomeTeam)
         {
-            var actions = _inputHandler.PollCurrentActions(true);
-            if (actions.Contains(GameAction.Pause)) { PauseMatch(); return true; }
             if (actions.Contains(GameAction.MoveUp)) AdjustAimingAngle(-dt);
             if (actions.Contains(GameAction.MoveDown)) AdjustAimingAngle(dt);
             if(restart.Kind==RestartKind.Corner)
