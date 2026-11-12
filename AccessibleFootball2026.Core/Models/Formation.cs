@@ -169,7 +169,7 @@ public static class FormationManager
         )
     };
 
-    public static void ApplyFormation(Team team, FormationType type)
+    public static void ApplyFormation(Team team, FormationType type, bool assignPositions = false)
     {
         bool isHome = team.MatchAttackingRight ?? team.Side == TeamSide.Home;
         Vector2 MapPos(float x, float y) => isHome ? new Vector2(x, y) : new Vector2(105.0f - x, 68.0f - y);
@@ -186,10 +186,12 @@ public static class FormationManager
 
         var outfield = activePlayers.Where(p => p != gk).ToList();
         var slots = GetFormationSlotCoordinates(type);
+        var positions = GetFormationPositions(type);
 
         for (int i = 0; i < outfield.Count && i < slots.Count; i++)
         {
             outfield[i].HomePosition = MapPos(slots[i].X, slots[i].Y);
+            if (assignPositions) outfield[i].CurrentAssignedPosition = positions[i];
         }
 
         foreach (var p in activePlayers)
@@ -203,6 +205,19 @@ public static class FormationManager
             p.HomePosition = new Vector2(-100f, -100f);
         }
     }
+
+    private static SpecificPosition[] GetFormationPositions(FormationType type) => type switch
+    {
+        FormationType.Formation433_Attack => new[] { SpecificPosition.LB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RB, SpecificPosition.CDM, SpecificPosition.CM, SpecificPosition.CAM, SpecificPosition.LW, SpecificPosition.ST, SpecificPosition.RW },
+        FormationType.Formation4231_Wide => new[] { SpecificPosition.LB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RB, SpecificPosition.CDM, SpecificPosition.CDM, SpecificPosition.CAM, SpecificPosition.LM, SpecificPosition.ST, SpecificPosition.RM },
+        FormationType.Formation442_Flat => new[] { SpecificPosition.LB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RB, SpecificPosition.LM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.RM, SpecificPosition.ST, SpecificPosition.ST },
+        FormationType.Formation41212_Diamond => new[] { SpecificPosition.LB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RB, SpecificPosition.CDM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.CAM, SpecificPosition.ST, SpecificPosition.ST },
+        FormationType.Formation352_Wings => new[] { SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.LWB, SpecificPosition.CM, SpecificPosition.CAM, SpecificPosition.CM, SpecificPosition.RWB, SpecificPosition.ST, SpecificPosition.ST },
+        FormationType.Formation532_Counter => new[] { SpecificPosition.LWB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RWB, SpecificPosition.CM, SpecificPosition.CDM, SpecificPosition.CM, SpecificPosition.ST, SpecificPosition.ST },
+        FormationType.Formation343_AllOut => new[] { SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.LM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.RM, SpecificPosition.LW, SpecificPosition.ST, SpecificPosition.RW },
+        FormationType.Formation541_Bus => new[] { SpecificPosition.LWB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RWB, SpecificPosition.LM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.RM, SpecificPosition.ST },
+        _ => new[] { SpecificPosition.LB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RB, SpecificPosition.CDM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.LW, SpecificPosition.ST, SpecificPosition.RW }
+    };
 
     private static List<Vector2> GetFormationSlotCoordinates(FormationType type) => type switch
     {
@@ -218,6 +233,16 @@ public static class FormationManager
             new(72.0f, 14.0f), // LW
             new(76.0f, 34.0f), // ST
             new(72.0f, 54.0f)  // RW
+        },
+        FormationType.Formation41212_Diamond => new()
+        {
+            new(22,12), new(18,26), new(18,42), new(22,56),
+            new(36,34), new(47,24), new(47,44), new(58,34), new(74,28), new(74,40)
+        },
+        FormationType.Formation343_AllOut => new()
+        {
+            new(19,20), new(17,34), new(19,48),
+            new(45,12), new(43,26), new(43,42), new(45,56), new(72,14), new(76,34), new(72,54)
         },
         FormationType.Formation4231_Wide => new()
         {
