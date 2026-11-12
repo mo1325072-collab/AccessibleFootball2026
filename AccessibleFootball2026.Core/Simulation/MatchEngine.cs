@@ -273,6 +273,13 @@ public partial class MatchEngine
         }
     }
 
+    private void ReportRequestedRadar()
+    {
+        if (DateTime.UtcNow - _lastRadarTime <= TimeSpan.FromMilliseconds(1200)) return;
+        _lastRadarTime = DateTime.UtcNow;
+        ReportTacticalRadar();
+    }
+
     private readonly IInputHandler _inputHandler;
     private DateTime _lastRadarTime = DateTime.MinValue;
 
@@ -304,7 +311,15 @@ public partial class MatchEngine
     public void Update(float deltaTime)
     {
         RunNativeAutomation();
-        if (AwaitingStoppageConfirmation) return;
+        if (AwaitingStoppageConfirmation)
+        {
+            // Held incidents freeze play, not explicit information requests. Consume unsafe queued
+            // actions here so a shot/tackle tapped during narration cannot fire after dismissal.
+            var heldActions = _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
+            if (heldActions.Contains(GameAction.TacticalRadar)) ReportRequestedRadar();
+            if (heldActions.Contains(GameAction.RequestLineup)) RequestLineup();
+            return;
+        }
         if (State == MatchState.GoalCelebration)
         {
             if (AutomaticGoalRestart) AdvanceGoalCelebration(deltaTime);
@@ -486,14 +501,7 @@ public partial class MatchEngine
         if (actions.Contains(GameAction.SlowRunUp)) BeginSlowRunUp();
         if (actions.Contains(GameAction.RequestLineup)) RequestLineup();
         // الرادار التكتيكي اللحظي على الطلب (Space أو C)
-        if (actions.Contains(GameAction.TacticalRadar))
-        {
-            if (DateTime.UtcNow - _lastRadarTime > TimeSpan.FromMilliseconds(1200))
-            {
-                _lastRadarTime = DateTime.UtcNow;
-                ReportTacticalRadar();
-            }
-        }
+        if (actions.Contains(GameAction.TacticalRadar)) ReportRequestedRadar();
 
         Vector2 moveDir = Vector2.Zero;
         if (_slideDurationTimer <= 0.0f)
