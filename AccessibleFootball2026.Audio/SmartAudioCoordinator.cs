@@ -78,13 +78,13 @@ public class SmartAudioCoordinator
         {
             // إذا كان الحدث ناتجاً عن تبديل المدافع (يحتوي على "-") أثناء تفعيل الصمت التام
             // يتم تشغيل النغمة اللمسية الخاطفة فقط بدون نطق أي كلام إطلاقاً
-            if (SilenceLiveMatchSpeech && matchEvent.Description.Contains("-"))
+            if (SilenceLiveMatchSpeech && matchEvent.Context.TryGet("radar.reason", out var reason) && reason == "playerSwitch")
             {
                 SoundEffectsPlayer.PlayPlayerSwitch();
                 return;
             }
 
-            if (matchEvent.Description.Contains("بعيد"))
+            if (matchEvent.Context.TryGet("radar.reason", out var tackleReason) && tackleReason == "tackleMissed")
             {
                 SoundEffectsPlayer.PlayTackleMissed();
                 if (SilenceLiveMatchSpeech)
