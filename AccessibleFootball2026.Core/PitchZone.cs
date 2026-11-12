@@ -15,6 +15,12 @@ public enum PitchZone
 
 public static class PitchZoneExtensions
 {
+    public static string ToEnglishAnnouncement(this PitchZone zone) => zone switch
+    {
+        PitchZone.OwnThird => "Own half", PitchZone.Midfield => "Midfield",
+        PitchZone.AttackingThird => "Attacking third", PitchZone.OpponentPenaltyBox => "Opponent penalty area",
+        PitchZone.LeftWing => "Left wing", PitchZone.RightWing => "Right wing", _ => string.Empty
+    };
     public static string ToArabicAnnouncement(this PitchZone zone) => zone switch
     {
         PitchZone.OwnThird => "في نص ملعبك",
