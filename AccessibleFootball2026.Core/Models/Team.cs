@@ -94,6 +94,15 @@ public class Team
         return copy;
     }
 
+    public string? GetMatchStartIssue()
+    {
+        int active = Players.Count(p => p.IsActiveOnPitch);
+        if (active < 7) return $"لا يمكن بدء مباراة {Name}: التشكيلة تحتوي على {active} لاعبين متاحين فقط، والحد الأدنى سبعة. بيانات الفريق تحتاج إلى استكمال.";
+        int keepers = Players.Count(p => p.IsActiveOnPitch && p.Role == PlayerRole.Goalkeeper);
+        if (keepers != 1) return $"لا يمكن بدء مباراة {Name}: يجب تعيين حارس مرمى واحد في التشكيلة الأساسية. راجع بيانات الفريق أو خطة اللعب.";
+        return null;
+    }
+
     public void SetupFormation433()
     {
         CurrentFormation = FormationType.Formation433_Attack;
