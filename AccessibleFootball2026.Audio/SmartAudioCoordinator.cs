@@ -93,7 +93,7 @@ public class SmartAudioCoordinator
                 }
             }
 
-            SpeakWithDucking(matchEvent.Description);
+            SpeakWithDucking(matchEvent.Description, explicitRequest: true);
             return;
         }
 
@@ -316,14 +316,15 @@ public class SmartAudioCoordinator
         }
         if (generation != Volatile.Read(ref _goalSequenceGeneration)) return;
         OnCrowdVolumeDucking?.Invoke(.2f);
-        try { await _screenReader.SpeakUntilFinishedAsync(goalData.ToOfficialAnnouncement() + ". اضغط إنتر لإنهاء الإعادة واستئناف المباراة."); }
+        try { if (AccessibleFootball2026.Core.Models.MatchSettings.Current.ScreenReaderSpokenEventsEnabled) await _screenReader.SpeakUntilFinishedAsync(goalData.ToOfficialAnnouncement() + ". اضغط إنتر لإنهاء الإعادة واستئناف المباراة."); }
         finally {OnCrowdVolumeDucking?.Invoke(1f);}
         if (generation == Volatile.Read(ref _goalSequenceGeneration))
         { HasPendingGoalAnnouncement = false; OnGoalSequenceCompleted?.Invoke(); }
     }
 
-    private void SpeakWithDucking(string text)
+    private void SpeakWithDucking(string text, bool explicitRequest = false)
     {
+        if (!explicitRequest && !AccessibleFootball2026.Core.Models.MatchSettings.Current.ScreenReaderSpokenEventsEnabled) return;
         OnCrowdVolumeDucking?.Invoke(0.2f);
         _screenReader.Speak(text, interrupt: true);
 
