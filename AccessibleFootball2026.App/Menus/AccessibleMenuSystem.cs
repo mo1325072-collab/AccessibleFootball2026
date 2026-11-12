@@ -225,6 +225,8 @@ public class AccessibleMenu
 {
     public string MenuTitle { get; }
     public bool SuppressSelectSound { get; set; } = false;
+    public Action? OnClosed { get; set; }
+    public void Close() => OnClosed?.Invoke();
     private readonly List<AccessibleMenuItem> _items = new();
     private int _selectedIndex = 0;
     private readonly IScreenReader _screenReader;
