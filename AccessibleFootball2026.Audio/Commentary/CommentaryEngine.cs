@@ -45,6 +45,15 @@ public class CommentaryEngine : IDisposable
     private const int MaxPendingLines = 6;
     private Timer? _dispatcher;
     private int _dispatchActive;
+    private volatile bool _runningCallback;
+    public object SpeechGate { get; } = new();
+    public Func<bool>? IsReaderSpeaking { get; set; }
+    public event Action? OnUrgentInterruption;
+    public bool IsRecordedChannelBusy
+    {
+        get { lock (_queueLock) return SoundEffectsPlayer.IsCommentaryPlaying() ||
+            (!_runningCallback && _pendingLines.Any(p => p.ClipPath != null || p.Phrase != null)); }
+    }
 
     // خريطة ربط صريحة اختيارية (commentary_map.json): eventKey -> مسارات نسبية لمقاطع محددة
     private Dictionary<string, string[]>? _manifest;
@@ -291,27 +300,29 @@ public class CommentaryEngine : IDisposable
         if (Interlocked.Exchange(ref _dispatchActive, 1) == 1) return;
         try
         {
-            if (SoundEffectsPlayer.IsCommentaryPlaying()) return;
-
             PendingLine? next;
-            lock (_queueLock)
+            lock (SpeechGate)
             {
-                next = _pendingLines.Count > 0 ? _pendingLines.Dequeue() : null;
+                if (SoundEffectsPlayer.IsCommentaryPlaying() || IsReaderSpeaking?.Invoke() == true) return;
+                lock (_queueLock) next = _pendingLines.Count > 0 ? _pendingLines.Dequeue() : null;
+                if (next == null) return;
+                if (next.ClipPath != null)
+                {
+                    _lastCommentaryTime = DateTime.UtcNow;
+                    SoundEffectsPlayer.PlayCommentaryAudio(next.ClipPath);
+                    OnRecordedCommentaryStarted?.Invoke(next.ClipPath);
+                    return;
+                }
+                _runningCallback = next.AsyncCallback != null || next.Callback != null;
             }
-            if (next == null) return;
-
-            if (next.ClipPath != null)
+            if(next.AsyncCallback!=null)
             {
-                _lastCommentaryTime = DateTime.UtcNow;
-                SoundEffectsPlayer.PlayCommentaryAudio(next.ClipPath);
-                OnRecordedCommentaryStarted?.Invoke(next.ClipPath);
-            }
-            else if(next.AsyncCallback!=null)
-            {
+                _runningCallback = true;
                 await next.AsyncCallback();
             }
             else if (next.Callback != null)
             {
+                _runningCallback = true;
                 next.Callback();
             }
             else if (next.Phrase != null && next.Event != null)
@@ -323,6 +334,7 @@ public class CommentaryEngine : IDisposable
         catch { }
         finally
         {
+            _runningCallback = false;
             _dispatchActive = 0;
         }
     }
@@ -377,6 +389,13 @@ public class CommentaryEngine : IDisposable
 
     public bool TryCommentOnEvent(MatchEvent matchEvent, bool force = false)
     {
+        // Only a real goal or awarded penalty may cut a sentence. All other events queue or drop.
+        if (matchEvent.Type is MatchEventType.GoalScored or MatchEventType.PenaltyAwarded)
+        {
+            ClearPendingLines();
+            SoundEffectsPlayer.StopCommentaryAudio();
+            OnUrgentInterruption?.Invoke();
+        }
         bool isFinalAnalysis = matchEvent.Type == MatchEventType.MatchAnalysis && matchEvent.Context.TryGet("match.finished",out var finished) && finished=="true";
         bool isCritical = isFinalAnalysis || matchEvent.Type is MatchEventType.GoalScored or MatchEventType.DramaticComeback or MatchEventType.HatTrickAchieved or MatchEventType.WoodworkHit or MatchEventType.RedCard or MatchEventType.FullTime or MatchEventType.HalfTime or MatchEventType.ExtraTimeHalfTime or MatchEventType.PenaltyAwarded or MatchEventType.FreeKickAwarded;
 
