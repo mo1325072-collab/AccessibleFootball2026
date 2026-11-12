@@ -153,6 +153,7 @@ public partial class MatchEngine
 
     public void ResumeMatch()
     {
+        if (PendingInjuryPlayer != null) return;
         bool intervalEnded = State == MatchState.HalfTime;
         if (State != MatchState.HalfTime && State != MatchState.Paused) return;
         State = intervalEnded ? MatchState.InPlay : _stateBeforePause;
@@ -166,6 +167,7 @@ public partial class MatchEngine
     public bool MakeSubstitution(Team team, Player playerOut, Player playerIn)
     {
         if(team!=HomeTeam&&team!=AwayTeam)return false;
+        if (PendingInjuryPlayer != null && !_resolvingInjuryChoice) return false;
         if(playerOut.IsSentOff||playerIn.IsSentOff||!team.Players.Contains(playerOut)||!team.Bench.Contains(playerIn)||!CanMakeSubstitution(team))return false;
         Publish(new MatchEvent(MatchEventType.SubstitutionPlanned, $"تجهيز تبديل {playerOut.Name} بـ {playerIn.Name}", subjectPlayer:playerIn));
         BeginSubstitutionStoppage();
@@ -185,7 +187,7 @@ public partial class MatchEngine
             }
             Publish(new MatchEvent(MatchEventType.SubstitutionMade, $"تبديل: خروج {playerOut.Name} ودخول {playerIn.Name} ({team.SubstitutionsUsed}/{team.MaxSubstitutions})", subjectPlayer: playerIn),
                 ("substitution.playerRating", PerformanceOf(playerOut).Rating),
-                ("substitution.reason", playerOut.InjuryStatus == PlayerInjuryStatus.MinorKnock ? "minorInjury" : "tactical"),
+                ("substitution.reason", playerOut.InjuryStatus == PlayerInjuryStatus.SevereInjury ? "severeInjury" : playerOut.InjuryStatus == PlayerInjuryStatus.MinorKnock ? "minorInjury" : "tactical"),
                 ("restart.held", AwaitingStoppageConfirmation), ("restart.teamName", Restart?.Team.Name),
                 ("restart.takerName", Restart?.Taker.Name));
         }
@@ -310,6 +312,11 @@ public partial class MatchEngine
 
     public void Update(float deltaTime)
     {
+        if (PendingInjuryPlayer != null)
+        {
+            _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
+            return; // No clock, ball, CPU actions or optional auto-substitution before the user's choice.
+        }
         RunNativeAutomation();
         if (AwaitingStoppageConfirmation)
         {
@@ -1502,33 +1509,24 @@ public partial class MatchEngine
             string desc = $"إصابة بالغة للاعب {player.Name}! تستدعي الخروج الإجباري.";
             Publish(new MatchEvent(MatchEventType.PlayerInjured, desc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: player), ("injury.severity", status == PlayerInjuryStatus.MinorKnock ? "minor" : "severe"));
 
-            bool substituted = ExecuteForcedSubstitution(playerTeam, player);
-            if (!substituted)
+            if (playerTeam == HomeTeam)
             {
-                RemovePlayerFromPlay(player, playerTeam, sentOff: false);
-                if (Restart is { } pending && pending.Taker == player)
-                {
-                    var availableTaker = playerTeam.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper)
-                        ?? playerTeam.Players.FirstOrDefault(p => p.IsActiveOnPitch);
-                    if (availableTaker != null)
-                    {
-                        Restart = pending with { Taker = availableTaker };
-                        availableTaker.Position2D = pending.Spot;
-                        Ball.CatchOrTackle(availableTaker);
-                        RecordBallTouch(availableTaker);
-                        if (playerTeam == HomeTeam) ActiveUserPlayer = availableTaker;
-                    }
-                }
-                int remaining = playerTeam.Players.Count(p => p.IsActiveOnPitch);
-                string exhaustedDesc = $"لا يوجد تبديل قانوني مناسب لـ {player.Name}. يغادر مصاباً، ويتبقى {remaining} لاعبين في {playerTeam.Name}.";
-                Publish(new MatchEvent(MatchEventType.PlayerInjured, exhaustedDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: player),
-                    ("injury.severity", "severe"), ("injury.replaced", false));
+                BeginSubstitutionStoppage();
+                _pendingInjuryChoices.Enqueue(player);
+                if (!CanMakeSubstitution(playerTeam) || !playerTeam.Bench.Any(playerTeam.CanEnterAsSubstitute))
+                    LeavePitchInjured(player, playerTeam);
+                // The user, not a strongest-compatible-player heuristic, owns the replacement choice.
+            }
+            else if (!ExecuteForcedSubstitution(playerTeam, player))
+            {
+                LeavePitchInjured(player, playerTeam);
             }
         }
     }
 
     public bool ExecuteForcedSubstitution(Team team, Player injuredPlayer)
     {
+        if (team == HomeTeam) return false; // Never silently choose for the human team.
         if (team.CanMakeSubstitution(State == MatchState.HalfTime) && team.Bench.Count > 0)
         {
             var replacement = AccessibleFootball2026.Core.Tactics.TacticalAiAdvisor.FindBestBenchReplacement(team, injuredPlayer);
