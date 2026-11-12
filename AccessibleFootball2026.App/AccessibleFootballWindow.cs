@@ -340,7 +340,7 @@ public class AccessibleFootballWindow : Form
             StartMatchWizardFlow();
         });
 
-        menu.AddItem("نهائي كأس مخصص (أشواط إضافية وترجيح عند التعادل)", () => StartMatchWizardFlow(cupFinal: true));
+        menu.AddItem("نهائي كأس مخصص", () => StartMatchWizardFlow(cupFinal: true));
 
         menu.AddItem("الكلاسيكو (ريال مدريد × برشلونة)", () =>
         {
@@ -715,19 +715,27 @@ public class AccessibleFootballWindow : Form
                     _screenReader.Speak($"المشاركون في {currentTourney.Name} هم: {names}");
                 });
 
-                tourneyMenu.AddItem("بدء مباراة", () =>
+                tourneyMenu.AddItem("اختيار مباراة", () =>
                 {
-                    if (currentTourney.Teams.Count >= 2)
+                    var homeMenu = new AccessibleMenu("اختر فريقك", _screenReader);
+                    foreach (var availableHome in currentTourney.Teams)
                     {
-                        var team1 = currentTourney.Teams[0];
-                        var team2 = currentTourney.Teams[1];
-                        var commMenu = CreateCommentatorSelectMenu(_ =>
+                        var team1 = availableHome;
+                        homeMenu.AddItem(team1.Name, () =>
                         {
-                            // نسخ مستقلة حتى لا ترث مباراة جديدة حالة مباراة سابقة من نفس الكائنات
-                            StartInteractiveMatch(team1.Clone(TeamSide.Home), team2.Clone(TeamSide.Away));
+                            var awayMenu = new AccessibleMenu("اختر الخصم", _screenReader);
+                            foreach (var availableAway in currentTourney.Teams.Where(t => t.Id != team1.Id))
+                            {
+                                var team2 = availableAway;
+                                awayMenu.AddItem(team2.Name, () => PushMenu(CreateCommentatorSelectMenu(_ =>
+                                    StartInteractiveMatch(team1.Clone(TeamSide.Home), team2.Clone(TeamSide.Away)))));
+                            }
+                            awayMenu.AddItem("رجوع", PopMenu);
+                            PushMenu(awayMenu);
                         });
-                        PushMenu(commMenu);
                     }
+                    homeMenu.AddItem("رجوع", PopMenu);
+                    PushMenu(homeMenu);
                 });
 
                 tourneyMenu.AddItem("رجوع", () => PopMenu());
@@ -819,7 +827,7 @@ public class AccessibleFootballWindow : Form
         match.OnAnalysisReplayReady += replay =>
         {
             _commentaryEngine.QueuePlayReplay(replay);
-            _screenReader.Speak("إعادة اللقطة. اضغط إنتر بعد التعليق لاستئناف المباراة.");
+            _screenReader.Speak("إعادة اللقطة.");
             // Even when a replay sound is missing, keep the incident held for Enter.
         };
 
@@ -1305,21 +1313,6 @@ public class AccessibleFootballWindow : Form
                 e.SuppressKeyPress = true;
                 _inputHandler.Reset();
                 _replayDismissRequested = true;
-                return;
-            }
-            if (e.KeyCode == Keys.Space)
-            {
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-
-                string ballStatus = _activeMatch.Ball.Owner != null
-                    ? $"الكرة مع {_activeMatch.Ball.Owner.Name} ({_activeMatch.Ball.Owner.CurrentAssignedPosition})"
-                    : (_activeMatch.IsPassInTransit ? "الكرة في تمريرة" : "الكرة حرة");
-
-                string zoneStatus = _activeMatch.CurrentZone.ToArabicAnnouncement();
-
-                string matchInfo = $"{ballStatus}. {zoneStatus}. الدقيقة {(int)_activeMatch.MatchTimeMinutes}. النتيجة: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.";
-                _screenReader.Speak(matchInfo, interrupt: true);
                 return;
             }
 
