@@ -61,6 +61,7 @@ public partial class MatchEngine
 
     private void BeginCommentaryPass(Player sender, Player? target, Vector2 destination, string type, string height, bool cross = false)
     {
+        if (TeamOf(sender) is { } passingTeam) StatisticsFor(passingTeam).Passes++;
         _commentaryPass = new PendingPass(sender, target, type, height, sender.Position2D, destination, cross, _elapsedSeconds);
     }
 
