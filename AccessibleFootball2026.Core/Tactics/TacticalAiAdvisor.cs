@@ -262,8 +262,8 @@ public class TacticalAiAdvisor
                 {
                     list.Add(new TacticalRecommendation
                     {
-                        Title = $"إجراء تبديل تكتيكي: خروج {tiredPlayer.Name} ودخول {bestSub.Name}",
-                        Description = $"تجديد الدماء في مركز {tiredPlayer.CurrentAssignedPosition} لرفع الفعالية والضغط.",
+                        Title = LocalizationService.Text($"إجراء تبديل تكتيكي: خروج {tiredPlayer.Name} ودخول {bestSub.Name}", $"Substitute {tiredPlayer.Name} with {bestSub.Name}"),
+                        Description = LocalizationService.Text($"تجديد الدماء في مركز {tiredPlayer.CurrentAssignedPosition} لرفع الفعالية والضغط.", $"Fresh player at {tiredPlayer.CurrentAssignedPosition}"),
                         PlayerToSubOut = tiredPlayer,
                         PlayerToSubIn = bestSub,
                         ApplyAction = () =>
@@ -286,9 +286,9 @@ public class TacticalAiAdvisor
             list.Add(new TacticalRecommendation
             {
                 Title = suggestedFormation == FormationType.Formation343_AllOut
-                    ? "التحول إلى خطة 3-4-3 الهجومية الكاسحة (All Out Attack)"
-                    : "التحول إلى خطة 4-3-3 الهجومية (ضغط عالي)",
-                Description = "زيادة عدد المهاجمين والأجنحة للعودة في النتيجة وتكثيف الكرات داخل الصندوق.",
+                    ? LocalizationService.Text("التحول إلى خطة 3-4-3 الهجومية الكاسحة (All Out Attack)", "Switch to 3-4-3 attack")
+                    : LocalizationService.Text("التحول إلى خطة 4-3-3 الهجومية (ضغط عالي)", "Switch to 4-3-3 attack"),
+                Description = LocalizationService.Text("زيادة عدد المهاجمين والأجنحة للعودة في النتيجة وتكثيف الكرات داخل الصندوق.", "Add forwards and wide players while trailing."),
                 SuggestedFormation = suggestedFormation,
                 ApplyAction = () =>
                 {
@@ -302,8 +302,8 @@ public class TacticalAiAdvisor
         {
             list.Add(new TacticalRecommendation
             {
-                Title = "التحول إلى خطة 5-3-2 الدفاعية (هجمات مرتدة)",
-                Description = "تأمين الخط الخلفي بخمسة مدافعين وإغلاق المساحات لضمان الفوز.",
+                Title = LocalizationService.Text("التحول إلى خطة 5-3-2 الدفاعية (هجمات مرتدة)", "Switch to 5-3-2 counter"),
+                Description = LocalizationService.Text("تأمين الخط الخلفي بخمسة مدافعين وإغلاق المساحات لضمان الفوز.", "Add a fifth defender while protecting the lead."),
                 SuggestedFormation = FormationType.Formation532_Counter,
                 ApplyAction = () =>
                 {
@@ -317,8 +317,8 @@ public class TacticalAiAdvisor
         {
             list.Add(new TacticalRecommendation
             {
-                Title = "التحول إلى خطة 4-2-3-1 المتوازنة",
-                Description = "تحكم كامل في منطقة العمليات واستحواذ مرن على الكرة.",
+                Title = LocalizationService.Text("التحول إلى خطة 4-2-3-1 المتوازنة", "Switch to 4-2-3-1 balanced"),
+                Description = LocalizationService.Text("تحكم كامل في منطقة العمليات واستحواذ مرن على الكرة.", "Balance midfield cover and possession."),
                 SuggestedFormation = FormationType.Formation4231_Wide,
                 ApplyAction = () =>
                 {
@@ -339,14 +339,14 @@ public class TacticalAiAdvisor
         if (needsAdjustment)
         {
             string desc = idealTactics.PressingIntensity <= 30
-                ? $"خفض الضغط لـ {idealTactics.PressingIntensity} ودفاع منطقة وتمرير مباشر لتأمين التقدم وتوفير طاقة كبار السن."
+                ? LocalizationService.Text($"خفض الضغط لـ {idealTactics.PressingIntensity} ودفاع منطقة وتمرير مباشر لتأمين التقدم وتوفير طاقة كبار السن.", $"Pressing {idealTactics.PressingIntensity}, zonal marking and direct passing to protect the lead and stamina.")
                 : (idealTactics.PressingIntensity >= 75
-                    ? $"رفع الضغط لـ {idealTactics.PressingIntensity} والكرات المباشرة لقلب النتيجة واقتناص التعادل."
-                    : $"تعديل شريط الضغط لـ {idealTactics.PressingIntensity} وشريط التمرير لـ {idealTactics.PassingDirectness} لتحقيق التوازن.");
+                    ? LocalizationService.Text($"رفع الضغط لـ {idealTactics.PressingIntensity} والكرات المباشرة لقلب النتيجة واقتناص التعادل.", $"Pressing {idealTactics.PressingIntensity} and direct passing while trailing.")
+                    : LocalizationService.Text($"تعديل شريط الضغط لـ {idealTactics.PressingIntensity} وشريط التمرير لـ {idealTactics.PassingDirectness} لتحقيق التوازن.", $"Pressing {idealTactics.PressingIntensity}, passing directness {idealTactics.PassingDirectness}."));
 
             list.Add(new TacticalRecommendation
             {
-                Title = $"تطبيق التكتيك المقترح: ضغط ({idealTactics.PressingIntensity})، تمرير ({idealTactics.PassingDirectness})، {idealTactics.Marking.ToArabicName()}",
+                Title = LocalizationService.Text($"تطبيق التكتيك المقترح: ضغط ({idealTactics.PressingIntensity})، تمرير ({idealTactics.PassingDirectness})، {idealTactics.Marking.ToArabicName()}", $"Apply pressing {idealTactics.PressingIntensity}, passing {idealTactics.PassingDirectness}, {idealTactics.Marking.ToDisplayName()}"),
                 Description = desc,
                 ApplyAction = () =>
                 {
