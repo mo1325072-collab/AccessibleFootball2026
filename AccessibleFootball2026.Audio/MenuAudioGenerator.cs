@@ -73,6 +73,8 @@ public static class MenuAudioGenerator
     {
         // لا نستبدل موسيقى قوائم حقيقية وفّرها المستخدم (ملف مرفوع ضمن الحزمة) - نولّد فقط عند الغياب
         if (File.Exists(path) && new FileInfo(path).Length > 100) return;
+        string mp3 = Path.ChangeExtension(path, ".mp3");
+        if (File.Exists(mp3) && new FileInfo(mp3).Length > 100) return;
         int sampleRate = 44100;
         int seconds = 8;
         int frames = sampleRate * seconds;
