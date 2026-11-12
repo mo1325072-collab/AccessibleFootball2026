@@ -1,21 +1,8 @@
 {
  "date": "2026-11-12",
- "completedNextStep": "04487 fully corroborated direct coach praise becomes an actual once-per-assisted-goal response after official announcement, before restart. 04472 resolved 2026-11-12 by user listening confirmation «كورة ما زالت مستمرة»: bound to sustained live-play continuation (PossessionPlay, possession >= 5s), explicitly not goal/stoppage. 2026-11-12 second pass: 10 understood-but-unrepresented recordings wired to newly modeled real engine events. Applause lines 01643/01644/01647 require the bundled genuine CC0 stadium applause recording (SFX/Crowd/CrowdApplause.wav) to actually start first (applause.played=true) plus substitution.playerRating>=8. Coach/player reaction lines 00010/00033/01107/01445/01492/01629/02959 require explicitly modeled reaction states (joyfulLead, anxious, dejected, displeasedConceded, sad, devastated) set only by their actual match causes with a 90-second window; no score-to-face inference, no visual claim. 01616 stays held: the Blatter provocation is a historical cause no ordinary current match event can establish. 2026-11-12 third pass: 01032 implemented as the wide touchline-then-recover instruction (CoachWideInstruction).",
+ "completedNextStep": "04487 fully corroborated direct coach praise becomes an actual once-per-assisted-goal response after official announcement, before restart. 04472 resolved 2026-11-12 by user listening confirmation «كورة ما زالت مستمرة»: bound to sustained live-play continuation (PossessionPlay, possession >= 5s), explicitly not goal/stoppage. 2026-11-12 second pass: 10 understood-but-unrepresented recordings wired to newly modeled real engine events. Applause lines 01643/01644/01647 require the bundled genuine CC0 stadium applause recording (SFX/Crowd/CrowdApplause.wav) to actually start first (applause.played=true) plus substitution.playerRating>=8. Coach/player reaction lines 00010/00033/01107/01445/01492/01629/02959 require explicitly modeled reaction states (joyfulLead, anxious, dejected, displeasedConceded, sad, devastated) set only by their actual match causes with a 90-second window; no score-to-face inference, no visual claim. 01616 stays held: the Blatter provocation is a historical cause no ordinary current match event can establish. 2026-11-12 third pass: 01032 implemented as the wide touchline-then-recover instruction (CoachWideInstruction). 2026-11-12 fourth pass: user decided 01616 plays as a Cristiano Ronaldo goal variant (exact alias + not own goal, no historical gate, normal rotation). User also excluded the 7 remaining coach shouts (01007/01029/01030/01060/04667/04690/04698) from scope and automatic play; originals preserved.",
  "evidenceSearch": "Original ZIP has only SSOUND.cpk. Current Drive searches for all ZIP archives and SOUND/crowd/applause/SFX found original source and generated repair/commentary packages, no relevant named original crowd or player mapping file. Does not establish absence everywhere.",
  "nextBoundedGroups": [
-  {
-   "status": "coach_voice_pending",
-   "slots": [
-    "01007",
-    "01029",
-    "01030",
-    "01060",
-    "04667",
-    "04690",
-    "04698"
-   ],
-   "needed": "01032 is now implemented (touch the line then drop back, WideDiscipline). Remaining 7 are generic mixed-language coach shouts or counts with no established action: 01007/01029/01030/04690/04698 decoders disagree on the words; 01060 is a bare count 1-2-3-4 with no established purpose; 04667 'segunda' has no established meaning. Not bound to a loose pressing/coach label."
-  },
   {
    "status": "speech_review_pending",
    "slots": [
@@ -78,13 +65,6 @@
     "04625"
    ],
    "needed": "Original source classification or listener confirmation of actual content. No-speech/nonconvergence does not identify a real effect or silence."
-  },
-  {
-   "status": "context_history_pending",
-   "slots": [
-    "01616"
-   ],
-   "needed": "Appropriate historical scenario whose established story contains the Blatter incident. No invented claim that ordinary current gameplay caused it."
   }
  ],
  "countdownAndDirectionalExtra": {
@@ -93,5 +73,18 @@
    "03362"
   ],
   "needed": "Counts/directional exhortations partly corroborated but no established start/end count or exact command semantics; same full-command confirmation boundary."
+ },
+ "userExcluded": {
+  "status": "user_excluded",
+  "slots": [
+   "01007",
+   "01029",
+   "01030",
+   "01060",
+   "04667",
+   "04690",
+   "04698"
+  ],
+  "note": "Excluded by the user on 2026-11-12. Not part of the remaining work. Originals preserved, no automatic mapping."
  }
 }

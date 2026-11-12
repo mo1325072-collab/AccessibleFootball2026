@@ -97,14 +97,44 @@ if (args.Length>0)
  Check(coachPraise.Event=="CoachPraise"&&coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",true),("goal.own",false))))&&!coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",false),("goal.own",false)))),"Direct coach praise requires actual assisted team-goal response, not a generic goal or inferred mood");
  var wideCoach=document.Clips.Single(c=>c.Id=="01032");
  Check(wideCoach.Event=="CoachWideInstruction"&&wideCoach.All.All(r=>r.Matches(empty.With(("coach.instruction","wideHoldThenRecover"),("tactics.focus","Wings"),("wide.discipline.active",true))))&&!wideCoach.All.All(r=>r.Matches(empty.With(("coach.instruction","wideHoldThenRecover"),("tactics.focus","Central"),("wide.discipline.active",true))))&&!wideCoach.All.All(r=>r.Matches(empty.With(("analysis.coachInstructionSpoken",true)))),"Wide touchline recording requires the real wide instruction, Wings focus and active mechanic");
- var reviewHolds=new[]{"00520","01201","01616","02009","04397","04431","04446","04665","04721"};
+ var reviewHolds=new[]{"00520","01201","02009","04397","04431","04446","04665","04721"};
  Check(!document.Clips.Any(c=>reviewHolds.Contains(c.Id.Split('-')[0])),"Independent-review unknown words, names and historical cause cannot leak into automatic matches");
  var ballContinues=document.Clips.Single(c=>c.Id=="04472");
  Check(ballContinues.Review=="verified"&&ballContinues.Transcript.Contains("مستمرة"),"User-confirmed exact words preserved for continuing-ball line");
  Check(ballContinues.Event=="PossessionPlay"&&ballContinues.All.All(r=>r.Matches(empty.With(("attack.continues","true"),("analysis.hasPossession","true"),("possession.seconds","7")))),"User-verified continuing-ball line plays during actual sustained live possession");
  Check(!ballContinues.All.All(r=>r.Matches(empty.With(("attack.continues","true"),("analysis.hasPossession","false"),("possession.seconds","7")))),"Continuing-ball line rejected when possession lost (stoppage/turnover)");
  Check(!ballContinues.All.All(r=>r.Matches(empty.With(("attack.continues","true"),("analysis.hasPossession","true"),("possession.seconds","2")))),"Continuing-ball line rejected on a fresh touch, not yet still-continuing play");
- Check(library.Recordings.Single(r=>r.Slot=="01616").ReviewStatus=="context_history_pending","Genuine historical speech remains historical, not a current Ronaldo goal");
+var ronaldoTake=document.Clips.Single(c=>c.Id=="01616");
+ var ronaldoFacts=empty.With(("goal.player.alias","CristianoRonaldo"),("goal.own",false));
+ Check(library.Recordings.Single(r=>r.Slot=="01616").ReviewStatus=="reviewed"&&ronaldoTake.Event=="Goal"&&ronaldoTake.Review=="verified","User-chosen Ronaldo goal variant 01616 is a reviewed Goal take");
+ Check(ronaldoTake.All.All(r=>r.Matches(ronaldoFacts)),"01616 matches an exact Cristiano Ronaldo non-own goal");
+ Check(!ronaldoTake.All.All(r=>r.Matches(empty.With(("goal.player.alias","ThibautCourtois"),("goal.own",false))))&&!ronaldoTake.All.All(r=>r.Matches(empty.With(("goal.player.alias",(string?)null),("goal.own",false))))&&!ronaldoTake.All.All(r=>r.Matches(empty.With(("goal.own",false))))&&!ronaldoTake.All.All(r=>r.Matches(empty.With(("goal.player.alias","CristianoRonaldo"),("goal.own",true))))&&!ronaldoTake.All.All(r=>r.Matches(empty.With(("goal.player.alias","CristianoRonaldo")))),"01616 rejected for other players, unknown scorer, own goal or missing facts");
+ Check(CommentaryIdentity.PlayerAlias("Cristiano Ronaldo")=="CristianoRonaldo"&&CommentaryIdentity.PlayerAlias("Ronaldo Vieira")==null&&CommentaryIdentity.PlayerAlias("Ronaldo")==null,"Only the whole Cristiano Ronaldo name yields the alias; surname-only does not");
+ {
+  int ronPicks=0,total=600;var otherIds=new HashSet<string>();var otherGoalFacts=empty.With(("goal.player.alias","LukaModric"),("goal.own",false));
+  var eligibleRon=corpus.Eligible("Goal",ronaldoFacts);var eligibleOther=corpus.Eligible("Goal",otherGoalFacts);
+  Check(eligibleRon.Any(c=>c.Id=="01616")&&!eligibleOther.Any(c=>c.Id=="01616"),"01616 is eligible only in the Ronaldo goal context");
+  Check(eligibleRon.Count>=2&&eligibleRon.Any(c=>c.Id!="01616"),"Ronaldo goals still have other eligible takes ("+eligibleRon.Count+")");
+  var pick=new ContextualCommentaryCatalog(corpusRoot);string? prev=null;int runs=0;
+  for(int i=0;i<total;i++)
+  {
+   var path=pick.Choose("Goal",ronaldoFacts)!;var id=Path.GetFileNameWithoutExtension(path);
+   if(id=="01616")ronPicks++;else otherIds.Add(id);
+   if(path==prev)runs++;prev=path;
+  }
+  Console.WriteLine($"NOTE Ronaldo goal rotation: 01616 {ronPicks}/{total}, distinct other takes {otherIds.Count}, eligible {eligibleRon.Count}");
+  Check(ronPicks>0&&ronPicks<total,"01616 is randomized among Ronaldo goal takes: neither starved nor forced");
+  Check(ronPicks<=total*2.0/eligibleRon.Count+2&&otherIds.Count>=eligibleRon.Count-1,"Rotation stays balanced: 01616 gets about one share, generic takes are not starved");
+  Check(runs==0,"No immediate repeat of the same recording across consecutive Ronaldo goals");
+  var otherPick=new ContextualCommentaryCatalog(corpusRoot);bool leaked=false;
+  for(int i=0;i<300;i++){var path=otherPick.Choose("Goal",otherGoalFacts);if(path!=null&&Path.GetFileNameWithoutExtension(path)=="01616")leaked=true;}
+  Check(!leaked,"01616 never plays for another player's goal");
+ }
+ var excluded=new[]{"01007","01029","01030","01060","04667","04690","04698"};
+ Check(excluded.All(id=>library.Recordings.Single(r=>r.Slot==id).ReviewStatus=="user_excluded"&&!document.Clips.Any(c=>c.Id.Split('-')[0]==id)),"Seven user-excluded coach shouts are preserved in the library, never automatic");
+ Check(excluded.All(id=>library.Resolve(library.Recordings.Single(r=>r.Slot==id).File)!=null),"Excluded originals remain present and playable from the library");
+ Check(library.Recordings.Count(r=>r.ReviewStatus=="reviewed")==878&&library.Recordings.Count(r=>r.ReviewStatus=="speech_review_pending"||r.ReviewStatus=="identity_pending"||r.ReviewStatus=="non_speech_pending")==45&&library.Recordings.Count(r=>r.ReviewStatus=="non_game_promo")==3,"Accounting: 878 reviewed, 45 relevant remaining (28+11+6), 3 promos, 7 excluded");
+ Check(document.Clips.Length==911,"911 automatic mappings");
  var ovation=document.Clips.Where(c=>c.Id is "01643" or "01644" or "01647").ToArray();
  Check(ovation.Length==3,"Three genuine ovation variants preserved for high-rated substitution exits");
  foreach(var ov in ovation)

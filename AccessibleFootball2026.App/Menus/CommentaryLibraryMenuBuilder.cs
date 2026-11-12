@@ -10,6 +10,7 @@ public static class CommentaryLibraryMenuBuilder
         "coach_voice_pending"=>"أصوات مدربين تحتاج مراجعة اللغة والمعنى",
         "speech_review_pending"=>"كلام لم يتأكد معناه",
         "non_speech_pending"=>"مقاطع غير صفرية لم يتحدد محتواها",
+        "user_excluded"=>"أوامر مدرب استبعدها المستخدم من المطلوب ومن التشغيل التلقائي، محفوظة للاستماع فقط",
         "non_game_promo"=>"مقدمات ونسب التعليق لصاحبه، لا تستخدم أثناء المباراة",
         "context_asset_pending"=>"تحتاج مؤثرات جماهير أصلية وسياقاً مسموعاً مؤكداً",
         "context_history_pending"=>"تصف واقعة تاريخية لا تثبتها مباراة عادية",

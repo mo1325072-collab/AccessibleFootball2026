@@ -89,8 +89,8 @@
     ],
     "sec": 7.4
    },
-   "finalStatus": "coach_voice_pending",
-   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+   "finalStatus": "user_excluded",
+   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved. SUPERSEDED 2026-11-12: excluded by the user from scope and automatic play."
   },
   {
    "slot": "01029",
@@ -106,8 +106,8 @@
     ],
     "sec": 6.6
    },
-   "finalStatus": "coach_voice_pending",
-   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+   "finalStatus": "user_excluded",
+   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved. SUPERSEDED 2026-11-12: excluded by the user from scope and automatic play."
   },
   {
    "slot": "01030",
@@ -128,8 +128,8 @@
     ],
     "sec": 7.6
    },
-   "finalStatus": "coach_voice_pending",
-   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+   "finalStatus": "user_excluded",
+   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved. SUPERSEDED 2026-11-12: excluded by the user from scope and automatic play."
   },
   {
    "slot": "01032",
@@ -162,8 +162,8 @@
     ],
     "sec": 6.8
    },
-   "finalStatus": "coach_voice_pending",
-   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+   "finalStatus": "user_excluded",
+   "decision": "Non-Arabic/coach shout, needs language and context review; retained, not semantic duplicate. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved. SUPERSEDED 2026-11-12: excluded by the user from scope and automatic play."
   },
   {
    "slot": "01201",
@@ -211,8 +211,8 @@
     ],
     "sec": 16.4
    },
-   "finalStatus": "context_history_pending",
-   "decision": "Independent review confirms historical Blatter provocation in the audio. A current Ronaldo goal cannot establish this historical cause; cultural epithets are not an audible full name. Historical content preserved, ordinary-match trigger disabled."
+   "finalStatus": "reviewed",
+   "decision": "Independent review confirms historical Blatter provocation in the audio. A current Ronaldo goal cannot establish this historical cause; cultural epithets are not an audible full name. Historical content preserved, ordinary-match trigger disabled. SUPERSEDED 2026-11-12 by explicit user decision: Cristiano Ronaldo goal variant, no historical-cause gate."
   },
   {
    "slot": "01703",
@@ -983,8 +983,8 @@
     ],
     "sec": 6.5
    },
-   "finalStatus": "coach_voice_pending",
-   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+   "finalStatus": "user_excluded",
+   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved. SUPERSEDED 2026-11-12: excluded by the user from scope and automatic play."
   },
   {
    "slot": "04690",
@@ -1015,8 +1015,8 @@
     ],
     "sec": 7.0
    },
-   "finalStatus": "coach_voice_pending",
-   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+   "finalStatus": "user_excluded",
+   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved. SUPERSEDED 2026-11-12: excluded by the user from scope and automatic play."
   },
   {
    "slot": "04698",
@@ -1032,8 +1032,8 @@
     ],
     "sec": 6.1
    },
-   "finalStatus": "coach_voice_pending",
-   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved."
+   "finalStatus": "user_excluded",
+   "decision": "Non-Arabic coach shouts; preserve with contextual coach lane after review. Independent review supports coach voice/count/directional shout to varying degrees, not a fully verified tactical instruction sequence; automatic action binding remains unresolved. SUPERSEDED 2026-11-12: excluded by the user from scope and automatic play."
   },
   {
    "slot": "04721",
