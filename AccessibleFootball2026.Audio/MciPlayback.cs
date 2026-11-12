@@ -2,6 +2,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("SettingsLifecycleHarness")]
+[assembly: InternalsVisibleTo("PlayerJourneyHarness")]
+[assembly: InternalsVisibleTo("AccessibleFootball2026.Tests")]
 namespace AccessibleFootball2026.Audio;
 internal static class MciPlayback
 {
