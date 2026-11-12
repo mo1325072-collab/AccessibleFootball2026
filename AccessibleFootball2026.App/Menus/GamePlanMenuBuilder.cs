@@ -16,6 +16,36 @@ public static class GamePlanMenuBuilder
 {
     private static string T(string ar, string en) => LocalizationService.Text(ar, en);
 
+    public static AccessibleMenu CreateInjurySubstitutionMenu(MatchEngine match, IScreenReader reader, Action onResolved)
+    {
+        var injured = match.PendingInjuryPlayer ?? throw new InvalidOperationException("No injury choice is pending.");
+        var team = match.HomeTeam;
+        var menu = new AccessibleMenu(T($"إصابة {injured.Name}. اختر البديل من الدكة", $"{injured.Name} injured. Choose a substitute from the bench"), reader);
+        if (match.CanMakeSubstitution(team))
+        {
+            foreach (var player in team.Bench.Where(team.CanEnterAsSubstitute).ToArray())
+            {
+                var candidate = player;
+                string position = candidate.PrimaryPosition.ToString();
+                menu.AddItem(T($"{candidate.Name}، مركز {position}، طاقة {candidate.EffectiveOverallRating}",
+                    $"{candidate.Name}, position {position}, rating {candidate.EffectiveOverallRating}"), () =>
+                {
+                    if (!match.ResolveInjurySubstitution(injured, candidate))
+                    { reader.Speak(T("هذا التبديل غير متاح. اختر بديلاً آخر.", "This substitution is unavailable. Choose another player.")); return; }
+                    reader.Speak(T($"خروج {injured.Name} ودخول {candidate.Name}.", $"{injured.Name} off, {candidate.Name} on."));
+                    onResolved();
+                });
+            }
+        }
+        bool available = menu.Count > 0;
+        menu.AddItem(available ? T("الاستمرار دون بديل وخروج المصاب", "Continue without a substitute; injured player leaves")
+            : T("لا يوجد تبديل قانوني متاح. المتابعة دون المصاب", "No legal substitution available. Continue without the injured player"), () =>
+        {
+            if (match.ResolveInjurySubstitution(injured, null)) onResolved();
+        });
+        return menu;
+    }
+
     public static AccessibleMenu CreatePreMatchMenu(
         Team userTeam, 
         IScreenReader screenReader, 
