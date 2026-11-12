@@ -113,7 +113,7 @@ public class Team
     public void ChangeFormation(FormationType newFormation)
     {
         CurrentFormation = newFormation;
-        FormationManager.ApplyFormation(this, newFormation);
+        FormationManager.ApplyFormation(this, newFormation, assignPositions: true);
     }
 
     public void AssignDefaultRoles()
