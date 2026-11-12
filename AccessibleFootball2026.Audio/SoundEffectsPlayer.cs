@@ -81,6 +81,28 @@ public static class SoundEffectsPlayer
         _commentaryBusyUntil = DateTime.MinValue;
     }
 
+    public static string ResolveBestAudioBaseDirectory(params string?[] candidates)
+    {
+        var paths = candidates.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        // Prefer a real commentary library in the caller's order. A generated menu tone alone
+        // must not shadow an installed library, and an old D: install must not shadow a packaged one.
+        foreach (string path in paths)
+        {
+            foreach (string bank in new[] { "FaresAwad", "RaoufKhlif" })
+            {
+                if (File.Exists(Path.Combine(path, "Commentary", bank, "commentary_context.json")) ||
+                    File.Exists(Path.Combine(path, "Commentary", bank, "commentary_map.json"))) return path;
+            }
+        }
+        foreach (string path in paths)
+        {
+            try { if (Directory.Exists(path) && Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).Any()) return path; }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+        return paths.FirstOrDefault() ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio");
+    }
+
     public static void Initialize(string? dir = null)
     {
         if (!string.IsNullOrEmpty(dir)) _baseAudioDir = dir;
