@@ -21,7 +21,7 @@ public static class SoundAcademyMenuBuilder
     {
         var lang = MatchSettings.Current.Language;
         string title = LocalizationService.GetString("SoundAcademyTitle");
-        var menu = new AccessibleMenu(title, screenReader);
+        var menu = new AccessibleMenu(title, screenReader) { OnClosed = () => StopPreview(anthemEngine) };
 
         var categories = SoundAcademyDatabase.GetCategories();
         foreach (var category in categories)
@@ -50,7 +50,7 @@ public static class SoundAcademyMenuBuilder
     {
         var lang = MatchSettings.Current.Language;
         string catTitle = lang == UiLanguage.English ? category.EnglishTitle : category.ArabicTitle;
-        var menu = new AccessibleMenu(catTitle, screenReader);
+        var menu = new AccessibleMenu(catTitle, screenReader) { OnClosed = () => StopPreview(anthemEngine) };
 
         var items = SoundAcademyDatabase.GetItemsByCategory(category.Id, id => GetAudioAction(id, anthemEngine));
         foreach (var soundItem in items)
@@ -61,7 +61,8 @@ public static class SoundAcademyMenuBuilder
 
             menu.AddItem(itemName, () =>
             {
-                // تشغيل العينة الصوتية فورياً
+                // A new preview replaces the old one; loops never leak across categories.
+                StopPreview(anthemEngine);
                 item.PlayAudioAction?.Invoke();
 
                 // نطق التفسير التكتيكي فورياً لقارئ الشاشة
@@ -73,6 +74,13 @@ public static class SoundAcademyMenuBuilder
         menu.AddItem(backTitle, () => popMenu());
 
         return menu;
+    }
+
+    private static void StopPreview(AnthemEngine anthemEngine)
+    {
+        anthemEngine.StopAllSounds();
+        GoalBeaconPlayer.Stop();
+        SoundEffectsPlayer.StopAll();
     }
 
     public static Action GetAudioAction(string soundId, AnthemEngine anthemEngine) => soundId switch
