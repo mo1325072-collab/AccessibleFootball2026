@@ -90,8 +90,8 @@ internal static class Program
         {
             AttachConsole(ATTACH_PARENT_PROCESS);
             Console.OutputEncoding = System.Text.Encoding.UTF8;
-            RunFullAutomatedDemonstration();
-            return 0;
+            try { return RunFullAutomatedDemonstration(); }
+            catch (Exception error) { Console.Error.WriteLine(error); return 1; }
         }
 
         ApplicationConfiguration.Initialize();
@@ -108,35 +108,35 @@ internal static class Program
         return 0;
     }
 
-    private static void RunFullAutomatedDemonstration()
+    private static int RunFullAutomatedDemonstration()
     {
-        Console.WriteLine("=== Accessible Football 2026/2027 Full Simulation Suite ===");
+        Console.WriteLine("=== Accessible Football 2026/2027 Roster and Draft Diagnostics ===");
 
-        Console.WriteLine("\n[قائمة الدوريات والبطولات الرسمية المعتمدة لموسم 2026/2027]:");
+        Console.WriteLine("\n[الدوريات والبطولات الموجودة في قاعدة البيانات المحلية]:");
         var tourneys = TournamentDatabase.GetAllTournaments();
         foreach (var tourney in tourneys)
         {
             Console.WriteLine($"  * [{tourney.Name}] ({tourney.Region}) - تضم: {string.Join("، ", tourney.Teams.Select(t => t.Name))}");
         }
 
-        Console.WriteLine("\n[التشكيلات المعتمدة الموثقة رسمياً من Transfermarkt لموسم 2026/2027]:");
+        Console.WriteLine("\n[عينات من تشكيلات قاعدة البيانات المحلية]:");
         var ahly = TeamDatabase.CreateAlAhly();
-        Console.WriteLine($"الأهلي: هجوم معتمد ({ahly.Players[9].Name})، وسط ({ahly.Players[6].Name} و {ahly.Players[5].Name})");
+        Console.WriteLine($"الأهلي: هجوم ({ahly.Players[9].Name})، وسط ({ahly.Players[6].Name} و {ahly.Players[5].Name})");
 
         var zamalek = TeamDatabase.CreateZamalek();
-        Console.WriteLine($"الزمالك: هجوم معتمد ({zamalek.Players[9].Name})، وسط ({zamalek.Players[7].Name} و {zamalek.Players[6].Name})");
+        Console.WriteLine($"الزمالك: هجوم ({zamalek.Players[9].Name})، وسط ({zamalek.Players[7].Name} و {zamalek.Players[6].Name})");
 
         var pyramids = TeamDatabase.CreatePyramids();
-        Console.WriteLine($"بيراميدز: صانع ألعاب معتمد ({pyramids.Players[7].Name} #{pyramids.Players[7].ShirtNumber})، جناح ({pyramids.Players[8].Name} #{pyramids.Players[8].ShirtNumber})");
+        Console.WriteLine($"بيراميدز: صانع ألعاب ({pyramids.Players[7].Name} #{pyramids.Players[7].ShirtNumber})، جناح ({pyramids.Players[8].Name} #{pyramids.Players[8].ShirtNumber})");
 
         var real = TeamDatabase.CreateRealMadrid();
-        Console.WriteLine($"ريال مدريد: هجوم معتمد ({real.Players[9].Name})، أجنحة ({real.Players[7].Name} و {real.Players[8].Name})");
+        Console.WriteLine($"ريال مدريد: هجوم ({real.Players[9].Name})، أجنحة ({real.Players[7].Name} و {real.Players[8].Name})");
 
         var barca = TeamDatabase.CreateBarcelona();
-        Console.WriteLine($"برشلونة: هجوم معتمد ({barca.Players[9].Name})، أجنحة ({barca.Players[7].Name} و {barca.Players[8].Name})");
+        Console.WriteLine($"برشلونة: هجوم ({barca.Players[9].Name})، أجنحة ({barca.Players[7].Name} و {barca.Players[8].Name})");
 
         var liverpool = TeamDatabase.CreateLiverpool();
-        Console.WriteLine($"ليفربول: هجوم معتمد ({liverpool.Players[7].Name} و {liverpool.Players[9].Name})");
+        Console.WriteLine($"ليفربول: هجوم ({liverpool.Players[7].Name} و {liverpool.Players[9].Name})");
 
         Console.WriteLine("\n[وضع الـ 4 فرق مع مانع التكرار]:");
         var dream = new DreamTeamBuilder("فريق الاختبار", "فريق الخصم");
@@ -152,19 +152,17 @@ internal static class Program
 
         dream.DraftBothTeams(new Random(55));
 
-        Console.WriteLine($"تم سحب 11 لاعباً عشوائياً بواسطة الكمبيوتر لفريقك: {string.Join("، ", dream.UserDreamTeam.Players.Take(4).Select(p => p.Name))}");
-        Console.WriteLine($"تم سحب 11 لاعباً عشوائياً بواسطة الكمبيوتر للخصم: {string.Join("، ", dream.CpuDreamTeam.Players.Take(4).Select(p => p.Name))}");
+        Console.WriteLine($"عدد لاعبي فريقك {dream.UserDreamTeam.Players.Count}: {string.Join("، ", dream.UserDreamTeam.Players.Take(4).Select(p => p.Name))}");
+        Console.WriteLine($"عدد لاعبي الخصم {dream.CpuDreamTeam.Players.Count}: {string.Join("، ", dream.CpuDreamTeam.Players.Take(4).Select(p => p.Name))}");
 
         bool overlap = dream.UserDreamTeam.Players.Concat(dream.UserDreamTeam.Bench)
             .Any(u => dream.CpuDreamTeam.Players.Concat(dream.CpuDreamTeam.Bench).Any(c => c.Id == u.Id));
         Console.WriteLine($"فحص مانع التكرار الصوتي بين الفريقين: {(overlap ? "فشل" : "نجاح بنسبة 100% بدون أي لاعب مكرر! ✅")}");
 
-        Console.WriteLine("\n[المؤثرات الصوتية والموسيقى]:");
-        Console.WriteLine("  * موسيقى القوائم الخلفية (MenuMusic.wav): نشطة وجاهزة. ✅");
-        Console.WriteLine("  * أصوات التنقل والتأكيد (Move.wav, Select.wav): نشطة وجاهزة. ✅");
-        Console.WriteLine("  * نشيد دوري أبطال أوروبا الحقيقي (ChampionsLeague.wav): مفعل مع التخطي بالإنتر. ✅");
-        Console.WriteLine("  * أصوات الملاعب الحقيقية من PES 2013 مع منارة المرمى المجسمة 3D. ✅");
-        Console.WriteLine("  * صخب الجماهير المستمر (CrowdAmbiance.wav): مفعل مع الخفض التلقائي أثناء الكلام. ✅");
-        Console.WriteLine("  * المؤثرات الصوتية ثلاثية الأبعاد للركلات (Kick_Left, Kick_Center, Kick_Right): مفعلة وجاهزة. ✅");
+        bool squadsComplete = dream.UserDreamTeam.Players.Count == 11 && dream.CpuDreamTeam.Players.Count == 11;
+        Console.WriteLine($"Draft squad sizes: {(squadsComplete ? "PASS" : "FAIL")}");
+        Console.WriteLine("These diagnostics did not test match flow, Windows UI, NVDA or sound playback.");
+        Console.WriteLine("Run tests/MatchFlowRegression for portable match-flow assertions; run AccessibleFootball2026.Tests on Windows for UI tests.");
+        return overlap || !squadsComplete ? 1 : 0;
     }
 }
