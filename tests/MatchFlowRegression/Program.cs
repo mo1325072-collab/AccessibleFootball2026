@@ -367,15 +367,20 @@ Directory.Delete(audioFixture,true);
 m=New();var injured=m.HomeTeam.Players[0];var wrong=new Player(900,"Wrong forward",12,SpecificPosition.ST,99,99,99,99,99);
 var injuryReserveKeeper=new Player(901,"Reserve keeper",13,SpecificPosition.GK,65,65,65,65,65);
 m.HomeTeam.Bench.AddRange(new[]{wrong,injuryReserveKeeper});m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);
-Check(m.HomeTeam.Players.Contains(injuryReserveKeeper)&&!m.HomeTeam.Players.Contains(wrong),"forced goalkeeper injury substitution chooses a genuine position match, not first bench entry");
+Check(m.PendingInjuryPlayer==injured&&m.HomeTeam.SubstitutionsUsed==0&&m.HomeTeam.Bench.Contains(injuryReserveKeeper),"severe user-team injury waits for the user instead of choosing a compatible player automatically");
+Check(m.ResolveInjurySubstitution(injured,injuryReserveKeeper)&&m.HomeTeam.Players.Contains(injuryReserveKeeper),"the explicitly selected reserve goalkeeper is the one who enters");
 Check(m.HomeTeam.SubstitutionsUsed==1&&m.HomeTeam.StoppageWindowsUsed==1,"forced injury change consumes one legal substitution opportunity");
 m=New();injured=m.HomeTeam.Players[0];m.HomeTeam.Bench.Add(wrong);m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);
+Check(m.PendingInjuryPlayer==injured&&m.HomeTeam.SubstitutionsUsed==0,"a nonmatching bench is still shown for human choice, never substituted automatically");
+m.ResolveInjurySubstitution(injured,null);
 Check(injured.IsOffPitch&&!injured.IsSentOff&&m.HomeTeam.SubstitutionsUsed==0,"unreplaceable injured keeper leaves without inventing an incompatible goalkeeper or a red card");
 m=New();var severelyInjured=m.HomeTeam.Players[9];severelyInjured.Position2D=new Vector2(100,34);m.HomeTeam.PenaltyTaker=severelyInjured;
 var replacement=new Player(902,"Replacement striker",14,SpecificPosition.ST,80,80,80,80,80);m.HomeTeam.Bench.Add(replacement);
 var offender=m.AwayTeam.Players[2];offender.Position2D=new Vector2(99,34);m.AwayTeam.Tactics.Tackling=TacklingAggression.Reckless;
 m.HandleFoulSanction(offender,severelyInjured,true,true);
-Check(severelyInjured.InjuryStatus==PlayerInjuryStatus.SevereInjury&&m.HomeTeam.Players.Contains(replacement),"real reckless sliding foul from behind can trigger severe injury and forced substitution");
+Check(severelyInjured.InjuryStatus==PlayerInjuryStatus.SevereInjury&&m.PendingInjuryPlayer==severelyInjured&&!m.HomeTeam.Players.Contains(replacement),"actual reckless sliding foul opens a pending user injury choice");
+Check(!m.DismissStoppageReplay(),"Enter for restart cannot bypass unresolved injury choice");
+m.ResolveInjurySubstitution(severelyInjured,replacement);
 Check(m.Restart?.Kind==RestartKind.Penalty&&m.Restart.Team==m.HomeTeam&&m.Restart.Taker==replacement&&m.Ball.Owner==replacement,"injured victim substitution preserves actual penalty and reassigns its taker");
 m=New();severelyInjured=m.HomeTeam.Players[9];severelyInjured.Position2D=new Vector2(70,34);m.HomeTeam.FreeKickTaker=severelyInjured;m.HomeTeam.SubstitutionsUsed=5;
 m.AwardFoulRestart(severelyInjured);m.ApplyInjury(severelyInjured,PlayerInjuryStatus.SevereInjury);
@@ -408,7 +413,7 @@ Check(typeof(MatchEngine).GetField("_pendingClearance",BindingFlags.NonPublic|Bi
 var unsupportedReview=VarAiReferee.ReviewOffside("fixture player",true);
 Check(!unsupportedReview.EvidenceAvailable&&!unsupportedReview.Overturned&&float.IsNaN(unsupportedReview.DecisionMarginCm),"name-only legacy VAR helper cannot fabricate a positional margin or overturn a call");
 m=New();injured=m.HomeTeam.Players[9];replacement=new Player(903,"Injury replacement",14,SpecificPosition.ST,80,80,80,80,80);m.HomeTeam.Bench.Add(replacement);
-m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);int injurySubs=m.HomeTeam.SubstitutionsUsed;m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);
+m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);m.ResolveInjurySubstitution(injured,replacement);int injurySubs=m.HomeTeam.SubstitutionsUsed;m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);
 Check(m.HomeTeam.SubstitutionsUsed==injurySubs&&m.AwayTeam.SubstitutionsUsed==0,"repeated injury to a substituted-off player cannot change the other team or consume another substitution");
 if(!OperatingSystem.IsWindows())
 {
@@ -509,6 +514,26 @@ using(var smokeOutput = new StringWriter())
 {
     Check(SimulationDiagnostics.Run(smokeOutput) == 0 && smokeOutput.ToString().Contains("0 failure(s)"), "production --test engine smoke checks run without Windows or audio startup");
 }
+// Actual injury -> accessible modal menu -> chosen (not strongest) bench player.
+foreach (var language in new[]{UiLanguage.Arabic,UiLanguage.English})
+{
+    MatchSettings.Current.Language=language;MatchSettings.Current.AutoSubstitutionsEnabled=true;
+    var injuryMatch=New();var menuVictim=injuryMatch.HomeTeam.Players[9];var strongest=new Player(1200,"Strongest",15,SpecificPosition.ST,99,99,99,99,99);var chosen=new Player(1201,"My choice",16,SpecificPosition.ST,60,60,60,60,60);
+    injuryMatch.HomeTeam.Bench.AddRange(new[]{strongest,chosen});injuryMatch.Ball.CatchOrTackle(menuVictim);injuryMatch.ApplyInjury(menuVictim,PlayerInjuryStatus.SevereInjury);
+    float frozenClock=injuryMatch.MatchTimeMinutes;var frozenBall=injuryMatch.Ball.Position;injuryMatch.Update(30);injuryMatch.RunNativeAutomation();
+    Check(injuryMatch.MatchTimeMinutes==frozenClock&&injuryMatch.Ball.Position==frozenBall&&injuryMatch.HomeTeam.SubstitutionsUsed==0,"injury choice freezes actual clock/ball and optional automatic substitutions: "+language);
+    Check(!TacticalAiAdvisor.TryPerformAutoSubstitution(injuryMatch,out _)&&!injuryMatch.MakeSubstitution(injuryMatch.HomeTeam,menuVictim,strongest),"optional assist or another substitution path cannot take the injury choice away: "+language);
+    var injuryReader=new Reader();bool resolved=false;var injuryMenu=GamePlanMenuBuilder.CreateInjurySubstitutionMenu(injuryMatch,injuryReader,()=>resolved=true);injuryMenu.Open();
+    Check(injuryMenu.MenuTitle.Contains(menuVictim.Name)&&injuryMenu.Count==3&&injuryReader.Spoken.Any(t=>t.Contains("Strongest")),"injury menu names the injured player and exposes the bench to speech: "+language);
+    injuryMenu.NavigateNext();Check(injuryReader.Spoken.Last().Contains("My choice"),"arrow navigation announces the actual selected reserve: "+language);injuryMenu.SelectCurrent();
+    Check(resolved&&injuryMatch.PendingInjuryPlayer==null&&injuryMatch.HomeTeam.Players.Contains(chosen)&&injuryMatch.HomeTeam.Bench.Contains(strongest),"Enter commits only the user's selected player, not the strongest: "+language);
+    Check(injuryMatch.Ball.Owner==chosen&&injuryMatch.HomeTeam.SubstitutionsUsed==1&&injuryMatch.HomeTeam.StoppageWindowsUsed==1,"manual injury choice preserves possession and consumes exactly one legal change: "+language);
+}
+MatchSettings.Current.AutoSubstitutionsEnabled=false;MatchSettings.Current.Language=UiLanguage.Arabic;
+var exhausted=New();exhausted.HomeTeam.SubstitutionsUsed=5;var exhaustedVictim=exhausted.HomeTeam.Players[9];exhausted.ApplyInjury(exhaustedVictim,PlayerInjuryStatus.SevereInjury);
+var exhaustedReader=new Reader();bool acknowledged=false;var unavailableMenu=GamePlanMenuBuilder.CreateInjurySubstitutionMenu(exhausted,exhaustedReader,()=>acknowledged=true);unavailableMenu.Open();
+Check(unavailableMenu.Count==1&&exhausted.HomeTeam.Players.Count(p=>p.IsActiveOnPitch)==10,"exhausted substitutions show a truthful continue-short option and actually remove the injured player");unavailableMenu.SelectCurrent();
+Check(acknowledged&&exhausted.PendingInjuryPlayer==null&&exhausted.HomeTeam.SubstitutionsUsed==5,"acknowledging no legal reserve does not invent or charge a replacement");
 Console.WriteLine($"{passed} assertions passed. No Windows/MCI/NVDA runtime was exercised.");
 
 sealed class Input : IInputHandler
