@@ -275,6 +275,30 @@ Check(NationalTeamDatabase.GetNationalTeamsByContinent(ContinentType.Africa).Cou
 Check(NationalTeamDatabase.GetNationalTeamsByContinent(ContinentType.Asia).Count==46&&NationalTeamDatabase.GetNationalTeamsByContinent(ContinentType.Oceania).Count==11,"Australia belongs to AFC and American Samoa belongs to OFC, not a guessed geographic grouping");
 Check(NationalTeamConfederations.GetContinent("Australia")==ContinentType.Asia&&NationalTeamConfederations.GetContinent("American Samoa")==ContinentType.Oceania,"cross-geography football association membership uses official FIFA source");
 
+// Actual team-selection navigation: per-call callbacks must reach the confederation submenu.
+MatchSettings.Current.Language = UiLanguage.English;
+var selectionReader = new Reader(); AccessibleMenu? selectionOpened = null;
+var selection = new TeamSelectionManager(selectionReader);
+var categories = selection.CreateHomeTeamSelectMenu(_ => {}, x => selectionOpened = x, () => {});
+bool HasArabic(string text) => text.Any(c => char.IsLetter(c) && c >= '\u0600' && c <= '\u06ff');
+Check(!HasArabic(categories.MenuTitle) && Enumerable.Range(0,categories.Count).All(i => !HasArabic(categories.GetItem(i).Title)), "English team categories contain no untranslated UI labels");
+int nationalsIndex = Enumerable.Range(0,categories.Count).First(i => categories.GetItem(i).Title.StartsWith("National teams ("));
+while(categories.GetCurrentIndex()!=nationalsIndex)categories.NavigateNext();categories.SelectCurrent();
+Check(selectionOpened?.Count==8 && selectionOpened.MenuTitle=="National teams by confederation", "per-call navigation opens six confederations plus all and Back");
+var confederations=selectionOpened!;
+Check(Enumerable.Range(0,confederations.Count).All(i=>!HasArabic(confederations.GetItem(i).Title)),"all English confederation labels and Back are localized");
+confederations.SelectCurrent();
+Check(selectionOpened!=confederations && selectionOpened!.MenuTitle.StartsWith("Your team:"),"confederation selection reaches the actual keyboard team list");
+string sourceName=selectionOpened!.GetItem(0).Title;selectionOpened.SelectCurrent();
+Check(selection.SelectedHomeTeam?.Name==sourceName,"English UI preserves the selected original source team name");
+var awayCategories=selection.CreateAwayTeamSelectMenu(_=>{},x=>selectionOpened=x,()=>{});
+int allIndex=Enumerable.Range(0,awayCategories.Count).First(i=>awayCategories.GetItem(i).Title.StartsWith("All clubs"));
+while(awayCategories.GetCurrentIndex()!=allIndex)awayCategories.NavigateNext();awayCategories.SelectCurrent();
+Check(Enumerable.Range(0,selectionOpened!.Count-1).All(i=>selectionOpened.GetItem(i).Title!=sourceName),"opponent list still excludes the selected team after localization");
+MatchSettings.Current.Language=UiLanguage.Arabic;
+Check(selection.CreateHomeTeamSelectMenu(_=>{}).MenuTitle=="اختر فئة الفريق الأساسي","Arabic selection remains available after switching back");
+
+
 }
 
 string dbPath = Path.Combine(Path.GetTempPath(),Guid.NewGuid()+"-teams.json");
@@ -401,6 +425,56 @@ if(!OperatingSystem.IsWindows())
     Check(Call(fake,"test",1)==""&&timer.Elapsed.TotalSeconds<5,"model timeout terminates process tree instead of leaving hanging inference");
     Directory.Delete(fixture,true);
 }
+
+
+// Build real menu objects in both languages, and exercise actions rather than dictionary-only tests.
+var languageBefore=MatchSettings.Current.Language;MatchSettings.Current.Language=UiLanguage.English;
+var uiReader=new Reader();var uiTeam=Make("English fixture",TeamSide.Home);AddBench(uiTeam);
+bool ArabicUi(string value)=>value.Any(c=>char.IsLetter(c)&&c>='\u0600'&&c<='\u06ff');
+void EnglishMenu(AccessibleMenu menu,string label)
+{
+    Check(!ArabicUi(menu.MenuTitle)&&Enumerable.Range(0,menu.Count).All(i=>!ArabicUi(menu.GetItem(i).Title)),label);
+}
+AccessibleMenu? uiOpened=null;
+var pre=GamePlanMenuBuilder.CreatePreMatchMenu(uiTeam,uiReader,x=>uiOpened=x,()=>{},()=>{});
+EnglishMenu(pre,"English pre-match menu labels");
+EnglishMenu(GamePlanMenuBuilder.CreateLineupMenu(uiTeam,uiReader,x=>uiOpened=x,()=>{}),"English lineup includes localized condition descriptions");
+EnglishMenu(GamePlanMenuBuilder.CreateBenchMenu(uiTeam,uiReader,x=>uiOpened=x,()=>{}),"English bench labels and conditions");
+var roles=GamePlanMenuBuilder.CreateSpecialistsMenu(uiTeam,uiReader,x=>uiOpened=x,()=>{});
+EnglishMenu(roles,"English captain and set-piece role labels");roles.SelectCurrent();EnglishMenu(uiOpened!,"English captain candidate menu");
+var forms=GamePlanMenuBuilder.CreateFormationMenu(uiTeam,uiReader,()=>{});
+EnglishMenu(forms,"English formation names");forms.SelectCurrent();Check(!ArabicUi(uiReader.Spoken.Last()),"English formation confirmation speaks selected language");
+var tacticsMenu=GamePlanMenuBuilder.CreateTacticsMenu(uiTeam,uiReader,()=>{});
+EnglishMenu(tacticsMenu,"English tactics display labels including marking and focus");
+for(int i=0;i<tacticsMenu.Count-1;i++){tacticsMenu.SelectCurrent();Check(!ArabicUi(uiReader.Spoken.Last()),"English tactics action confirmation "+i);tacticsMenu.NavigateNext();}
+var uiMatch=New();uiMatch.PauseMatch();
+var enPause=GamePlanMenuBuilder.CreatePauseMenu(uiMatch,uiReader,commentary,x=>uiOpened=x,()=>{},()=>{},()=>{});
+EnglishMenu(enPause,"English pause menu labels");
+while(enPause.GetItem(enPause.GetCurrentIndex()).Title!="Match statistics")enPause.NavigateNext();enPause.SelectCurrent();
+EnglishMenu(uiOpened!,"English measured statistics menu has no navigation tutorial");
+Check(uiOpened!.MenuTitle=="Match statistics","statistics heading is concise rather than a key tutorial");
+var radarBus=new MatchEventBus();MatchEvent? radarEvent=null;
+radarBus.OnMatchEvent+=e=>{if(e.Type==MatchEventType.TacticalRadarInfo)radarEvent=e;};
+var radarMatch=new MatchEngine(Make("Radar home",TeamSide.Home),Make("Radar away",TeamSide.Away),radarBus,new Input());
+radarMatch.Ball.Position=new Vector3(75,0,0);radarMatch.ReportTacticalRadar();
+int radarDistance=(int)Vector2.Distance(radarMatch.Ball.Position2D,radarMatch.Pitch.RightGoalCenter);
+Check(radarEvent!=null&&!ArabicUi(radarEvent.Description)&&radarEvent.Description.Contains($"goal {radarDistance} m"),"English on-demand radar measures geometric distance, not horizontal-only distance");
+radarMatch.TriggerHalfTime();radarMatch.ResumeMatch();radarMatch.Ball.CatchOrTackle(radarMatch.HomeTeam.Players[9]);radarMatch.Ball.Position=new Vector3(30,0,0);radarMatch.ReportTacticalRadar();
+Check(radarEvent!.Description.Contains($"goal {(int)Vector2.Distance(radarMatch.Ball.Position2D,radarMatch.Pitch.LeftGoalCenter)} m"),"on-demand radar follows switched second-half goal");
+radarMatch.AwardFoulRestart(radarMatch.HomeTeam.Players[9],new Vector2(70,34));radarMatch.ReportTacticalRadar();
+Check(radarEvent!.Description.StartsWith("Free kick,")&&radarEvent.Description.Contains(radarMatch.Restart!.Taker.Name),"set-piece radar names actual restart and current taker");
+MatchSettings.Current.Language=UiLanguage.Arabic;radarMatch.ReportTacticalRadar();
+Check(radarEvent!.Description.StartsWith("ركلة حرة"),"explicit radar switches back to Arabic");
+MatchSettings.Current.Language=UiLanguage.English;
+var uiPlayer=uiTeam.Players[0];uiPlayer.CurrentAssignedPosition=SpecificPosition.ST;
+Check(!ArabicUi(uiPlayer.PositionSuitabilityMessage),"English out-of-position report and condition");
+uiMatch.AwayTeam.Score=2;
+Check(TacticalAiAdvisor.GetRecommendations(uiMatch,()=>{}).All(r=>!ArabicUi(r.Title)&&!ArabicUi(r.Description)),"English native tactical recommendations and descriptions");
+var competition=new Tournament("UEFA_CL","دوري أبطال أوروبا",CompetitionType.KnockoutCup,"Europe");
+Check(competition.DisplayName=="UEFA Champions League"&&competition.Name=="دوري أبطال أوروبا","competition UI translation leaves original source name intact");
+MatchSettings.Current.Language=UiLanguage.Arabic;
+Check(GamePlanMenuBuilder.CreateTacticsMenu(uiTeam,uiReader,()=>{}).MenuTitle.StartsWith("الأسلوب"),"switching back rebuilds Arabic tactics menu");
+MatchSettings.Current.Language=languageBefore;
 
 Console.WriteLine($"{passed} assertions passed. No Windows/MCI/NVDA runtime was exercised.");
 
