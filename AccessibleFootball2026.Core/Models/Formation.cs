@@ -171,7 +171,7 @@ public static class FormationManager
 
     public static void ApplyFormation(Team team, FormationType type)
     {
-        bool isHome = team.Side == TeamSide.Home;
+        bool isHome = team.MatchAttackingRight ?? team.Side == TeamSide.Home;
         Vector2 MapPos(float x, float y) => isHome ? new Vector2(x, y) : new Vector2(105.0f - x, 68.0f - y);
 
         if (team.Players.Count < 1) return;
