@@ -79,6 +79,24 @@ public class CommentaryEngine : IDisposable
         string baseAudioDir = baseDir ?? ResolveBaseAudioDir();
         _baseCommentaryDir = Path.Combine(baseAudioDir, "Commentary");
         PreWarmCache();
+        MatchSettings.OnSettingsChanged += ApplySettings;
+    }
+
+    private static bool CommentaryAudible => MatchSettings.Current.GetEffectiveCommentaryVolume() > .001f;
+    private void ApplySettings(MatchSettings settings)
+    {
+        bool voiceChanged = ActiveCommentator.Id != settings.Commentator;
+        if (voiceChanged) SwitchCommentator(settings.Commentator);
+        if (voiceChanged || !CommentaryAudible)
+        {
+            lock (_queueLock)
+            {
+                var callbacks = _pendingLines.Where(line => line.Callback != null || line.AsyncCallback != null).ToArray();
+                _pendingLines.Clear();
+                foreach (var callback in callbacks) _pendingLines.Enqueue(callback);
+            }
+            SoundEffectsPlayer.StopCommentaryAudio();
+        }
     }
 
     private void PreWarmCache()
@@ -148,6 +166,7 @@ public class CommentaryEngine : IDisposable
     public CommentaryLibrary LoadFaresLibrary()=>new(Path.Combine(_baseCommentaryDir,"FaresAwad"));
     public bool PlayLibraryRecording(CommentaryLibrary library,CommentaryLibrary.Recording recording)
     {
+        if (!CommentaryAudible) return false;
         if(!library.Recordings.Contains(recording))return false;
         var path=library.Resolve(recording.File);if(path==null)return false;
         EnqueueClip(path,null);return true;
@@ -180,6 +199,7 @@ public class CommentaryEngine : IDisposable
 
     public bool TryPlayMatchIntro(AccessibleFootball2026.Core.Commentary.CommentaryContext? context = null)
     {
+        if (!CommentaryAudible) return false;
         EnsureManifestLoaded();
         if (_contextCatalogPresent)
         {
@@ -233,6 +253,7 @@ public class CommentaryEngine : IDisposable
 
     public bool QueueGoalReplay(AccessibleFootball2026.Core.Commentary.GoalReplay replay)
     {
+        if (!CommentaryAudible) return false;
         EnsureManifestLoaded();
         if (!_contextCatalogPresent) return false;
         string? path;
@@ -246,6 +267,7 @@ public class CommentaryEngine : IDisposable
 
     public bool QueuePlayReplay(AccessibleFootball2026.Core.Simulation.PlayReplay replay)
     {
+        if (!CommentaryAudible) return false;
         EnsureManifestLoaded();
         if(!_contextCatalogPresent)return false;
         string? path;
@@ -276,6 +298,7 @@ public class CommentaryEngine : IDisposable
 
     private void EnqueueClip(string clipPath, MatchEvent? matchEvent)
     {
+        if (!CommentaryAudible) return;
         lock (_queueLock)
         {
             // Admission throttling happens before this point. Never evict an ordered replay or completion callback.
@@ -287,6 +310,7 @@ public class CommentaryEngine : IDisposable
 
     private void EnqueuePhrase(string phrase, MatchEvent matchEvent)
     {
+        if (!CommentaryAudible) return;
         lock (_queueLock)
         {
             if (_pendingLines.Count >= MaxPendingLines) return;
@@ -308,9 +332,11 @@ public class CommentaryEngine : IDisposable
                 if (next == null) return;
                 if (next.ClipPath != null)
                 {
-                    _lastCommentaryTime = DateTime.UtcNow;
-                    SoundEffectsPlayer.PlayCommentaryAudio(next.ClipPath);
-                    OnRecordedCommentaryStarted?.Invoke(next.ClipPath);
+                    if (CommentaryAudible && SoundEffectsPlayer.PlayCommentaryAudio(next.ClipPath))
+                    {
+                        _lastCommentaryTime = DateTime.UtcNow;
+                        OnRecordedCommentaryStarted?.Invoke(next.ClipPath);
+                    }
                     return;
                 }
                 _runningCallback = next.AsyncCallback != null || next.Callback != null;
@@ -325,7 +351,7 @@ public class CommentaryEngine : IDisposable
                 _runningCallback = true;
                 next.Callback();
             }
-            else if (next.Phrase != null && next.Event != null)
+            else if (CommentaryAudible && next.Phrase != null && next.Event != null)
             {
                 _lastCommentaryTime = DateTime.UtcNow;
                 OnCommentarySpoken?.Invoke(ActiveCommentator.DisplayName, next.Phrase);
@@ -389,6 +415,7 @@ public class CommentaryEngine : IDisposable
 
     public bool TryCommentOnEvent(MatchEvent matchEvent, bool force = false)
     {
+        if (!CommentaryAudible) return false;
         // Only a real goal or awarded penalty may cut a sentence. All other events queue or drop.
         if (matchEvent.Type is MatchEventType.GoalScored or MatchEventType.PenaltyAwarded)
         {
@@ -546,6 +573,7 @@ public class CommentaryEngine : IDisposable
 
     public void Dispose()
     {
+        MatchSettings.OnSettingsChanged -= ApplySettings;
         lock (_queueLock)
         {
             _dispatcher?.Dispose();
