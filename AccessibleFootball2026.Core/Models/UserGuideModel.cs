@@ -176,6 +176,9 @@ public static class UserGuideDatabase
 
     private static List<UserGuideItem> GetRulesItems() => new()
     {
+        new("video_review","rules","","حكم الفيديو المساعد","Video assistant referee",
+            "عند تفعيل الفار، تتوقف المحاكاة للمراجعة أربع ثوان بعد إعلان الفحص. يُنطق القرار كاملاً قبل تطبيقه. يراجع المحرك الهدف والتسلل المؤثر فيه، ركلة الجزاء وموقع المخالفة القريب من حدود المنطقة، والطرد المباشر. ويدعم تصحيح هوية المخالف أو إلغاء إنذار ثان خاطئ عندما تتوفر أدلة الواقعة، ولا يختلق أخطاء عشوائية. أربع ثوان هي توقيت عرض اللعبة وليست مدة تفرضها قوانين الكرة.",
+            "With VAR enabled, simulation pauses for a four-second review after the checking announcement. The verdict finishes before its effect. The engine checks goals including relevant offside, penalties and close penalty-area boundaries, and direct reds. It supports offender identity correction and cancelling a clearly incorrect second caution when incident evidence exists, without random invented mistakes. Four seconds is game presentation timing, not a football law."),
         new(
             "law3_subs",
             "rules",
@@ -222,8 +225,8 @@ public static class UserGuideDatabase
             "Beacon",
             "منارة المرمى ثلاثية الأبعاد (3D Spatial Goal Beacon)",
             "3D Spatial Goal Beacon",
-            "نبضات صوتية هادئة ومتناغمة بتردد 528 هرتز (Harmonic Solfeggio) تسترشد بها نحو مرمى الخصم. يعلو صوت المنارة تدريجياً وبنعومة كلما اقتربت من المرمى وتهدأ في منتصف الملعب، وتتوزع مجسماً بين الأذنين (Stereo Panning) بناءً على موقعك العرضي، وتنقلب تلقائياً في الشوط الثاني نحو المرمى الأيسر.",
-            "A gentle, non-intrusive harmonic 528Hz pulse guiding you directly towards the opponent's goal. Volume smoothly swells as you approach the attacking third, while stereo panning dynamically reflects your lateral angle, automatically flipping to target the Left goal in the second half."
+            "نبضات صوتية هادئة ومتناغمة بتردد 528 هرتز (Harmonic Solfeggio) تسترشد بها نحو مرمى الخصم. يعلو صوت المنارة تدريجياً وبنعومة كلما اقتربت من المرمى وتهدأ في منتصف الملعب، وتتوزع مجسماً بين الأذنين (Stereo Panning) بالنسبة لاتجاه مواجهتك: في المنتصف عند مواجهة المرمى، ويميناً أو يساراً حسب موضعه. الصوت خافت جداً في وسط الملعب ويبدأ الظهور قرب 40 متراً، ثم يزيد بسلاسة. يتبدل المرمى المستهدف في الشوط الثاني.",
+            "A gentle, non-intrusive harmonic 528Hz pulse guiding you directly towards the opponent's goal. It is hushed in midfield, emerges near 40 metres and rises smoothly toward the goal. Stereo direction is relative to your actual facing: centered when you face the goal, right or left when the goal lies on that side. The target switches at halftime."
         )
     };
 
