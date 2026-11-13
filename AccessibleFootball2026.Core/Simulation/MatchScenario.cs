@@ -13,6 +13,23 @@ public partial class MatchEngine
     private readonly List<GoalReplay> _goalHistory = new();
     public Team? TrophyWinner { get; private set; }
 
+    public string? AbandonmentReason { get; private set; }
+    private void StopIfTooFewPlayers()
+    {
+        // Law 3 applies to match play, not Law 10's post-match penalty shootout.
+        if (State is MatchState.GameOver or MatchState.PenaltyShootout) return;
+        var team = new[] { HomeTeam, AwayTeam }.FirstOrDefault(t => t.Players.Count(p => p.IsActiveOnPitch) < 7);
+        if (team == null) return;
+        AbandonmentReason = LocalizationService.Text($"توقفت المباراة: {team.Name} لديه أقل من سبعة لاعبين.", $"Match abandoned: {team.Name} has fewer than seven players.");
+        State = MatchState.GameOver;
+        ResetPeriodPlayState();
+        _pendingInjuryChoices.Clear();
+        Ball.Owner = null; Ball.Velocity = System.Numerics.Vector3.Zero;
+        foreach (var player in HomeTeam.Players.Concat(AwayTeam.Players)) { player.HasBall = false; player.Velocity = System.Numerics.Vector2.Zero; }
+        Publish(new MatchEvent(MatchEventType.MatchAbandoned, AbandonmentReason),
+            ("match.abandoned", true), ("match.finished", true), ("team.id", team.Id));
+    }
+
     public void CompleteShootout(int homeGoals, int awayGoals)
     {
         if (State != MatchState.PenaltyShootout || homeGoals == awayGoals) return;
@@ -32,7 +49,7 @@ public partial class MatchEngine
 
     public GoalReplay? WinningGoalReplay()
     {
-        if (State != MatchState.GameOver || HomeTeam.Score == AwayTeam.Score) return null;
+        if (AbandonmentReason != null || State != MatchState.GameOver || HomeTeam.Score == AwayTeam.Score) return null;
         var winner=HomeTeam.Score>AwayTeam.Score?HomeTeam:AwayTeam;
         int losingScore=Math.Min(HomeTeam.Score,AwayTeam.Score);
         var replay=_goalHistory.LastOrDefault(r=>r.Goal.ScoringTeam==winner && (r.Goal.ScoringTeam==HomeTeam?r.Goal.HomeScore:r.Goal.AwayScore)==losingScore+1);
