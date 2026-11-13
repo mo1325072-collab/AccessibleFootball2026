@@ -100,7 +100,8 @@ public static class SoundEffectsPlayer
     private static readonly Dictionary<string, float> _activeOneShots = new();
     private static readonly Dictionary<string, float> _activeOneShotPans = new();
     private static float ChannelVolume(string alias) => alias == "comm_voice" ? (_commentaryEnabled ? GetEffectiveCommentaryVolume() : 0)
-        : alias == "chant_ch" || alias.StartsWith("crowd_", StringComparison.Ordinal) ? GetEffectiveCrowdVolume() : GetEffectiveSfxVolume();
+        : IsCrowdOneShot(alias) ? GetEffectiveCrowdVolume() * _crowdDucking : GetEffectiveSfxVolume();
+    private static bool IsCrowdOneShot(string alias) => alias == "chant_ch" || alias.StartsWith("crowd_", StringComparison.Ordinal);
     public static bool IsCrowdActive => _crowdPlaying && !_crowdPaused && GetEffectiveCrowdVolume() > .001f;
     public static string? LastPlayedSound { get; private set; }
     public static string? LastPlayedFilePath { get; private set; }
@@ -418,7 +419,7 @@ public static class SoundEffectsPlayer
         lock (_lock)
         {
             _crowdRequested = false; _crowdPaused = false; _stadiumAcousticPath = null;
-            _crowdIntensity = 350; _crowdDucking = 1;
+            _crowdIntensity = 350;
             CloseCrowdChannel();
         }
     }
@@ -485,7 +486,17 @@ public static class SoundEffectsPlayer
 
     public static void SetCrowdDucking(float factor)
     {
-        lock (_lock) { _crowdDucking = Math.Clamp(factor, 0, 1); UpdateCrowdChannel(force: true); }
+        lock (_lock)
+        {
+            _crowdDucking = Math.Clamp(factor, 0, 1);
+            UpdateCrowdChannel(force: true);
+            // Chants and reactions are independent MCI aliases, not part of the ambience loop.
+            foreach (string alias in _activeOneShots.Keys.Where(IsCrowdOneShot).ToArray())
+            {
+                int volume = Math.Clamp((int)(ChannelVolume(alias) * _activeOneShots[alias] * 1000), 0, 1000);
+                ApplyOneShotVolume(alias, volume, _activeOneShotPans.TryGetValue(alias, out var pan) ? pan : null);
+            }
+        }
     }
 
     private static void UpdateCrowdChannel(bool force)
@@ -506,7 +517,7 @@ public static class SoundEffectsPlayer
         if (GetEffectiveCrowdVolume() <= 0.001f) return;
         string? p = ResolveAudioPath("SFX", "Crowd", "CrowdMiss") 
                  ?? ResolveAudioPath("SFX", "Crowd", "CrowdGasp");
-        if (p != null) PlayOneShot(p, "crowd_miss", customVolume: GetEffectiveCrowdVolume());
+        if (p != null) PlayOneShot(p, "crowd_miss");
     }
 
     public static void PlayCrowdGoal()
@@ -514,7 +525,7 @@ public static class SoundEffectsPlayer
         if (GetEffectiveCrowdVolume() <= 0.001f) return;
         string? p = ResolveAudioPath("SFX", "Crowd", "CrowdGoal") 
                  ?? ResolveAudioPath("SFX", "Crowd", "CrowdCheer");
-        if (p != null) PlayOneShot(p, "crowd_goal", customVolume: GetEffectiveCrowdVolume());
+        if (p != null) PlayOneShot(p, "crowd_goal");
     }
 
     public static void PlayCrowdCheer()
@@ -522,7 +533,7 @@ public static class SoundEffectsPlayer
         if (GetEffectiveCrowdVolume() <= 0.001f) return;
         string? p = ResolveAudioPath("SFX", "Crowd", "CrowdCheer") 
                  ?? ResolveAudioPath("SFX", "Crowd", "CrowdGoal");
-        if (p != null) PlayOneShot(p, "crowd_cheer", customVolume: GetEffectiveCrowdVolume());
+        if (p != null) PlayOneShot(p, "crowd_cheer");
     }
 
     /// <summary>
@@ -534,7 +545,7 @@ public static class SoundEffectsPlayer
         if (GetEffectiveCrowdVolume() <= 0.001f) return false;
         string? p = ResolveAudioPath("SFX", "Crowd", "CrowdApplause");
         if (p == null || LastResolveWasSynthetic) return false;
-        return PlayOneShot(p, "crowd_applause", customVolume: GetEffectiveCrowdVolume());
+        return PlayOneShot(p, "crowd_applause");
     }
 
     // A failed status query is not evidence of completion. StopAll still clears the channel.
@@ -557,11 +568,11 @@ public static class SoundEffectsPlayer
         lock (_lock)
         {
             if (IsTeamChantActive || string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
-            PlayOneShot(filePath, "chant_ch", customVolume: GetEffectiveCrowdVolume());
+            PlayOneShot(filePath, "chant_ch");
         }
     }
 
-    public static bool TryPlayAudibleChant(string filePath) => PlayOneShot(filePath, "chant_ch", customVolume: GetEffectiveCrowdVolume());
+    public static bool TryPlayAudibleChant(string filePath) => PlayOneShot(filePath, "chant_ch");
 
     public static void SetStadiumAcoustics(string acousticPath)
     {
