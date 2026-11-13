@@ -157,6 +157,11 @@ public static class StadiumCatalog
         new("CampNou","سبوتيفاي كامب نو","Spotify Camp Nou",false,new[] {"FC Barcelona"},"https://www.fcbarcelona.com/en/card/4510623/spotify-camp-nou-202627-pass"),
         new("OldTrafford","أولد ترافورد","Old Trafford",false,new[] {"Manchester United"},"https://www.premierleague.com/en/news/4725666/all-you-need-to-know-about-the-20-premier-league-stadiums/"),
         new("SanSiro","سان سيرو (جوزيبي مياتزا)","San Siro (Giuseppe Meazza)",false,new[] {"Inter Milan","AC Milan"},"https://sansirostadium.com/the-stadium/?lang=en"),
+        new("Mestalla","ميستايا","Camp de Mestalla",false,new[] {"Valencia CF"},"https://www.laliga.com/en-GB/clubs/valencia-cf"),
+        new("ParcPrinces","حديقة الأمراء","Parc des Princes",false,new[] {"Paris Saint-Germain"},"https://www.gsph24.com/ligue-1-2026-2027-la-liste-des-18-stades-de-la-saison"),
+        new("Velodrome","سيباك فيلودروم","CEPAC Vélodrome",false,new[] {"Olympique Marseille"},"https://www.federation.caisse-epargne.fr/actualites/le-stade-velodrome-devient-le-cepac-velodrome-une-alliance-historique-qui-illustre-lengagement-territorial-des-caisses-depargne/"),
+        new("BayernAllianz","أليانز أرينا","Allianz Arena",false,new[] {"FC Bayern Munich"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("Metropolitano","رياض إير ميتروبوليتانو","Riyadh Air Metropolitano",false,new[] {"Atlético de Madrid"},"https://www.laliga.com/en-GB/clubs/atletico-de-madrid"),
     };
 
     public static IReadOnlyList<StadiumDefinition> GetAvailableStadiums()
@@ -191,6 +196,11 @@ public static class TeamChantCatalog
         new("Manchester United","SP_R0100_",535,540,MapSource),
         new("Inter Milan","SP_R0119_",592,597,MapSource),
         new("AC Milan","SP_R0121_",604,610,MapSource),
+        new("Valencia CF","SP_R0110_",558,563,MapSource),
+        new("Paris Saint-Germain","SP_R0114_",572,575,MapSource),
+        new("Olympique Marseille","SP_R0113_",566,571,MapSource),
+        new("FC Bayern Munich","SP_R0127_",624,626,MapSource),
+        new("Atlético de Madrid","SP_R0172_",642,646,MapSource),
     };
     public static TeamChantPool? Find(Team team) => team.IsNationalTeam ? null :
         Pools.FirstOrDefault(p=>p.TeamName.Equals(team.Name,StringComparison.OrdinalIgnoreCase));
