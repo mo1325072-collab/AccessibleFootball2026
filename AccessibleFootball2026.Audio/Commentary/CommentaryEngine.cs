@@ -415,7 +415,7 @@ public class CommentaryEngine : IDisposable
 
     public bool TryCommentOnEvent(MatchEvent matchEvent, bool force = false)
     {
-        if (!CommentaryAudible) return false;
+        if (!CommentaryAudible || matchEvent.Type == MatchEventType.MatchAbandoned) return false;
         // Only a real goal or awarded penalty may cut a sentence. All other events queue or drop.
         if (matchEvent.Type is MatchEventType.GoalScored or MatchEventType.PenaltyAwarded)
         {
