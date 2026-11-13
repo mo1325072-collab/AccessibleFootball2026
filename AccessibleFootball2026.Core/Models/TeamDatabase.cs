@@ -138,7 +138,7 @@ public static class TeamDatabase
 
 
 /// <summary>A sourced ground may belong to several production teams, and a team may use several grounds.
-/// Only chant-backed grounds are offered. Never create stadiums to fill a roster count.</summary>
+/// Stadium availability is independent of whether a dedicated chant recording has been recovered.</summary>
 public sealed record StadiumDefinition(string Key, string ArabicName, string EnglishName,
     bool NationalTeams, string[] TeamNames, string SourceUrl,
     string[]? NationalTeamNames=null, string? NationalSourceUrl=null)
@@ -151,7 +151,7 @@ public sealed record StadiumDefinition(string Key, string ArabicName, string Eng
 
 public static class StadiumCatalog
 {
-    // Only grounds whose participating team has a corroborated, recovered chant pool.
+    // Sourced grounds for production teams. Chant availability is checked separately at playback.
     // Club and national ownership stay separately typed, including shared venues.
     private static readonly StadiumDefinition[] Verified =
     {
@@ -200,6 +200,7 @@ public static class StadiumCatalog
         new("JuventusAllianz","أليانز ستاديوم","Allianz Stadium",false,new[] {"Juventus FC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
         new("DallAra","ريناتو دال آرا","Renato Dall’Ara",false,new[] {"Bologna FC 1909"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
         new("Balaidos","أبانكا بالايدوس","Estadio ABANCA Balaídos",false,new[] {"Celta de Vigo"},"https://www.laliga.com/en-GB/clubs/rc-celta"),
+        new("CairoInternational","استاد القاهرة الدولي","Cairo International Stadium",true,new[] {"Egypt"},"https://www.cafonline.com/caf-u-20-africa-cup-of-nations/news/cairo-ismailia-and-alexandria-ready-to-host-u20-afcon-egypt/"),
         new("Wembley","ويمبلي","Wembley",true,new[] {"England"},"https://www.wembleystadium.com/about/stadium-facts-and-features"),
         new("HampdenPark","هامبدن بارك (باركليز هامبدن)","Hampden Park (Barclays Hampden)",true,new[] {"Scotland"},"https://www.scottishfa.co.uk/en/barclays-hampden"),
         new("CardiffCity","كارديف سيتي","Cardiff City Stadium",true,new[] {"Wales"},"https://faw.cymru/news/venues-confirmed-for-nations-league-fixtures/"),
