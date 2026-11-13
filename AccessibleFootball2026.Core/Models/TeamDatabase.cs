@@ -180,6 +180,41 @@ public static class StadiumCatalog
         new("CityGround","سيتي جراوند","City Ground",false,new[] {"Nottingham Forest"},"https://www.premierleague.com/en/news/4725666/all-you-need-to-know-about-the-20-premier-league-stadiums/"),
         new("StadiumOfLight","ستاديوم أوف لايت","Stadium of Light",false,new[] {"Sunderland AFC"},"https://www.premierleague.com/en/news/4725666/all-you-need-to-know-about-the-20-premier-league-stadiums/"),
         new("TottenhamStadium","توتنهام هوتسبير","Tottenham Hotspur Stadium",false,new[] {"Tottenham Hotspur"},"https://www.premierleague.com/en/news/4725666/all-you-need-to-know-about-the-20-premier-league-stadiums/"),
+        new("NewBalance","نيو بالانس أرينا","New Balance Arena",false,new[] {"Atalanta BC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("DallAra","ريناتو دال آرا","Renato Dall'Ara",false,new[] {"Bologna FC 1909"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("UnipolDomus","أونيبول دوموس","Unipol Domus",false,new[] {"Cagliari Calcio"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Sinigaglia","جوزيبي سينيجاليا","Giuseppe Sinigaglia",false,new[] {"Como 1907"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Franchi","أرتيميو فرانكي","Artemio Franchi",false,new[] {"ACF Fiorentina"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Stirpe","بينيتو ستيربي","Benito Stirpe",false,new[] {"Frosinone Calcio"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Ferraris","لويجي فيراريس","Luigi Ferraris",false,new[] {"Genoa CFC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("JuveAllianz","أليانز ستاديوم (يوفنتوس)","Allianz Stadium (Juventus)",false,new[] {"Juventus FC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("OlimpicoRome","الأولمبيكو (روما)","Stadio Olimpico (Rome)",false,new[] {"SS Lazio","AS Roma"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("ViaDelMare","إيتوري جياردينييرو (فيا ديل ماري)","Ettore Giardiniero - Via del Mare",false,new[] {"US Lecce"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Brianteo","بريانتيـو","Brianteo",false,new[] {"AC Monza"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Maradona","دييجو أرماندو مارادونا","Diego Armando Maradona",false,new[] {"SSC Napoli"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Tardini","إنيو تارديني","Ennio Tardini",false,new[] {"Parma Calcio 1913"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Mapei","مابي ستاديوم","Mapei Stadium",false,new[] {"US Sassuolo"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("GrandeTorino","أولمبيكو جراندي تورينو","Olimpico Grande Torino",false,new[] {"Torino FC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Bluenergy","فريولي (بلوينرجي)","Friuli / Bluenergy Stadium",false,new[] {"Udinese Calcio"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Penzo","بيير لويجي بينزو","Pier Luigi Penzo",false,new[] {"Venezia FC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("BayernAllianz","أليانز أرينا","Allianz Arena",false,new[] {"FC Bayern Munich"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("SignalIduna","سيجنال إيدونا بارك","Signal Iduna Park",false,new[] {"Borussia Dortmund"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("RedBull","ريد بول أرينا","Red Bull Arena",false,new[] {"RB Leipzig"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("MHPArena","إم إتش بي أرينا","MHPArena",false,new[] {"VfB Stuttgart"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("SNP","إس إن بي أرينا","SNP Arena",false,new[] {"TSG 1899 Hoffenheim"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("BayArena","باي أرينا","BayArena",false,new[] {"Bayer 04 Leverkusen"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("EuropaPark","يوروبا بارك","Europa-Park Stadion",false,new[] {"SC Freiburg"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("DeutscheBank","دويتشه بانك بارك","Deutsche Bank Park",false,new[] {"Eintracht Frankfurt"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("WWK","دبليو دبليو كيه أرينا","WWK Arena",false,new[] {"FC Augsburg"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("Mewa","ميوا أرينا","MEWA Arena",false,new[] {"1.FSV Mainz 05"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("AlteForsterei","آن دير ألتن فورستراي","An der Alten Försterei",false,new[] {"1.FC Union Berlin"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("BorussiaPark","إيستا بوروسيا بارك","ista-Borussia-Park",false,new[] {"Borussia Mönchengladbach"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("Volkspark","فولكسبارك","Volksparkstadion",false,new[] {"Hamburger SV"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("RheinEnergie","راين إنرجي","RheinEnergieSTADION",false,new[] {"1.FC Köln"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("Weser","فيزرشتاديون","Weserstadion",false,new[] {"SV Werder Bremen"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("Veltins","فيلتينس أرينا","VELTINS-Arena",false,new[] {"FC Schalke 04"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("Ursapharm","أورسافارم أرينا","URSAPHARM-Arena",false,new[] {"SV 07 Elversberg"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("HomeDeluxe","هوم ديلوكس أرينا","Home Deluxe Arena",false,new[] {"SC Paderborn 07"},"https://www.bundesliga.com/en/bundesliga/clubs"),
     };
 
     public static IReadOnlyList<StadiumDefinition> GetAvailableStadiums()
@@ -187,6 +222,12 @@ public static class StadiumCatalog
         // Only the actual production JSON universe, never a fallback team invented to fill a venue.
         var teams = JsonDatabaseProvider.AllTeams;
         return Verified.Where(v => teams.Any(v.IsGroundFor)).ToList();
+    }
+
+    public static IReadOnlyList<StadiumDefinition> GetGroundsForProductionGroup(string group)
+    {
+        var teams = JsonDatabaseProvider.GetTeamsByGroup(group);
+        return GetAvailableStadiums().Where(s => teams.Any(s.IsGroundFor)).ToList();
     }
 
     public static StadiumDefinition? Find(string key) =>
