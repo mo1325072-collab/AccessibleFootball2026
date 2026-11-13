@@ -274,7 +274,7 @@ public static class GamePlanMenuBuilder
         {
             string details = T($"{player.Name}، رقم {player.ShirtNumber}. الأساسي {player.PrimaryPosition}، الحالي {player.CurrentAssignedPosition}. السرعة {player.Speed}، التسديد {player.Shooting}، التمرير {player.Passing}، المراوغة {player.Dribbling}، الدفاع {player.Defending}، القوة {player.Physical}. التقييم {player.EffectiveOverallRating}، {player.ConditionDescription}.",
                 $"{player.Name}, shirt {player.ShirtNumber}. Primary {player.PrimaryPosition}, assigned {player.CurrentAssignedPosition}. Speed {player.Speed}, shooting {player.Shooting}, passing {player.Passing}, dribbling {player.Dribbling}, defending {player.Defending}, physical {player.Physical}. Rating {player.EffectiveOverallRating}, {player.ConditionDescription}.");
-            screenReader.Speak(details);
+            screenReader.Speak(details + " " + player.DataProvenanceSummary);
         });
 
         menu.AddItem(T("رجوع", "Back"), () => popMenu());
