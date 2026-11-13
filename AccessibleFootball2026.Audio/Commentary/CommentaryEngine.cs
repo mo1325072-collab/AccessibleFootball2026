@@ -41,18 +41,79 @@ public class CommentaryEngine : IDisposable
     }
 
     private readonly Queue<PendingLine> _pendingLines = new();
+    private readonly Dictionary<MatchEventType, (MatchEvent Event, DateTime Seen)> _routineCandidates = new();
+    private readonly Dictionary<string, DateTime> _recentGenericPassClips = new(StringComparer.Ordinal);
+    private static bool IsRoutinePlay(MatchEventType type) => type is MatchEventType.BallKicked or MatchEventType.PassCompleted or
+        MatchEventType.PassIntercepted or MatchEventType.BallTrapped or MatchEventType.PossessionPlay or MatchEventType.MatchAnalysis;
+    private static int RoutinePriority(MatchEventType type) => type switch
+    {
+        MatchEventType.PassIntercepted => 50, MatchEventType.PassCompleted => 40,
+        MatchEventType.MatchAnalysis => 35, MatchEventType.PossessionPlay => 30,
+        MatchEventType.BallTrapped => 20, _ => 10
+    };
+    private void RememberRoutine(MatchEvent value)
+    {
+        lock (_queueLock)
+        {
+            if (_scopeClosed) return;
+            if (value.Type is MatchEventType.PassCompleted or MatchEventType.PassIntercepted)
+                _routineCandidates.Remove(MatchEventType.BallKicked); // Do not narrate a launch after its result.
+            _routineCandidates[value.Type] = (value, DateTime.UtcNow);
+        }
+        EnsureDispatcher();
+    }
+    private void FlushRoutineCandidate()
+    {
+        if (DateTime.UtcNow - _lastCommentaryTime < _minIntervalBetweenLines) return;
+        for (int attempt = 0; attempt < 6; attempt++)
+        {
+            MatchEvent? candidate;
+            lock (_queueLock)
+            {
+                if (_pendingLines.Count > 0) return;
+                foreach (var stale in _routineCandidates.Where(pair => DateTime.UtcNow - pair.Value.Seen > TimeSpan.FromSeconds(8)).Select(pair => pair.Key).ToArray())
+                    _routineCandidates.Remove(stale);
+                if (_routineCandidates.Count == 0) return;
+                var best = _routineCandidates.OrderByDescending(pair => RoutinePriority(pair.Key)).ThenBy(pair => pair.Value.Seen).First();
+                candidate = best.Value.Event;
+                _routineCandidates.Remove(best.Key);
+            }
+            if (TryCommentOnEvent(candidate, force: true)) return;
+        }
+    }
     private readonly object _queueLock = new();
     private const int MaxPendingLines = 6;
     private Timer? _dispatcher;
     private int _dispatchActive;
     private volatile bool _runningCallback;
+    private volatile bool _playbackSuspended;
+    private volatile bool _scopeClosed;
+    private int _scopeGeneration;
+    public void SuspendPlayback()
+    {
+        lock (SpeechGate) { _playbackSuspended = true; SoundEffectsPlayer.PauseMatchSounds(); }
+    }
+    public void ResumePlayback()
+    {
+        lock (SpeechGate) { _scopeClosed = false; _playbackSuspended = false; SoundEffectsPlayer.ResumeMatchSounds(); }
+        DispatchPending(null);
+    }
+    public void EndPlaybackScope()
+    {
+        lock (SpeechGate)
+        {
+            _scopeClosed = true; _playbackSuspended = true; _scopeGeneration++;
+            lock (_queueLock) { _pendingLines.Clear(); _routineCandidates.Clear(); _recentGenericPassClips.Clear(); }
+            SoundEffectsPlayer.StopCommentaryAudio();
+        }
+    }
     public object SpeechGate { get; } = new();
     public Func<bool>? IsReaderSpeaking { get; set; }
     public event Action? OnUrgentInterruption;
     public bool IsRecordedChannelBusy
     {
-        get { lock (_queueLock) return SoundEffectsPlayer.IsCommentaryPlaying() ||
-            (!_runningCallback && _pendingLines.Any(p => p.ClipPath != null || p.Phrase != null)); }
+        get { lock (_queueLock) return !_playbackSuspended && (SoundEffectsPlayer.IsCommentaryPlaying() ||
+            (!_runningCallback && _pendingLines.Any(p => p.ClipPath != null || p.Phrase != null))); }
     }
 
     // خريطة ربط صريحة اختيارية (commentary_map.json): eventKey -> مسارات نسبية لمقاطع محددة
@@ -151,6 +212,7 @@ public class CommentaryEngine : IDisposable
         if (!CommentaryAudible) return false;
         if(!library.Recordings.Contains(recording))return false;
         var path=library.Resolve(recording.File);if(path==null)return false;
+        ResumePlayback();
         EnqueueClip(path,null);return true;
     }
 
@@ -214,7 +276,7 @@ public class CommentaryEngine : IDisposable
         {
             lock (_queueLock)
             {
-                if (_pendingLines.Count > 0 || Volatile.Read(ref _dispatchActive) != 0) return false;
+                if (_playbackSuspended || _pendingLines.Count > 0 || Volatile.Read(ref _dispatchActive) != 0) return false;
             }
             return !SoundEffectsPlayer.IsCommentaryPlaying();
         }
@@ -223,13 +285,13 @@ public class CommentaryEngine : IDisposable
     // Used for match introductions: retain the spoken team information, but wait for the recorded intro.
     public void RunAfterRecordedCommentary(Action callback)
     {
-        lock (_queueLock) { _pendingLines.Enqueue(new PendingLine { Callback = callback }); }
+        lock (_queueLock) { if (_scopeClosed) return; _pendingLines.Enqueue(new PendingLine { Callback = callback }); }
         EnsureDispatcher();
     }
 
     public void RunAfterRecordedCommentaryAsync(Func<System.Threading.Tasks.Task> callback)
     {
-        lock(_queueLock){_pendingLines.Enqueue(new PendingLine{AsyncCallback=callback});}
+        lock(_queueLock){if(_scopeClosed)return;_pendingLines.Enqueue(new PendingLine{AsyncCallback=callback});}
         EnsureDispatcher();
     }
 
@@ -262,7 +324,7 @@ public class CommentaryEngine : IDisposable
 
     public void ClearPendingLines()
     {
-        lock (_queueLock) { _pendingLines.Clear(); }
+        lock (_queueLock) { _pendingLines.Clear(); _routineCandidates.Clear(); }
     }
 
     private bool HasPendingLines
@@ -283,6 +345,7 @@ public class CommentaryEngine : IDisposable
         if (!CommentaryAudible) return;
         lock (_queueLock)
         {
+            if (_scopeClosed) return;
             // Admission throttling happens before this point. Never evict an ordered replay or completion callback.
             _pendingLines.Enqueue(new PendingLine { ClipPath = clipPath, Event = matchEvent });
         }
@@ -295,7 +358,7 @@ public class CommentaryEngine : IDisposable
         if (!CommentaryAudible) return;
         lock (_queueLock)
         {
-            if (_pendingLines.Count >= MaxPendingLines) return;
+            if (_scopeClosed || _pendingLines.Count >= MaxPendingLines) return;
             _pendingLines.Enqueue(new PendingLine { Phrase = phrase, Event = matchEvent });
         }
         EnsureDispatcher();
@@ -307,9 +370,12 @@ public class CommentaryEngine : IDisposable
         try
         {
             PendingLine? next;
+            int generation;
             lock (SpeechGate)
             {
-                if (SoundEffectsPlayer.IsCommentaryPlaying() || IsReaderSpeaking?.Invoke() == true) return;
+                if (_playbackSuspended || _scopeClosed || SoundEffectsPlayer.IsCommentaryPlaying() || IsReaderSpeaking?.Invoke() == true) return;
+                generation = _scopeGeneration;
+                FlushRoutineCandidate();
                 lock (_queueLock) next = _pendingLines.Count > 0 ? _pendingLines.Dequeue() : null;
                 if (next == null) return;
                 if (next.ClipPath != null)
@@ -326,12 +392,14 @@ public class CommentaryEngine : IDisposable
             if(next.AsyncCallback!=null)
             {
                 _runningCallback = true;
-                await next.AsyncCallback();
+                System.Threading.Tasks.Task work;
+                lock (SpeechGate) { if (_scopeClosed || generation != _scopeGeneration) return; work = next.AsyncCallback(); }
+                await work;
             }
             else if (next.Callback != null)
             {
                 _runningCallback = true;
-                next.Callback();
+                lock (SpeechGate) { if (_scopeClosed || generation != _scopeGeneration) return; next.Callback(); }
             }
             else if (CommentaryAudible && next.Phrase != null && next.Event != null)
             {
@@ -397,12 +465,19 @@ public class CommentaryEngine : IDisposable
 
     public bool TryCommentOnEvent(MatchEvent matchEvent, bool force = false)
     {
-        if (!CommentaryAudible || matchEvent.Type == MatchEventType.MatchAbandoned) return false;
+        if (_scopeClosed || !CommentaryAudible || matchEvent.Type == MatchEventType.MatchAbandoned) return false;
         // Even goals and penalties wait for the currently spoken phrase. New events never cut a recording.
         // Admission/throttling below drops routine stale events rather than overlapping sentences.
         bool isFinalAnalysis = matchEvent.Type == MatchEventType.MatchAnalysis && matchEvent.Context.TryGet("match.finished",out var finished) && finished=="true";
         bool isCritical = isFinalAnalysis || matchEvent.Type is MatchEventType.GoalScored or MatchEventType.DramaticComeback or MatchEventType.HatTrickAchieved or MatchEventType.WoodworkHit or MatchEventType.RedCard or MatchEventType.FullTime or MatchEventType.HalfTime or MatchEventType.ExtraTimeHalfTime or MatchEventType.PenaltyAwarded or MatchEventType.FreeKickAwarded;
 
+        if (isCritical) { lock (_queueLock) _routineCandidates.Clear(); }
+        if (!force && !isCritical && IsRoutinePlay(matchEvent.Type))
+        {
+            // Keep only a recent snapshot per event kind, not an unbounded backlog or a first-event-wins race.
+            RememberRoutine(matchEvent);
+            return false;
+        }
         if (!force && !isCritical)
         {
             if (DateTime.UtcNow - _lastCommentaryTime < _minIntervalBetweenLines ||
@@ -463,6 +538,16 @@ public class CommentaryEngine : IDisposable
             var contextualClip = _contextCatalog?.Choose(eventKey, matchEvent.Context);
             if (contextualClip != null)
             {
+                if (matchEvent.Type == MatchEventType.BallKicked)
+                {
+                    lock (_queueLock)
+                    {
+                        // A two-clip pool must not fill every free gap by endlessly alternating.
+                        // Other fresh event kinds remain eligible; the corpus itself is unchanged.
+                        if (_recentGenericPassClips.TryGetValue(contextualClip, out var played) && DateTime.UtcNow - played < TimeSpan.FromSeconds(20)) return false;
+                        _recentGenericPassClips[contextualClip] = DateTime.UtcNow;
+                    }
+                }
                 matchEvent.HandledByCommentary = true;
                 EnqueueClip(contextualClip, matchEvent);
                 return true;
