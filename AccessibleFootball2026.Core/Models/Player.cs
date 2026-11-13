@@ -7,7 +7,8 @@ public enum PlayerRole
     Goalkeeper,
     Defender,
     Midfielder,
-    Forward
+    Forward,
+    Unknown
 }
 
 public enum SpecificPosition
@@ -26,7 +27,8 @@ public enum SpecificPosition
     LW,
     RW,
     ST,
-    CF
+    CF,
+    Unknown
 }
 
 public enum PlayerInjuryStatus
@@ -123,7 +125,23 @@ public class Player
 
     // السمات الواقعية للاعب
     public PreferredFoot PreferredFoot { get; set; } = PreferredFoot.Right;
+    // Zero means unavailable in the supplied source, never a claimed age.
     public int Age { get; set; } = 25;
+    public bool HasKnownAge => Age > 0;
+    // This neutral simulation band does not change or claim the source age.
+    public int SimulationAge => HasKnownAge ? Age : 25;
+    public bool RatingIsEstimated { get; set; }
+    public string RatingProvenance { get; set; } = string.Empty;
+    public string[] DataSourceUrls { get; set; } = Array.Empty<string>();
+    public string SourcePosition { get; set; } = string.Empty;
+    public bool HasKnownSourcePosition => PrimaryPosition != SpecificPosition.Unknown;
+    public string DataProvenanceSummary => LocalizationService.Text(
+        $"العمر: {(HasKnownAge ? Age.ToString() : "غير معروف؛ اللياقة تستخدم شريحة محايدة تقديرية")}. " +
+        (!HasKnownSourcePosition ? "المركز الأصلي غير معروف؛ مركز الملعب توزيع للعبة فقط. " : "") +
+        (RatingIsEstimated ? "الطاقة تقديرية لتوازن اللعبة، وليست تقييماً موثقاً. " : ""),
+        $"Age: {(HasKnownAge ? Age.ToString() : "unknown; stamina uses an estimated neutral band")}. " +
+        (!HasKnownSourcePosition ? "Source position unknown; assigned pitch position is gameplay only. " : "") +
+        (RatingIsEstimated ? "Rating estimated for game balance, not a sourced rating. " : ""));
     public int HeightCm { get; set; } = 180;
     public string ClubOrigin { get; set; } = string.Empty; // النادي الأصلي المستدعى منه في وضع الاختيار العشوائي
 
@@ -192,6 +210,7 @@ public class Player
 
     public PlayerRole Role => CurrentAssignedPosition switch
     {
+        SpecificPosition.Unknown => PlayerRole.Unknown,
         SpecificPosition.GK => PlayerRole.Goalkeeper,
         SpecificPosition.CB or SpecificPosition.LB or SpecificPosition.RB or SpecificPosition.LWB or SpecificPosition.RWB => PlayerRole.Defender,
         SpecificPosition.CDM or SpecificPosition.CM or SpecificPosition.CAM or SpecificPosition.LM or SpecificPosition.RM => PlayerRole.Midfielder,
@@ -226,6 +245,7 @@ public class Player
     {
         get
         {
+            if (PrimaryPosition == SpecificPosition.Unknown) return 1.0f; // Neutral game placement, not a claimed source position.
             if (CurrentAssignedPosition == PrimaryPosition) return 1.0f;
             if (SecondaryPositions.Contains(CurrentAssignedPosition)) return 0.92f;
             
@@ -322,6 +342,10 @@ public class Player
             HeightCm,
             TacticalRole)
         {
+            RatingIsEstimated = RatingIsEstimated,
+            RatingProvenance = RatingProvenance,
+            DataSourceUrls = (string[])DataSourceUrls.Clone(),
+            SourcePosition = SourcePosition,
             CurrentAssignedPosition = CurrentAssignedPosition,
             BaseStamina = BaseStamina,
             CurrentStamina = CurrentStamina,
