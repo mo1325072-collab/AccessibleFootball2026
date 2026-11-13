@@ -195,39 +195,31 @@ foreach(var (play,alias) in new (Action<float>,string)[]{(SoundEffectsPlayer.Pla
  Check(commands.Contains($"setaudio {alias} left volume to 0")&&commands.Contains($"setaudio {alias} right volume to 100"),alias+" live volume preserves active right pan");
  MatchSettings.Current.MasterVolumePercent=50;MatchSettings.Current.ApplyLive();
 }
-// Academy previews replace each other and stop on Back, while explanations stay in the guide.
+// Flat academy contains only semantic cues and full beacon demonstrations in both UI languages.
 var anthem=new AnthemEngine(new Reader(),audioRoot);
-{
- var reader=new Reader();var host=new Host();var academy=SoundAcademyMenuBuilder.CreateSoundAcademyMenu(reader,anthem,host.Push,host.Pop);host.Push(academy);
- var categories=SoundAcademyDatabase.GetCategories();var earcons=categories.FindIndex(c=>c.Id=="earcons");academy.GetItem(earcons).OnSelect!();var preview=host.Current!;
- commands.Clear();preview.GetItem(0).OnSelect!();Check(commands.Any(c=>c.StartsWith("play ")),"reachable academy earcon sample uses real playback path");
- commands.Clear();preview.GetItem(1).OnSelect!();Check(commands.Contains("close all"),"a second academy preview stops the prior looping sample first");
- commands.Clear();preview.GetItem(preview.Count-1).OnSelect!();Check(commands.Contains("close all")&&host.Current==academy,"academy Back stops previews and returns to its root");
- commands.Clear();host.Pop();Check(commands.Contains("close all"),"leaving academy closes any remaining preview channels");
- var guide=UserGuideMenuBuilder.CreateUserGuideMenu(reader,host.Push,host.Pop);var modes=UserGuideDatabase.GetCategories().FindIndex(c=>c.Id=="modes");guide.GetItem(modes).OnSelect!();reader.Spoken.Clear();host.Current!.GetItem(1).OnSelect!();Check(reader.Spoken.Any(t=>t.Contains("4")),"mode explanation remains reachable by selecting its guide entry");
-}
-// Restored categories expose every documented sample and report missing recordings honestly.
 foreach(var language in new[]{UiLanguage.Arabic,UiLanguage.English})
 {
- MatchSettings.Current.Language=language;var r=new Reader();var h=new Host();var academy=SoundAcademyMenuBuilder.CreateSoundAcademyMenu(r,anthem,h.Push,h.Pop);h.Push(academy);var cats=SoundAcademyDatabase.GetCategories();
- Check(cats.Select(c=>c.Id).SequenceEqual(new[]{"earcons","sfx","atmosphere","beacon","anthems"}),"academy restores all five documented categories: "+language);
- foreach(var category in cats)
+ MatchSettings.Current.Language=language;var r=new Reader();var h=new Host();var academy=SoundAcademyMenuBuilder.CreateSoundAcademyMenu(r,anthem,h.Push,h.Pop);h.Push(academy);
+ var items=SoundAcademyDatabase.GetAllItems();
+ Check(SoundAcademyDatabase.GetCategories().Count==0&&academy.Count==items.Count+1,"flatacademyhasallitemsplusBacknocategories: "+language);
+ for(int n=0;n<items.Count;n++)
  {
-  academy.GetItem(cats.IndexOf(category)).OnSelect!();var sub=h.Current!;var items=SoundAcademyDatabase.GetItemsByCategory(category.Id);
-  Check(sub.Count==items.Count+1,"every documented sample is reachable in "+category.Id+": "+language);
-  for(int n=0;n<items.Count;n++)
-  {
-   commands.Clear();r.Spoken.Clear();sub.GetItem(n).OnSelect!();
-   Check(r.Spoken.Any(t=>t.Contains(items[n].GetDescription(language))),"selected preview explains actual sample "+items[n].Id+": "+language);
-   if(items[n].Id is "GoalkeeperSave" or "GoalNet" or "WoodworkHit" or "RefereeWhistle" or "NationalAnthem")
-    Check(!commands.Any(c=>c.StartsWith("play "))&&r.Spoken.Any(t=>t.Contains(language==UiLanguage.English?"unavailable":"غير متاحة")),"missing real sample neither substitutes a kick nor silently claims playback "+items[n].Id+": "+language);
-  }
-  sub.GetItem(sub.Count-1).OnSelect!();
+  commands.Clear();r.Spoken.Clear();academy.GetItem(n).OnSelect!();
+  Check(h.Current==academy&&h.History.Count==0,"previewdoesnotpushasubmenu: "+items[n].Id+language);
+  Check(r.Spoken.Any(t=>t.Contains(items[n].GetDescription(language))),"selectedflatpreviewexplainssample: "+items[n].Id+language);
+  Check(commands.Contains("close all"),"eachpreviewstopsprioraudio: "+items[n].Id+language);
+  if(items[n].Id is "BeaconOutOfRange" or "BeaconNoPossession")
+   Check(!commands.Any(c=>c.StartsWith("play "))&&!r.Spoken.Any(t=>t.Contains(language==UiLanguage.English?"unavailable":"غير متاحة")),"intentionalsilenceisexplainednotmisreportedaserror: "+items[n].Id+language);
+  else Check(commands.Any(c=>c.StartsWith("play ")),"flatacademysamplehasactualplayback: "+items[n].Id+language);
  }
+ commands.Clear();academy.GetItem(academy.Count-1).OnSelect!();
+ Check(h.Current==null&&commands.Contains("close all"),"Backleavesflatacademyandstopspreview: "+language);
 }
+foreach(var excludedPreview in new[]{"BallKick","GoalRoar","ChampionsLeagueAnthem","NationalAnthem"})
+ Check(!SoundAcademyMenuBuilder.TryPlayPreview(excludedPreview,anthem),"academyrefusesoutofscopepreview: "+excludedPreview);
 commands.Clear();Check(!SoundAcademyMenuBuilder.TryPlayPreview("unknown-id",anthem)&&!commands.Any(c=>c.StartsWith("play ")),"unknown academy sound cannot fall back to an unrelated menu chime");
-SoundEffectsPlayer.MasterVolumeSetting=0;commands.Clear();Check(!SoundAcademyMenuBuilder.TryPlayPreview("BallKick",anthem)&&!commands.Any(c=>c.StartsWith("play ")),"muted academy recording reports no successful playback");SoundEffectsPlayer.MasterVolumeSetting=50;
-MciPlayback.TestCommand=(command,buffer)=>{commands.Add(command);return command.StartsWith("open ")?1:0;};Check(!SoundAcademyMenuBuilder.TryPlayPreview("BallKick",anthem),"academy reports playback transport failure instead of success");
+SoundEffectsPlayer.MasterVolumeSetting=0;commands.Clear();Check(!SoundAcademyMenuBuilder.TryPlayPreview("TackleWon",anthem)&&!commands.Any(c=>c.StartsWith("play ")),"muted academy recording reports no successful playback");SoundEffectsPlayer.MasterVolumeSetting=50;
+MciPlayback.TestCommand=(command,buffer)=>{commands.Add(command);return command.StartsWith("open ")?1:0;};Check(!SoundAcademyMenuBuilder.TryPlayPreview("TackleWon",anthem),"academy reports playback transport failure instead of success");
 commands.Clear();MciPlayback.TestCommand=(command,buffer)=>{commands.Add(command);return command.Contains("left volume")?1:0;};SoundEffectsPlayer.PlayKick(-1);
 Check(!commands.Contains("play kick from 0"),"failed spatial-channel setup cannot play an incorrectly centered effect");
 MciPlayback.TestCommand=null;
