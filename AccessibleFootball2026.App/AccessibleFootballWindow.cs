@@ -447,31 +447,27 @@ public class AccessibleFootballWindow : Form
         PushMenu(teamMenu);
     }
 
-    private void ChooseStadiumFlow(Team home, Team away)
+    private void ChooseStadiumFlow(Team home, Team away, bool cupFinal = false, bool rivalry = true)
     {
         var stadiumMenu = new AccessibleMenu(T("اختر الملعب", "Select stadium"), _screenReader);
-
-        stadiumMenu.AddItem(T("ملعب سانتياجو برنابيو (معقل ريال مدريد)", "Santiago Bernabeu"), () =>
+        // Ground choices are source-backed and filtered to production teams, not to this match.
+        // This permits a neutral venue such as San Siro for Madrid v Barcelona.
+        foreach (var stadium in StadiumCatalog.GetAvailableStadiums())
         {
-            _stadiumSoundEngine.ActiveStadiumKey = "SantiagoBernabeu";
-            _screenReader.Speak(T("تم اختيار ملعب سانتياجو برنابيو.", "Santiago Bernabeu selected"));
-            StartInteractiveMatch(home, away, rivalry: true);
-        });
-
-        stadiumMenu.AddItem(T("ملعب كامب نو (معقل برشلونة)", "Camp Nou"), () =>
-        {
-            _stadiumSoundEngine.ActiveStadiumKey = "CampNou";
-            _screenReader.Speak(T("تم اختيار ملعب كامب نو.", "Camp Nou selected"));
-            StartInteractiveMatch(home, away, rivalry: true);
-        });
-
+            var selected = stadium;
+            stadiumMenu.AddItem(selected.DisplayName, () =>
+            {
+                _stadiumSoundEngine.ActiveStadiumKey = selected.Key;
+                _screenReader.Speak(T("تم اختيار ملعب ", "Selected stadium: ") + selected.DisplayName);
+                StartInteractiveMatch(home, away, cupFinal, rivalry, stadiumSelected: true);
+            });
+        }
         stadiumMenu.AddItem(T("ملعب محايد", "Neutral stadium"), () =>
         {
             _stadiumSoundEngine.ActiveStadiumKey = "NeutralStadium";
-            _screenReader.Speak(T("تم اختيار ملعب محايد. صوت الجماهير سيعمل بشكل محايد تماماً.", "Neutral stadium selected"));
-            StartInteractiveMatch(home, away, rivalry: true);
+            _screenReader.Speak(T("تم اختيار ملعب محايد. صوت الجماهير محايد.", "Neutral stadium selected. Neutral crowd."));
+            StartInteractiveMatch(home, away, cupFinal, rivalry, stadiumSelected: true);
         });
-
         stadiumMenu.AddItem(T("رجوع لاختيار الفريق", "Back to team selection"), () => PopMenu());
         PushMenu(stadiumMenu);
     }
@@ -826,7 +822,7 @@ public class AccessibleFootballWindow : Form
         return true;
     }
 
-    private async void StartInteractiveMatch(Team homeTeam, Team awayTeam, bool cupFinal = false, bool rivalry = false)
+    private async void StartInteractiveMatch(Team homeTeam, Team awayTeam, bool cupFinal = false, bool rivalry = false, bool stadiumSelected = false)
     {
         if (_isInMatchAnthems) return;
         string? lineupIssue = homeTeam.GetMatchStartIssue() ?? awayTeam.GetMatchStartIssue();
@@ -836,7 +832,11 @@ public class AccessibleFootballWindow : Form
             _screenReader.Speak(lineupIssue);
             return;
         }
-        if (!rivalry) _stadiumSoundEngine.ActiveStadiumKey = "NeutralStadium";
+        if (!stadiumSelected)
+        {
+            ChooseStadiumFlow(homeTeam, awayTeam, cupFinal, rivalry);
+            return;
+        }
         _gameLoopTimer?.Stop();
         GoalBeaconPlayer.Stop();
         _commentaryEngine.ClearPendingLines();
