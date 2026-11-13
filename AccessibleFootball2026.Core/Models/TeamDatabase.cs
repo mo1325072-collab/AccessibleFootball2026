@@ -162,6 +162,12 @@ public static class StadiumCatalog
         new("Velodrome","سيباك فيلودروم","CEPAC Vélodrome",false,new[] {"Olympique Marseille"},"https://www.federation.caisse-epargne.fr/actualites/le-stade-velodrome-devient-le-cepac-velodrome-une-alliance-historique-qui-illustre-lengagement-territorial-des-caisses-depargne/"),
         new("BayernAllianz","أليانز أرينا","Allianz Arena",false,new[] {"FC Bayern Munich"},"https://www.bundesliga.com/en/bundesliga/clubs"),
         new("Metropolitano","رياض إير ميتروبوليتانو","Riyadh Air Metropolitano",false,new[] {"Atlético de Madrid"},"https://www.laliga.com/en-GB/clubs/atletico-de-madrid"),
+        new("OlimpicoRome","الأولمبيكو في روما","Stadio Olimpico",false,new[] {"SS Lazio","AS Roma"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Tardini","إنيو تارديني","Ennio Tardini",false,new[] {"Parma Calcio 1913"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Franchi","أرتيميو فرانكي","Artemio Franchi",false,new[] {"ACF Fiorentina"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Maradona","دييجو أرماندو مارادونا","Diego Armando Maradona",false,new[] {"SSC Napoli"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Bluenergy","فريولي (بلوينرجي)","Friuli / Bluenergy Stadium",false,new[] {"Udinese Calcio"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Ferraris","لويجي فيراريس","Luigi Ferraris",false,new[] {"Genoa CFC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
     };
 
     public static IReadOnlyList<StadiumDefinition> GetAvailableStadiums()
@@ -201,6 +207,13 @@ public static class TeamChantCatalog
         new("Olympique Marseille","SP_R0113_",566,571,MapSource),
         new("FC Bayern Munich","SP_R0127_",624,626,MapSource),
         new("Atlético de Madrid","SP_R0172_",642,646,MapSource),
+        new("SS Lazio","SP_R0122_",611,612,MapSource),
+        new("AS Roma","SP_R0125_",618,623,MapSource),
+        new("Parma Calcio 1913","SP_R0123_",613,614,MapSource),
+        new("ACF Fiorentina","SP_R0124_",615,617,MapSource),
+        new("SSC Napoli","SP_R0327_",760,762,MapSource),
+        new("Udinese Calcio","SP_R0190_",656,662,MapSource),
+        new("Genoa CFC","SP_R0323_",755,759,MapSource),
     };
     public static TeamChantPool? Find(Team team) => team.IsNationalTeam ? null :
         Pools.FirstOrDefault(p=>p.TeamName.Equals(team.Name,StringComparison.OrdinalIgnoreCase));
