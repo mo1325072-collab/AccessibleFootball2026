@@ -107,6 +107,17 @@ Check(!stadiumAudit.ShouldPlayChantForTeam(atletico),"another Madrid club cannot
 anthemCommands.Clear();stadiumAudit.SetMatchTeams(madrid,barcelona);
 stadiumAudit.HandleMatchContext(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.FoulCommitted,"unknown foul"),0,0,1);
 Check(!anthemCommands.Any(c=>c.StartsWith("play chant_ch")),"unknown foul actor does not invent an away-team foul");
+
+// Missing selected acoustic must not retain a previous stadium or pick an arbitrary file.
+var sparseRoot=Path.Combine(Path.GetTempPath(),"sparse-stadium-"+Guid.NewGuid());
+Directory.CreateDirectory(Path.Combine(sparseRoot,"SFX","StadiumAcoustics"));
+File.Copy(Path.Combine(root,"SFX","StadiumAcoustics","Acoustic_3.wav"),Path.Combine(sparseRoot,"SFX","StadiumAcoustics","Acoustic_3.wav"));
+var sparseStadium=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(sparseRoot){ActiveStadiumKey="SantiagoBernabeu"};
+sparseStadium.SetMatchTeams(madrid,barcelona);
+anthemCommands.Clear();sparseStadium.ActiveStadiumKey="NeutralStadium";sparseStadium.SetMatchTeams(madrid,barcelona);
+Check(!anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("Acoustic_3.wav")),"missing neutral acoustic never substitutes the available Bernabeu file");
+var acousticField=typeof(SoundEffectsPlayer).GetField("_stadiumAcousticPath",BindingFlags.Static|BindingFlags.NonPublic)!;
+Check(acousticField.GetValue(null)==null,"missing selected acoustic clears stale previous stadium configuration");
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
 
