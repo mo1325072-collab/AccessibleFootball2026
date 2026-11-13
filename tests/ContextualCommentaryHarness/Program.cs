@@ -8,6 +8,7 @@ using AccessibleFootball2026.Core.Models;
 using AccessibleFootball2026.Core.Simulation;
 using AccessibleFootball2026.Audio.Commentary;
 
+MatchSettings.Current.AiVarEnabled=false; // Direct commentary-decision fixtures; VAR timing has separate MatchFlowRegression coverage.
 int passed = 0, failed = 0;
 void Check(bool ok, string name) { Console.WriteLine((ok ? "PASS " : "FAIL ") + name); if (ok) passed++; else failed++; }
 var empty = CommentaryContext.Empty;
