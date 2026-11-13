@@ -607,6 +607,13 @@ public static class SoundEffectsPlayer
         if (p != null) PlayOneShot(p, "cross_kick", pan: pan);
     }
 
+    /// <summary>No pass-kick or generated substitute is presented as a goalkeeper-save recording.</summary>
+    public static bool TryPlayGoalkeeperSave(float pan = 0.0f)
+    {
+        string? path = TryResolveExistingAudioPath("SFX", "Saves", "GoalkeeperSave");
+        return path != null && PlayOneShot(path, "keeper_save", pan: pan);
+    }
+
     public static void PlayStandTackle(float pan = 0.0f)
     {
         LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
