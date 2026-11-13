@@ -274,18 +274,35 @@ anthemCommands.Clear();effectsCoordinator.HandleMatchEvent(chantGoalEvent);
 Check(anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("CrowdGoal.wav"))&&anthemCommands.Contains("play crowd_goal from 0"),"actualgoaleventusesexistingCrowdGoalassetandcrowdgoalchannel");
 Check(Directory.GetFiles(Path.Combine(root,"SFX","Crowd"),"CrowdMiss.wav").Length==1,"suppliedCrowdMissfileexistsforgasp_routewithoutsyntheticcreation");
 var grounds=StadiumCatalog.GetAvailableStadiums();
-Check(grounds.Count==2&&grounds.Select(g=>g.Key).Order().SequenceEqual(new[]{"CampNou","SantiagoBernabeu"}),"onlytwochantbackedgroundsremainoffered");
-Check(grounds.All(g=>g.TeamNames.All(n=>n is "Real Madrid" or "FC Barcelona")),"nogroundwithoutcorroboratedteamchantpoolisoffered");
-Check(StadiumCatalog.Find("SanSiro")==null&&StadiumCatalog.Find("Wembley")==null&&StadiumCatalog.Find("Velodrome")==null,"priorpaddinggroundsremovednotmerelyhiddenbygroup");
-Check(StadiumCatalog.GetGroundsForProductionGroup("Premier League (England)").Count==0,"unsupportedteamsdonotcreateotherstadiumchoices");
-indexedStadium.ActiveStadiumKey="SanSiro";indexedStadium.SetMatchTeams(madrid,barcelona);
-Check(indexedStadium.ResolveGroundCrowdTeam()==null,"staleexcludedgroundkeyfailsneutral");
+Check(grounds.Count==4&&grounds.Select(g=>g.Key).Order().SequenceEqual(new[]{"CampNou","OldTrafford","SanSiro","SantiagoBernabeu"}),"fourgroundscoverfivewiredchantteamswithoutpadding");
+Check(grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"nogroundwithoutcorroboratedteamchantpoolisoffered");
+Check(StadiumCatalog.Find("Wembley")==null&&StadiumCatalog.Find("Velodrome")==null,"priorpaddinggroundsremovednotmerelyhiddenbygroup");
+Check(StadiumCatalog.GetGroundsForProductionGroup("Premier League (England)").Count==1,"unsupportedteamsdonotcreateotherstadiumchoices");
+indexedStadium.ActiveStadiumKey="UnknownGround";indexedStadium.SetMatchTeams(madrid,barcelona);
+Check(indexedStadium.ResolveGroundCrowdTeam()==null,"unknownkeyhasnoteamchant");
 indexedStadium.ActiveStadiumKey="SantiagoBernabeu";indexedStadium.SetMatchTeams(barcelona,madrid);
 Check(indexedStadium.ResolveGroundCrowdTeam()==madrid,"away_slotMadridstillownsitschantbackedground");
 Check(SoundAcademyDatabase.GetCategories().Count==0,"academyhasnocategorynavigation");
 Check(SoundAcademyDatabase.GetItemsByCategory("earcons").Count==9,"academyhasexactlyninesemanticcues");
 Check(SoundAcademyDatabase.GetAllItems().Count==18&&SoundAcademyDatabase.GetAllItems().All(i=>i.CategoryId is "earcons" or "beacon"),"academyonlyninesemanticandninebeacondemonstrations");
 Check(new[]{"BeaconCenter","BeaconLeft","BeaconRight","BeaconNear","BeaconFar","BeaconOutOfRange","BeaconNoPossession","BeaconSecondHalfLeft","BeaconSecondHalfRight"}.All(id=>SoundAcademyDatabase.GetAllItems().Any(i=>i.Id==id)),"beaconcoverageincludesdirectiondistancehalfandintentional_silence");
+foreach(var (name,key,first,count) in new[]{("Manchester United","OldTrafford",535,6),("Inter Milan","SanSiro",592,6),("AC Milan","SanSiro",604,7)})
+{
+ var owner=JsonDatabaseProvider.GetTeamByName(name)!;
+ Check(owner!=null&&TeamChantCatalog.Find(owner)!=null,"newpoolresolvesactualproductionname: "+name);
+ indexedStadium.ActiveStadiumKey=key;indexedStadium.SetMatchTeams(madrid,owner);
+ anthemCommands.Clear();indexedStadium.PlayTeamChant(owner,AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm);
+ Check(anthemCommands.Any(c=>c.StartsWith("open ")&&Enumerable.Range(first,count).Any(n=>c.Contains("Chant_"+n+".wav"))),"newownerplaysonlydocumentedrecoveredrange: "+name);
+ Check(!indexedStadium.ShouldPlayChantForTeam(madrid),"visitingMadriddoesnotclaimnewownersground: "+name);
+ var pool=TeamChantCatalog.Find(owner)!;
+ Check(Enumerable.Range(first,count).All(n=>loadedLabels!.Any(l=>l.Value==n&&l.Key.StartsWith(pool.LabelPrefix))&&Directory.GetFiles(Path.Combine(root,"SFX","Chants"),"Chant_"+n+".wav",SearchOption.AllDirectories).Length>0),"everynewpoolentryhasmatchinglabelandactualfile: "+name);
+}
+var acMilan=JsonDatabaseProvider.GetTeamByName("AC Milan")!;var interMilan=JsonDatabaseProvider.GetTeamByName("Inter Milan")!;
+indexedStadium.ActiveStadiumKey="SanSiro";indexedStadium.SetMatchTeams(acMilan,interMilan);
+Check(indexedStadium.ResolveGroundCrowdTeam()==acMilan&&indexedStadium.ShouldPlayChantForTeam(acMilan)&&!indexedStadium.ShouldPlayChantForTeam(interMilan),"sharedSanSiroselectshomeMilanpoolonly");
+indexedStadium.SetMatchTeams(interMilan,acMilan);
+Check(indexedStadium.ResolveGroundCrowdTeam()==interMilan&&indexedStadium.ShouldPlayChantForTeam(interMilan)&&!indexedStadium.ShouldPlayChantForTeam(acMilan),"sharedSanSiroreversesforhomeInterpool");
+Check(grounds.Count(g=>g.Key=="SanSiro")==1,"sharedgroundappearsexactlyonce");
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
 
