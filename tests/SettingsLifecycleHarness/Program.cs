@@ -35,7 +35,7 @@ object? Call(object target,string name,params object[] args)=>target.GetType().G
 s.Difficulty=DifficultyLevel.Legendary;s.MatchDurationMinutes=15;s.ExtraTimeEnabled=false;s.PenaltyShootoutEnabled=false;
 s.Commentator=CommentatorId.RaoufKhlif;s.CommentaryVoice=CommentaryVoiceOption.Off;s.CommentaryEnabled=false;
 s.MasterVolumePercent=81;s.SfxVolumePercent=72;s.CommentaryVolumePercent=63;s.CrowdVolumePercent=0;s.GoalBeaconVolumePercent=0;s.MusicVolumePercent=0;
-s.ScreenReaderSpokenEventsEnabled=false;s.Language=UiLanguage.English;s.AutoSubstitutionsEnabled=true;s.AutoTacticalAdjustmentsEnabled=true;s.AiVarEnabled=false;s.SettingsVersion=0;
+s.ScreenReaderSpokenEventsEnabled=false;s.Language=UiLanguage.English;s.AutoSubstitutionsEnabled=true;s.AutoTacticalAdjustmentsEnabled=true;s.AiVarEnabled=false;s.CheckForUpdatesOnStartup=true;s.SettingsVersion=0;
 var save=typeof(MatchSettings).GetMethod("Save")!.Invoke(s,new object?[]{null});
 Check(save is true || File.Exists(file),"save writes a real persistent file");
 var expected=JsonSerializer.Deserialize<MatchSettings>(File.ReadAllText(file))!;
@@ -124,6 +124,82 @@ foreach(var review in new[]{false,true})
  s.AiVarEnabled=review;Persist();var match=Match();var kicker=match.HomeTeam.Players[9];var attacker=match.HomeTeam.Players[10];kicker.Position2D=new(70,34);attacker.Position2D=new(80.1f,34);match.AwayTeam.Players[0].Position2D=new(100,34);foreach(var p in match.AwayTeam.Players.Skip(1))p.Position2D=new(80,34);match.Ball.Position=new(70,34,0);Call(match,"SnapshotOffsideAtKick",kicker);Call(match,"ObserveOffsideTouch",attacker,true);var deadline=(float)match.GetType().GetField("_offsideReviewDeadline",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(match)!;Check(review?deadline>3:deadline==0,"saved native close-offside review="+review+" reaches actual review deadline");
 }
 Defaults();var reader=new Reader();var coordinator=new SmartAudioCoordinator(reader);s.ScreenReaderSpokenEventsEnabled=false;Persist();coordinator.HandleMatchEvent(new MatchEvent(MatchEventType.HalfTime,"interval"));Check(reader.Spoken.Count==0,"saved spoken-events Off suppresses automatic announcements");coordinator.HandleMatchEvent(new MatchEvent(MatchEventType.TacticalRadarInfo,"requested radar"));Check(reader.Spoken.Contains("requested radar"),"explicit radar stays accessible with automatic spoken events Off");
+// Model the actual Windows driver contract: waveaudio rejects setaudio (MCIERR_UNSUPPORTED_FUNCTION).
+Defaults();SoundEffectsPlayer.StopAll();SoundEffectsPlayer.SetMatchAudioContext(false);
+var drivers=new Dictionary<string,string>();
+MciPlayback.TestCommand=(command,buffer)=>
+{
+ commands.Add(command);
+ if(command.StartsWith("open "))
+ {
+  var tokens=command.Split(' ');drivers[tokens[^1]]=tokens[^3];
+ }
+ if(command.StartsWith("setaudio ")&&drivers.GetValueOrDefault(command.Split(' ')[1])=="waveaudio")return 274;
+ buffer?.Append(command.EndsWith(" length")?"35000":"stopped");return 0;
+};
+foreach(var id in new[]{"TackleWon","TackleMissed","BallLost","Foul","Penalty","Corner","GoalKick","ThrowIn","PlayerSwitch"})
+{
+ commands.Clear();Check(SoundEffectsPlayer.TryPlayAcademySample(id)&&Played("academy_earcon"),"Windows-compatible academy cue route "+id);
+ commands.Clear();SoundEffectsPlayer.PlayEarcon(id);Check(Played("earcon_ch"),"Windows-compatible match cue route "+id);
+}
+foreach(var effect in new Action[]{()=>SoundEffectsPlayer.PlayWhistle(),()=>SoundEffectsPlayer.PlayShotKick(),()=>SoundEffectsPlayer.PlayPassKick(),()=>SoundEffectsPlayer.PlayCrossKick()})
+{
+ commands.Clear();effect();Check(commands.Any(c=>c.StartsWith("play ")),"shared Windows-compatible driver plays referee/pass/shot/cross entrypoint");
+}
+SoundEffectsPlayer.StartMenuMusic();commands.Clear();SoundEffectsPlayer.SetMatchAudioContext(true);SoundEffectsPlayer.StartMenuMusic();s.MusicVolumePercent=55;s.ApplyLive();Check(!Played("bgm_menu")&&commands.Contains("stop bgm_menu"),"match context stops music and rejects restart and live-settings paths");
+SoundEffectsPlayer.SetMatchAudioContext(false);commands.Clear();SoundEffectsPlayer.StartMenuMusic();Check(Played("bgm_menu"),"return to menu can resume the approved song");SoundEffectsPlayer.StopAll();
+commands.Clear();int starts=0;Parallel.For(0,16,_=>{if(SoundEffectsPlayer.PlayCommentaryAudio(Path.Combine(root,"chant.wav")))Interlocked.Increment(ref starts);});Check(starts==1&&commands.Count(c=>c=="play comm_voice from 0")==1,"concurrent real playback callers cannot overlap or replace a phrase");
+var busy=(DateTime)typeof(SoundEffectsPlayer).GetField("_commentaryBusyUntil",BindingFlags.Static|BindingFlags.NonPublic)!.GetValue(null)!;Check(busy>DateTime.UtcNow.AddSeconds(34),"native35secondclip length is not truncated to30seconds");
+commands.Clear();using(var engine=new CommentaryEngine(CommentatorId.FaresAwad,root))
+{
+ engine.TryCommentOnEvent(new MatchEvent(MatchEventType.GoalScored,"goal"));engine.TryCommentOnEvent(new MatchEvent(MatchEventType.PenaltyAwarded,"penalty"));
+ Check(!commands.Contains("stop comm_voice")&&!commands.Contains("close comm_voice"),"real goal and penalty admissions never interrupt a current phrase");
+}
+SoundEffectsPlayer.StopAll();commands.Clear();Check(anthem.PlayChampionsLeagueSample()&&anthem.HasPlaybackCompleted,"startup completion is observable for the UI transition");anthem.StopAllSounds();
+// Pause is resumable; leaving the match invalidates the whole queue and later dispatches.
+SoundEffectsPlayer.StopAll();SoundEffectsPlayer.SetMatchAudioContext(true);
+using(var lifecycle=new CommentaryEngine(CommentatorId.FaresAwad,root))
+{
+ SoundEffectsPlayer.PlayCommentaryAudio(Path.Combine(root,"chant.wav"));commands.Clear();lifecycle.SuspendPlayback();
+ bool staleCallback=false;lifecycle.RunAfterRecordedCommentary(()=>staleCallback=true);Thread.Sleep(300);
+ Check(commands.Contains("pause comm_voice")&&!lifecycle.IsRecordedChannelBusy&&!staleCallback,"pause silences current commentary and holds queue without blocking menu reader");
+ commands.Clear();SoundEffectsPlayer.PlayWhistle();SoundEffectsPlayer.PlayMenuMove();Check(!Played("whistle")&&Played("ui_move"),"pause blocks match effects but preserves approved menu feedback");
+ lifecycle.ResumePlayback();Check(commands.Contains("resume comm_voice")&&SoundEffectsPlayer.IsCommentaryPlaying(),"resume continues the same phrase instead of replacing or restarting it");
+ lifecycle.EndPlaybackScope();commands.Clear();Thread.Sleep(300);Check(!staleCallback&&!Played("comm_voice"),"leaving a match clears stale queued commentary and completion callbacks");
+ Check(!lifecycle.TryCommentOnEvent(new MatchEvent(MatchEventType.GoalScored,"late goal")),"late event cannot reopen a closed match commentary scope");
+ lifecycle.ResumePlayback();bool freshCallback=false;lifecycle.RunAfterRecordedCommentary(()=>freshCallback=true);Thread.Sleep(350);Check(freshCallback&&!staleCallback,"a new playback scope admits fresh work without resurrecting old callbacks");
+}
+SoundEffectsPlayer.StopAll();SoundEffectsPlayer.SetMatchAudioContext(false);
+// Reproduce launch-event starvation with two launch clips and fresh outcome/current-play recordings.
+var varietyRoot=Path.Combine(root,"variety");var varietyDir=Path.Combine(varietyRoot,"Commentary","FaresAwad");Directory.CreateDirectory(varietyDir);
+foreach(var name in new[]{"launch-a.wav","launch-b.wav","outcome.wav","current-play.wav","half.wav"})File.WriteAllBytes(Path.Combine(varietyDir,name),new byte[100]);
+File.WriteAllText(Path.Combine(varietyDir,"commentary_context.json"),JsonSerializer.Serialize(new {version=1,clips=new[]{
+ new{id="a",file="launch-a.wav",@event="BallKicked",transcript="sends ball",review="verified",all=Array.Empty<object>(),priority=0},
+ new{id="b",file="launch-b.wav",@event="BallKicked",transcript="high pass",review="verified",all=Array.Empty<object>(),priority=0},
+ new{id="o",file="outcome.wav",@event="PassCompleted",transcript="completed pass",review="verified",all=Array.Empty<object>(),priority=0},
+ new{id="p",file="current-play.wav",@event="PossessionPlay",transcript="actual current play",review="verified",all=Array.Empty<object>(),priority=0},
+ new{id="h",file="half.wav",@event="HalfTime",transcript="half time",review="verified",all=Array.Empty<object>(),priority=0}
+}}));
+SoundEffectsPlayer.StopAll();using(var variety=new CommentaryEngine(CommentatorId.FaresAwad,varietyRoot))
+{
+ SoundEffectsPlayer.PlayCommentaryAudio(Path.Combine(root,"chant.wav"));
+ for(int i=0;i<30;i++)variety.TryCommentOnEvent(new MatchEvent(MatchEventType.BallKicked,"launch"));
+ variety.TryCommentOnEvent(new MatchEvent(MatchEventType.PassCompleted,"completed"));variety.TryCommentOnEvent(new MatchEvent(MatchEventType.PossessionPlay,"current"));
+ SoundEffectsPlayer.StopCommentaryAudio();Call(variety,"DispatchPending",new object?[]{null}!);Thread.Sleep(100);
+ Check(Path.GetFileName(SoundEffectsPlayer.LastPlayedFilePath)=="outcome.wav","repeated launch events cannot starve the actual pass outcome");
+ SoundEffectsPlayer.StopCommentaryAudio();typeof(CommentaryEngine).GetField("_lastCommentaryTime",BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(variety,DateTime.MinValue);Call(variety,"DispatchPending",new object?[]{null}!);Thread.Sleep(100);
+ Check(Path.GetFileName(SoundEffectsPlayer.LastPlayedFilePath)=="current-play.wav","fresh possession commentary survives a busy channel instead of being dropped");
+ var heard=new HashSet<string>();for(int i=0;i<2;i++){SoundEffectsPlayer.StopCommentaryAudio();variety.TryCommentOnEvent(new MatchEvent(MatchEventType.BallKicked,"launch"),force:true);heard.Add(Path.GetFileName(SoundEffectsPlayer.LastPlayedFilePath)!);}
+ SoundEffectsPlayer.StopCommentaryAudio();Check(heard.SetEquals(new[]{"launch-a.wav","launch-b.wav"})&&!variety.TryCommentOnEvent(new MatchEvent(MatchEventType.BallKicked,"launch"),force:true),"both eligible launch performances remain available, then silence replaces a two-phrase loop");
+ Check(variety.TryCommentOnEvent(new MatchEvent(MatchEventType.HalfTime,"half"))&&Path.GetFileName(SoundEffectsPlayer.LastPlayedFilePath)=="half.wav","critical halftime still starts after repeated routine events");
+}
+SoundEffectsPlayer.StopAll();
+var updateRelease = new { draft=false,prerelease=false,tag_name="game-v2026.11.15",html_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/tag/game-v2026.11.15",assets=new[]{new{name="AccessibleFootball2026-Full-Setup.exe",size=1234,state="uploaded",browser_download_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/download/game-v2026.11.15/AccessibleFootball2026-Full-Setup.exe"}}};
+var updateJson=JsonSerializer.Serialize(new[]{updateRelease});
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(updateJson).State==AccessibleFootball2026.App.GameUpdateState.Available,"update checker accepts a stable newer game release with uploaded installer");
+foreach(var invalid in new[]{updateJson.Replace("game-v","build-inputs-"),updateJson.Replace("Full-Setup.exe","ExtraAudio.bin"),updateJson.Replace("\"prerelease\":false","\"prerelease\":true"),updateJson.Replace("\"draft\":false","\"draft\":true"),"[]"})Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(invalid).State==AccessibleFootball2026.App.GameUpdateState.NoPublishedGame,"build inputs, pre-releases, drafts and missing installers are not game updates");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(updateJson.Replace("2026.11.15","2026.11.14")).State==AccessibleFootball2026.App.GameUpdateState.Current,"only an actual published matching game release confirms current");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse("{}").State==AccessibleFootball2026.App.GameUpdateState.Failed,"unexpected API response is failure, not up-to-date");
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
 sealed class Input:IInputHandler{public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>new();public bool IsActionTriggered(GameAction action,bool possession)=>false;}
