@@ -27,9 +27,9 @@ public class StadiumSoundEngine
     public event Action<Team>? OnDiscontentWhistlePlayed;
     public Team? ActiveHomeTeam { get; private set; }
     public Team? ActiveAwayTeam { get; private set; }
-    public string ActiveStadiumKey { get; set; } = "NeutralStadium";
+    public string ActiveStadiumKey { get; set; } = "";
     public string ActiveStadiumName => StadiumCatalog.Find(ActiveStadiumKey)?.DisplayName ??
-        LocalizationService.Text("ملعب محايد", "Neutral stadium");
+        LocalizationService.Text("لم يتم اختيار ملعب", "No stadium selected");
 
     // Shared grounds: designated match home wins only when both participants own it.
     // A sole away-slot owner still wins at its own ground, per the general user rule.
