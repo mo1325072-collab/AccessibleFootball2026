@@ -9,8 +9,23 @@ var transport=typeof(SoundEffectsPlayer).Assembly.GetType("AccessibleFootball202
 Func<string,System.Text.StringBuilder?,int> recorder=(command,buffer)=>{buffer?.Append("stopped");return 0;};transport.SetValue(null,recorder);
 var music=File.ReadAllBytes(Path.Combine(root,"Menu","MenuMusic.mp3"));
 SoundEffectsPlayer.Initialize(root);
+// The runtime-selected root wins over legacy locations for every default consumer.
+string Field(object o,string n)=>(string)o.GetType().GetField(n,BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(o)!;
+var selected=Path.Combine(Path.GetTempPath(),"selected-audio-"+Guid.NewGuid());Directory.CreateDirectory(selected);
+SoundEffectsPlayer.Initialize(selected);
+var stadium=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine();
+Check(Field(stadium,"_chantsDir")==Path.Combine(selected,"SFX","Chants"),"default stadium chants use the runtime-selected audio root");
+Check(Field(stadium,"_acousticsDir")==Path.Combine(selected,"SFX","StadiumAcoustics"),"default stadium acoustics use the runtime-selected audio root");
+var anthem=new AccessibleFootball2026.Audio.Anthems.AnthemEngine(new Reader());
+Check(Field(anthem,"_assetsBaseDir")==Path.Combine(selected,"Anthems"),"default anthem uses the runtime-selected audio root");
+var callnames=new CallnameManager();
+Check(Field(callnames,"_callnamesDir")==Path.Combine(selected,"Callnames"),"default callnames use the runtime-selected audio root");
+using(var commentary=new CommentaryEngine())Check(Field(commentary,"_baseCommentaryDir")==Path.Combine(selected,"Commentary"),"default commentary uses the runtime-selected audio root");
+int generatedBeforeFullPack=SoundEffectsPlayer.SyntheticAssetsGenerated.Count;
+SoundEffectsPlayer.Initialize(root);
+
 Check(music.SequenceEqual(File.ReadAllBytes(Path.Combine(root,"Menu","MenuMusic.mp3"))),"initialization preserves exact Gemini menu music");
-Check(SoundEffectsPlayer.SyntheticAssetsGenerated.Count==0,"complete original pack needs no generated match-impact fallback");
+Check(SoundEffectsPlayer.SyntheticAssetsGenerated.Count==generatedBeforeFullPack,"complete original pack needs no generated match-impact fallback");
 foreach(var id in new[]{"BallKick","PowerfulShot","RefereeWhistle","WoodworkHit","CrowdAmbiance","GoalRoar","MissGasp"})
  Check(SoundEffectsPlayer.TryPlayAcademySample(id),"original recording reaches academy playback: "+id);
 Check(!SoundEffectsPlayer.TryPlayAcademySample("GoalNet"),"generated repository goal-net fallback is not advertised as an original academy recording");
@@ -25,3 +40,5 @@ var catalog=new ContextualCommentaryCatalog(Path.Combine(root,"Commentary","Fare
 Check(catalog.IsValid&&catalog.Entries.Count==935&&catalog.Entries.Select(c=>c.File).Distinct().Count()==902,"all approved contextual mappings resolve to the 902 active recordings");
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
+
+sealed class Reader:IScreenReader{public bool IsAvailable=>true;public void Speak(string s,bool interrupt=true){}public void CancelSpeech(){}}
