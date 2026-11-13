@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 186 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 230 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -390,3 +390,10 @@ Remaining work, not marked complete:
 - Added SS Lazio / Olimpico (611-612, SP_R0122), AS Roma / the same Olimpico (618-623, SP_R0125), Parma / Tardini (613-614, SP_R0123), Fiorentina / Franchi (615-617, SP_R0124), Napoli / Maradona (760-762, SP_R0327), Udinese / Friuli-Bluenergy (656-662, SP_R0190), and Genoa / Ferraris (755-759, SP_R0323). All 28 added label/file pairs exist. Current implemented coverage: 17 production teams / 15 offered grounds, with Rome and Milan shared once each.
 - Exact original-slot ranges match the same historical references described in Stage 20. This is metadata attribution, not independent listening certification. Venue relationships come from the league's published stadium table: https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf . Production names are checked against the actual roster database. No additional co-owner is added just because a ground is shared in real life; it must have its own supported pool.
 - 186/186 portable recorded-command/file checks pass, covering each added team's playback range, owner/visitor gate, every exact label and file, and both Roma/Lazio home-club derby directions. Unsupported or partially missing candidates remain research, not proof of absent chants. Native Windows/NVDA and audible identity verification remain unexecuted.
+
+
+### Stage 23: Eleven further Spanish pools wired
+
+- Added Deportivo / Riazor, Betis / La Cartuja, Sociedad / Anoeta-Reale Arena, Athletic / San Mames, Espanyol / RCDE, Malaga / La Rosaleda, Osasuna / El Sadar, Sevilla / Sanchez-Pizjuan, Getafe / Coliseum, Levante / Ciutat de Valencia and Rayo / Vallecas. All 47 newly wired entries have the exact historical range, original SP_R label prefix and present supplied WAV. Current implemented coverage is 28 production teams / 26 offered grounds, not the larger research candidate inventory.
+- Exact ranges: 564-565, 665-666, 670-676, 714-721, 722-723, 724-726, 732-733, 734-740, 763-764, 765-771 and 772-776 respectively. Same historical metadata evidence/caveat as Stage 20, without inferring numbered-slot event meaning. Each current ground relationship was re-read from the league club page; exact URLs remain on the entries. Betis uses the current La Cartuja field, not the stale Villamarin FAQ; Rayo uses the current Vallecas field.
+- 230/230 real-file/recorded-command checks pass. Each new owner is tested for its actual file range, all exact labels/files and visiting-Madrid refusal. Unknown/unsupported mappings remain open rather than declared absent. No native Windows/NVDA or independent listening certification is claimed.
