@@ -478,43 +478,11 @@ public static class JsonDatabaseProvider
         return res.Length > 12 ? res.Substring(0, 12) : res;
     }
 
-    private static List<string> GetCandidatePaths()
+    private static List<string> GetCandidatePaths() => new()
     {
-        var candidates = new List<string>
-        {
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Data", "players_database.json"),
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "players_database.json"),
-            @"D:\AccessibleFootball2026\Assets\Data\players_database.json",
-            @"C:\Users\mohamed farag\Downloads\38833FF26BA1D.UnigramPreview_g9c9v27vpyspw!App\players_database_combined-fdfd1d53.json"
-        };
-
-        // مجلدات وصول ملفات قاعدة البيانات المعتادة لدى المستخدم: التنزيلات وسطح المكتب،
-        // بما فيها أي نسخة من قاعدة البيانات المدمجة (players_database_combined-*.json)
-        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        foreach (string userDir in new[] { Path.Combine(userProfile, "Downloads"), Path.Combine(userProfile, "Desktop") })
-        {
-            candidates.Add(Path.Combine(userDir, "players_database.json"));
-            try
-            {
-                if (Directory.Exists(userDir))
-                {
-                    candidates.AddRange(Directory.EnumerateFiles(userDir, "players_database_combined*.json"));
-                }
-            }
-            catch { }
-        }
-
-        string? dir = AppDomain.CurrentDomain.BaseDirectory;
-        while (!string.IsNullOrEmpty(dir))
-        {
-            candidates.Add(Path.Combine(dir, "AccessibleFootball2026.Core", "Data", "players_database.json"));
-            candidates.Add(Path.Combine(dir, "Assets", "Data", "players_database.json"));
-
-            dir = Path.GetDirectoryName(dir);
-        }
-
-        return candidates;
-    }
+        Path.Combine(AppContext.BaseDirectory,"players_database.json"),
+        Path.Combine(AppContext.BaseDirectory,"Assets","Data","players_database.json")
+    };
 
     // =========================================================================
     // دوال الاستعلام العامة (Public Query APIs)
