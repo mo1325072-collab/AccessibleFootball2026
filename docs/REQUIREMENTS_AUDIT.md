@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 156 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 186 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -383,3 +383,10 @@ Remaining work, not marked complete:
 - Added and tested Valencia / Mestalla (558-563, SP_R0110), Paris Saint-Germain / Parc des Princes (572-575, SP_R0114), Marseille / CEPAC Velodrome (566-571, SP_R0113), Bayern / Allianz Arena (624-626, SP_R0127), and Atletico / Riyadh Air Metropolitano (642-646, SP_R0172). All 24 new entries have both exact supplied labels and present WAV files. Current implementation is ten production teams / nine offered grounds; historical candidate inventory is not implementation coverage.
 - Same original-slot evidence standard and caveats as Stage 20. The exact production team names were checked in the live-recovered production database. Current ground sources are retained on each entry; Atletico uses the current Riyadh Air stadium field, not the older Civitas FAQ. Marseille's current CEPAC name comes from the naming partner's announcement, not the stale Orange listing. No invented neutral option and no per-event slot semantics are introduced.
 - 156/156 real-file/recorded-command checks pass after extending each team's owner/visitor, file/label and playback-range tests. Other supplied tracks remain open research. No independent listening authentication or native Windows/NVDA verification is claimed.
+
+
+### Stage 22: Seven Italian team mappings wired
+
+- Added SS Lazio / Olimpico (611-612, SP_R0122), AS Roma / the same Olimpico (618-623, SP_R0125), Parma / Tardini (613-614, SP_R0123), Fiorentina / Franchi (615-617, SP_R0124), Napoli / Maradona (760-762, SP_R0327), Udinese / Friuli-Bluenergy (656-662, SP_R0190), and Genoa / Ferraris (755-759, SP_R0323). All 28 added label/file pairs exist. Current implemented coverage: 17 production teams / 15 offered grounds, with Rome and Milan shared once each.
+- Exact original-slot ranges match the same historical references described in Stage 20. This is metadata attribution, not independent listening certification. Venue relationships come from the league's published stadium table: https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf . Production names are checked against the actual roster database. No additional co-owner is added just because a ground is shared in real life; it must have its own supported pool.
+- 186/186 portable recorded-command/file checks pass, covering each added team's playback range, owner/visitor gate, every exact label and file, and both Roma/Lazio home-club derby directions. Unsupported or partially missing candidates remain research, not proof of absent chants. Native Windows/NVDA and audible identity verification remain unexecuted.
