@@ -273,6 +273,19 @@ TrialIndex("[{\"index\":550,\"label\":\"SP_R0108_01\"}]",false,"archive range al
 TrialIndex("[{\"index\":550,\"label\":\"SP_R0109_01\"},{\"index\":173,\"label\":\"SP_R0109_01\"}]",false,"conflicting duplicated label fails closed");
 TrialIndex("{not-json",false,"invalid chant JSON fails closed without numeric fallback");
 Directory.Delete(indexRoot,true);
+
+var grounds=StadiumCatalog.GetAvailableStadiums();
+Check(JsonDatabaseProvider.AllTeams.Count==529&&JsonDatabaseProvider.AllTeams.Count(t=>t.IsNationalTeam)==211,"stadium scope uses actual529productionteams including211national teams, not643chants");
+Check(grounds.Count==8&&grounds.All(g=>JsonDatabaseProvider.AllTeams.Any(g.IsGroundFor)),"every offered stadium is tied to at least one actual production team");
+Check(grounds.Select(g=>g.Key).Distinct().Count()==grounds.Count&&grounds.All(g=>Uri.IsWellFormedUriString(g.SourceUrl,UriKind.Absolute)),"sourced stadium keys are unique and carry recoverable source URLs");
+var sanSiro=grounds.Single(g=>g.Key=="SanSiro");
+Check(sanSiro.IsGroundFor(JsonDatabaseProvider.GetTeamByName("AC Milan")!)&&sanSiro.IsGroundFor(JsonDatabaseProvider.GetTeamByName("Inter Milan")!),"one shared SanSiro entry represents both production Milan clubs");
+Check(!sanSiro.IsGroundFor(madrid)&&!sanSiro.IsGroundFor(barcelona),"Madrid and Barcelona cannot claim SanSiro ownership");
+Check(grounds.Count(g=>g.NationalTeams)==5&&grounds.Where(g=>g.NationalTeams).All(g=>JsonDatabaseProvider.AllTeams.Any(t=>t.IsNationalTeam&&g.IsGroundFor(t))),"five documented national grounds belong to actual national entries without fabricated clubs");
+Check(StadiumCatalog.GetTeamsAwaitingGroundEvidence().Count==520,"catalog honestly leaves520teams awaiting sourced grounds instead of inventing1:1venues");
+Check(StadiumCatalog.Find("MadeUpStadium")==null,"unknown stadium key is not invented from a name");
+indexedStadium.ActiveStadiumKey="SanSiro";
+Check(indexedStadium.ActiveStadiumName==sanSiro.DisplayName,"stadium announcer uses sourced shared-ground name rather than calling SanSiro unknown");
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
 
