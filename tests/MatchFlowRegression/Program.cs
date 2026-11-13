@@ -9,6 +9,34 @@ using AccessibleFootball2026.Audio.Commentary;
 using AccessibleFootball2026.App.Menus;
 using AccessibleFootball2026.Core.Tactics;
 
+var menuAudioRoot=Path.Combine(Path.GetTempPath(),"approved-ui-"+Guid.NewGuid());
+var oldAudioRoot=SoundEffectsPlayer.BaseAudioDirectory;
+SoundEffectsPlayer.Initialize(menuAudioRoot);
+var menuBytes=new[]{("Move","4c884c7e50835ecb6327813c66e38aad1588cee416c3da769fb05db7050b14df"),("Select","8f9f9ebdbcd75b77ad2397f3611a285e7d5cfe98bfff033fbcbfd0ae449781ee")};
+foreach(var (name,hash) in menuBytes){var uiHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path.Combine(menuAudioRoot,"Menu",name+".wav")))).ToLowerInvariant();if(uiHash!=hash)throw new Exception("approved UI sound changed: "+name);}
+var uiCommands=new List<string>();
+var mciHook=typeof(SoundEffectsPlayer).Assembly.GetType("AccessibleFootball2026.Audio.MciPlayback")!.GetField("TestCommand",BindingFlags.Static|BindingFlags.NonPublic)!;
+Func<string,System.Text.StringBuilder?,int> uiTransport=(command,buffer)=>{uiCommands.Add(command);buffer?.Append("stopped");return command.Contains("type waveaudio")?1:0;};
+mciHook.SetValue(null,uiTransport);
+SoundEffectsPlayer.MasterVolumeSetting=100;SoundEffectsPlayer.SfxVolumeSetting=90;
+var uiMenu=new AccessibleMenu("UI",new Reader());uiMenu.AddItem("one",()=>{});uiMenu.AddItem("two",()=>{});
+uiMenu.NavigateNext();uiMenu.SelectCurrent();
+if(!uiCommands.Contains("play ui_move from 0")||!uiCommands.Contains("play ui_select from 0")||!uiCommands.Any(x=>x.Contains("Move.wav")&&x.Contains("type mpegvideo"))||!uiCommands.Any(x=>x.Contains("Select.wav")&&x.Contains("type mpegvideo")))throw new Exception("real menu actions must activate approved Move and Select with compatible playback");
+SoundEffectsPlayer.StopAll();mciHook.SetValue(null,null);SoundEffectsPlayer.Initialize(oldAudioRoot);
+Console.WriteLine("PASS exact approved Move/Select v2 bytes and real menu navigation/confirmation playback command paths");
+var direct = new DirectShootoutInput();
+direct.KeyDown(0x26);direct.Tick(.2f);direct.KeyUp(0x26);
+if(Math.Abs(direct.FacingY+.18f)>.001f)throw new Exception("up must use ordinary negative facing-Y turn rate");
+var aimBefore=direct.AimY;direct.Tick(.2f);if(direct.AimY!=aimBefore)throw new Exception("released aim must stop turning");
+direct.KeyDown(0x27);if(direct.AimY!=3.25f||!direct.KeyDown(0x57)||direct.KeyDown(0x57))throw new Exception("right+W must submit exactly one real corner shot");
+var leftInput=new DirectShootoutInput();leftInput.KeyDown(0x25);if(leftInput.AimY!=-3.25f||!leftInput.KeyDown(0x53))throw new Exception("left+S must submit a placed corner shot");
+var anticipated=ShootoutKick.ResolveAimed(3.25f,0,80,80,true,.5);
+var wrongWay=ShootoutKick.ResolveAimed(3.25f,2,80,80,true,.5);
+if(!anticipated.Saved||!wrongWay.Scored)throw new Exception("keeper anticipation must matter for a placed corner, not unconditional low-power saves");
+var powerMisses=0;var placedMisses=0;
+for(int i=0;i<=100;i++){double roll=i/100.0;if(!ShootoutKick.ResolveAimed(3.25f,2,50,70,false,roll).Scored)powerMisses++;if(!ShootoutKick.ResolveAimed(3.25f,2,50,70,true,roll).Scored)placedMisses++;}
+if(placedMisses>=powerMisses)throw new Exception("precision placement must really reduce goal-mouth misses");
+Console.WriteLine("PASS direct arrows/W/S, aim release, held-key edge, placement accuracy and keeper anticipation checks");
 MatchSettings.Current.AiVarEnabled=false; // Legacy direct-decision fixtures; explicit VAR fixtures below enable review.
 MatchSettings.Current.ExtraTimeEnabled = false;
 MatchSettings.Current.PenaltyShootoutEnabled = false;
@@ -231,6 +259,12 @@ m = New(); m.SetStoppageMinutes(0,0); m.TriggerHalfTime(); m.ResumeMatch(); m.Se
 Check(m.State == MatchState.PenaltyShootout, "tied regulation can go directly to shootout when extra time disabled");
 Check(!PenaltyShootoutRules.IsDecided(4,3,6,5) && PenaltyShootoutRules.IsDecided(4,3,6,6), "sudden death must wait for equal kick counts");
 Check(PenaltyShootoutRules.IsDecided(3,0,3,3) && !PenaltyShootoutRules.IsDecided(2,0,2,2), "five-kick shootout ends early only when catch-up impossible");
+var completedHomeBefore=m.HomeTeam.Score;var completedAwayBefore=m.AwayTeam.Score;
+m.CompleteShootout(1,2);
+var finalSummary=m.GetCompletedMatchSummary(1,2);
+Check(m.State==MatchState.GameOver && finalSummary[0].Contains("خسر"),"shootout result explicitly reports the user's loss");
+Check(m.HomeTeam.Score==completedHomeBefore && m.AwayTeam.Score==completedAwayBefore,"penalty totals never overwrite match goals or statistics");
+Check(finalSummary.Any(x=>x.Contains("ركلات الترجيح")&&x.Contains("1")&&x.Contains("2")) && finalSummary.Any(x=>x.Contains("التسديدات")),"retained final summary includes distinct shootout score and actual match statistics");
 MatchSettings.Current.PenaltyShootoutEnabled = false;
 
 string settingsPath = Path.Combine(Path.GetTempPath(),Guid.NewGuid()+"-settings.json");
