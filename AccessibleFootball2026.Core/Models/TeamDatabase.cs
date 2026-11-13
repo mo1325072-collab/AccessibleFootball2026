@@ -179,6 +179,29 @@ public static class StadiumCatalog
         new("Coliseum","كوليسيوم","Coliseum",false,new[] {"Getafe CF"},"https://www.laliga.com/en-GB/clubs/getafe-cf"),
         new("CiutatValencia","سيوتات دي فالنسيا","Estadio Ciutat de València",false,new[] {"Levante UD"},"https://www.laliga.com/en-GB/clubs/levante-ud"),
         new("Vallecas","فاييكاس","Estadio de Vallecas",false,new[] {"Rayo Vallecano"},"https://www.laliga.com/en-GB/clubs/rayo-vallecano/next-matches"),
+        new("JohanCruijff","يوهان كرويف أرينا","Johan Cruijff ArenA",false,new[] {"Ajax Amsterdam"},"https://english.ajax.nl/club/stadium"),
+        new("Philips","فيليبس","Philips Stadion",false,new[] {"PSV Eindhoven"},"https://www.psv.nl/ticketinfo/stadionplattegrond"),
+        new("CelticPark","سيلتيك بارك","Celtic Park",false,new[] {"Celtic FC"},"https://www.celticfc.com/visit-celtic-park/getting-to-celtic-park/celtic-park-maps/"),
+        new("Dragao","دراجاو","Estádio do Dragão",false,new[] {"FC Porto"},"https://www.fcporto.pt/pt/clube/estadio-do-dragao"),
+        new("Alvalade","جوزيه ألفالادي","Estádio José Alvalade",false,new[] {"Sporting CP"},"https://backoffice.sporting.pt/pt/clube/infraestruturas/estadio-jose-alvalade"),
+        new("Saracoglu","تشوباني شوكرو ساراج أوغلو","Chobani Stadyumu Fenerbahçe Şükrü Saracoğlu Spor Kompleksi",false,new[] {"Fenerbahce"},"https://www.fenerbahce.org/kulup/tesislerimiz/ulker-stadyumu-fenerbahce-sukru-saracoglu-spor-kompleksi"),
+        new("JanBreydel","يان بريدل","Jan Breydel",false,new[] {"Club Brugge KV"},"https://www.clubbrugge.be/en/club-brugge-arrival-at-jan-breydel"),
+        new("Allwyn","ألوين أرينا","Allwyn Arena",false,new[] {"AEK Athens"},"https://www.aekfc.gr/gdp/agia-sofia-44091.htm?lang=en&path=-291101721"),
+        new("GrolschVeste","دي جرولش فيسته","De Grolsch Veste",false,new[] {"FC Twente Enschede"},"https://fctwente.nl/de-grolsch-veste"),
+        new("Groupama","جروباما","Groupama Stadium",false,new[] {"Olympique Lyon"},"https://www.gsph24.com/ligue-1-2026-2027-la-liste-des-18-stades-de-la-saison"),
+        new("PierreMauroy","ديكاتلون أرينا بيير موروا","Decathlon Arena - Stade Pierre-Mauroy",false,new[] {"LOSC Lille"},"https://www.gsph24.com/ligue-1-2026-2027-la-liste-des-18-stades-de-la-saison"),
+        new("AllianzRiviera","أليانز ريفييرا","Allianz Riviera",false,new[] {"OGC Nice"},"https://www.gsph24.com/ligue-1-2026-2027-la-liste-des-18-stades-de-la-saison"),
+        new("Roazhon","روازون بارك","Roazhon Park",false,new[] {"Stade Rennais FC"},"https://www.gsph24.com/ligue-1-2026-2027-la-liste-des-18-stades-de-la-saison"),
+        new("ToulouseStadium","ستاديوم تولوز","Stadium de Toulouse",false,new[] {"FC Toulouse"},"https://www.gsph24.com/ligue-1-2026-2027-la-liste-des-18-stades-de-la-saison"),
+        new("Moustoir","لو موستوار","Stade du Moustoir",false,new[] {"FC Lorient"},"https://www.gsph24.com/ligue-1-2026-2027-la-liste-des-18-stades-de-la-saison"),
+        new("FrancisLeBle","فرانسيس لو بليه","Stade Francis-Le Blé",false,new[] {"Stade Brestois 29"},"https://www.gsph24.com/ligue-1-2026-2027-la-liste-des-18-stades-de-la-saison"),
+        new("JuventusAllianz","أليانز ستاديوم","Allianz Stadium",false,new[] {"Juventus FC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("DallAra","ريناتو دال آرا","Renato Dall’Ara",false,new[] {"Bologna FC 1909"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Balaidos","أبانكا بالايدوس","Estadio ABANCA Balaídos",false,new[] {"Celta de Vigo"},"https://www.laliga.com/en-GB/clubs/rc-celta"),
+        new("Wembley","ويمبلي","Wembley",true,new[] {"England"},"https://www.wembleystadium.com/about/stadium-facts-and-features"),
+        new("HampdenPark","هامبدن بارك (باركليز هامبدن)","Hampden Park (Barclays Hampden)",true,new[] {"Scotland"},"https://www.scottishfa.co.uk/en/barclays-hampden"),
+        new("CardiffCity","كارديف سيتي","Cardiff City Stadium",true,new[] {"Wales"},"https://faw.cymru/news/venues-confirmed-for-nations-league-fixtures/"),
+        new("Parken","باركن","Parken Stadium",true,new[] {"Denmark"},"https://faw.cymru/news/venues-confirmed-for-nations-league-fixtures/"),
     };
 
     public static IReadOnlyList<StadiumDefinition> GetAvailableStadiums()
@@ -202,7 +225,7 @@ public static class StadiumCatalog
 
 /// <summary>Historical original-slot attribution, checked against supplied labels and recovered files.
 /// This is metadata corroboration, not an independent listening certification.</summary>
-public sealed record TeamChantPool(string TeamName,string LabelPrefix,int FirstIndex,int LastIndex,string SourceUrl);
+public sealed record TeamChantPool(string TeamName,string LabelPrefix,int FirstIndex,int LastIndex,string SourceUrl,bool NationalTeams=false);
 public static class TeamChantCatalog
 {
     private const string MapSource="https://www.pesgaming.com/forums/threads/chant-map.92044/";
@@ -236,7 +259,30 @@ public static class TeamChantCatalog
         new("Getafe CF","SP_R0362_",763,764,MapSource),
         new("Levante UD","SP_R0366_",765,771,MapSource),
         new("Rayo Vallecano","SP_R0370_",772,776,MapSource),
+        new("Ajax Amsterdam","SP_R0116_",582,587,MapSource,false),
+        new("PSV Eindhoven","SP_R0118_",588,591,MapSource,false),
+        new("Celtic FC","SP_R0131_",627,630,MapSource,false),
+        new("FC Porto","SP_R0192_",663,663,MapSource,false),
+        new("Sporting CP","SP_R0193_",664,664,MapSource,false),
+        new("Fenerbahce","SP_R0197_",677,678,MapSource,false),
+        new("Club Brugge KV","SP_R0269_",749,749,MapSource,false),
+        new("AEK Athens","SP_R0270_",750,751,MapSource,false),
+        new("FC Twente Enschede","SP_R0250_",712,712,MapSource,false),
+        new("Olympique Lyon","SP_R0181_",647,651,MapSource,false),
+        new("LOSC Lille","SP_R0213_",679,683,MapSource,false),
+        new("OGC Nice","SP_R0217_",686,687,MapSource,false),
+        new("Stade Rennais FC","SP_R0218_",688,692,MapSource,false),
+        new("FC Toulouse","SP_R0221_",696,700,MapSource,false),
+        new("FC Lorient","SP_R0414_",777,779,MapSource,false),
+        new("Stade Brestois 29","SP_R1329_",808,808,MapSource,false),
+        new("Juventus FC","SP_R0120_",598,603,MapSource,false),
+        new("Bologna FC 1909","SP_R0186_",652,654,MapSource,false),
+        new("Celta de Vigo","SP_R0195_",667,669,MapSource,false),
+        new("England","SP_R0005_",453,456,MapSource,true),
+        new("Scotland","SP_R0003_",449,450,MapSource,true),
+        new("Wales","SP_R0004_",451,452,MapSource,true),
+        new("Denmark","SP_R0015_",481,484,MapSource,true),
     };
-    public static TeamChantPool? Find(Team team) => team.IsNationalTeam ? null :
-        Pools.FirstOrDefault(p=>p.TeamName.Equals(team.Name,StringComparison.OrdinalIgnoreCase));
+    public static TeamChantPool? Find(Team team) =>
+        Pools.FirstOrDefault(p=>p.NationalTeams==team.IsNationalTeam && p.TeamName.Equals(team.Name,StringComparison.OrdinalIgnoreCase));
 }
