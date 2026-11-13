@@ -30,6 +30,8 @@ public class SmartAudioCoordinator
     public static bool SilenceLiveMatchSpeech { get; set; } = true;
 
     public event Action<float>? OnCrowdVolumeDucking;
+    private int _videoSpeechCount;
+    public bool HasPendingVideoAnnouncement => Volatile.Read(ref _videoSpeechCount)>0;
     public event Action? OnGoalSequenceCompleted; // إشارة للمحرك باستئناف اللعب بعد اكتمال إعلان الهدف
 
     // يجيب: هل قناة المعلق حرة تماماً (لا مقطع يُشغَّل ولا جملة في الطابور)؟
@@ -73,6 +75,17 @@ public class SmartAudioCoordinator
 
     public void HandleMatchEvent(MatchEvent matchEvent)
     {
+        if(matchEvent.Type is MatchEventType.VideoReviewStarted or MatchEventType.VideoReviewDecision)
+        {
+            // Explicit referee information is never hidden by live-speech silence or recorded commentary.
+            SpeakVideoAnnouncement(matchEvent.Description);
+            if(matchEvent.Type==MatchEventType.VideoReviewDecision && matchEvent.Context.TryGet("var.outcome",out var outcome))
+            {
+                // Confirmed goal uses the existing GoalScored sequence, once only and with no premature cheer.
+                if(outcome=="offside")SoundEffectsPlayer.PlayCrowdMiss();
+            }
+            return;
+        }
         // 1. الرادار التكتيكي اللحظي على الطلب (Space key)
         if (matchEvent.Type == MatchEventType.TacticalRadarInfo)
         {
@@ -123,6 +136,7 @@ public class SmartAudioCoordinator
         {
             SoundEffectsPlayer.PlayWhistle();
             SoundEffectsPlayer.PlayPenalty();
+            SoundEffectsPlayer.PlayCrowdGoal();
         }
         else if (matchEvent.Type == MatchEventType.CornerKick)
         {
@@ -395,6 +409,15 @@ public class SmartAudioCoordinator
     {
         lock (_duckingLock)
             if (--_readerDuckingUsers == 0) OnCrowdVolumeDucking?.Invoke(1f);
+    }
+
+    private async void SpeakVideoAnnouncement(string text)
+    {
+        Interlocked.Increment(ref _videoSpeechCount);
+        BeginReaderDucking();
+        try { await _screenReader.SpeakUntilFinishedAsync(text, interrupt:true); }
+        catch { }
+        finally { EndReaderDucking();Interlocked.Decrement(ref _videoSpeechCount); }
     }
 
     private async void SpeakWithDucking(string text, bool explicitRequest = false)
