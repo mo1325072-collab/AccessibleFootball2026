@@ -10,8 +10,8 @@ using AccessibleFootball2026.Audio.Anthems;
 using AccessibleFootball2026.Audio.Commentary;
 using AccessibleFootball2026.Audio.SFX;
 using AccessibleFootball2026.Core;
-using AccessibleFootball2026.Core.Input;
 using AccessibleFootball2026.Core.Models;
+using AccessibleFootball2026.Core.Input;
 using AccessibleFootball2026.Core.Simulation;
 using AccessibleFootball2026.Core.Tactics;
 using AccessibleFootball2026.Input;
@@ -47,6 +47,10 @@ public class AccessibleFootballWindow : Form
     private MatchEngine? _activeMatch = null;
     private System.Windows.Forms.Timer? _gameLoopTimer = null;
     private DateTime _lastFrameTime = DateTime.UtcNow;
+    private readonly HashSet<Keys> _shootoutHeld = new();
+    private DirectShootoutInput? _shootoutInput;
+    private Action<bool>? _submitShootoutInput;
+    private System.Windows.Forms.Timer? _shootoutAimTimer;
 
     // عناصر واجهة العرض للمرافقين المبصرين
     private Label _titleLabel = null!;
@@ -292,6 +296,8 @@ public class AccessibleFootballWindow : Form
     {
         base.OnDeactivate(e);
         _inputHandler.Reset();
+        _shootoutInput?.ReleaseAll();
+        _shootoutHeld.Clear();
     }
 
     private void SetupMatchDisplayListBox(Team homeTeam, Team awayTeam)
@@ -1091,7 +1097,10 @@ public class AccessibleFootballWindow : Form
 
     private void StartInteractivePenaltyShootout(MatchEngine match)
     {
-        SoundEffectsPlayer.StopCrowdAmbiance();
+        // A shootout is still in the stadium. Preserve its selected acoustics and crowd setting.
+        _commentaryEngine.ResumePlayback();
+        SoundEffectsPlayer.ResumeCrowdAmbiance();
+        SoundEffectsPlayer.StartCrowdAmbiance();
         SoundEffectsPlayer.PlayWhistle();
         _currentMenu = null;
         _menuHistory.Clear();
@@ -1156,29 +1165,21 @@ public class AccessibleFootballWindow : Form
                 _screenReader.Speak(T("تعادل الفريقان بعد 5 ركلات! ننتقل للموت المفاجئ: ركلة مقابل ركلة.", "Level after five penalties. Sudden death."));
             }
 
-            var shotMenu = new AccessibleMenu(T($"ركلات الترجيح - الركلة رقم {userKicksTaken + 1} لفريقك ({userPenaltiesScored} - {cpuPenaltiesScored}) - اختر زاوية التسديد", $"Your penalty {userKicksTaken + 1}. Score {userPenaltiesScored} - {cpuPenaltiesScored}. Shot direction"), _screenReader);
-            shotMenu.AddItem(T("التسديد في أقصى الزاوية اليمنى", "Shoot right"), () => ExecuteUserPenaltyShot(0));
-            shotMenu.AddItem(T("التسديد بقوة في منتصف المرمى", "Shoot centre"), () => ExecuteUserPenaltyShot(1));
-            shotMenu.AddItem(T("التسديد في أقصى الزاوية اليسرى", "Shoot left"), () => ExecuteUserPenaltyShot(2));
-            shotMenu.AddItem(T("اقتراب بطيء والتسديد يميناً", "Slow run-up, right"), () => ExecuteUserPenaltyShot(0,true));
-            shotMenu.AddItem(T("اقتراب بطيء والتسديد في المنتصف", "Slow run-up, centre"), () => ExecuteUserPenaltyShot(1,true));
-            shotMenu.AddItem(T("اقتراب بطيء والتسديد يساراً", "Slow run-up, left"), () => ExecuteUserPenaltyShot(2,true));
             Ready(true);
-            AfterCommentary(() => PushMenu(shotMenu));
+            AfterCommentary(() => BeginDirectShootoutInput(false, placed => ExecuteUserPenaltyShot(_shootoutInput!.AimY, placed)));
         }
 
-        async void ExecuteUserPenaltyShot(int angle,bool slow=false)
+        async void ExecuteUserPenaltyShot(float aimY,bool placed=false)
         {
             _currentMenu = null;
             _menuHistory.Clear();
             _inputHandler.Reset();
-            if(slow)await Task.Delay(1200);
             if(_activeMatch!=match)return;
             var taker=homeEligible.Taker(userKicksTaken);
             if(taker==null)return;
             var keeper=match.AwayTeam.Players.FirstOrDefault(p=>p.IsActiveOnPitch&&p.Role==PlayerRole.Goalkeeper);
-            var result=ShootoutKick.Resolve(angle,Random.Shared.Next(3),taker.Shooting,keeper?.Defending??50,slow,Random.Shared.NextDouble());
-            SoundEffectsPlayer.PlayKick(angle==0?.8f:angle==2?-.8f:0);
+            var result=ShootoutKick.ResolveAimed(aimY,Random.Shared.Next(3),taker.Shooting,keeper?.Defending??50,placed,Random.Shared.NextDouble());
+            SoundEffectsPlayer.PlayKick(Math.Clamp(aimY / 3.66f, -1, 1));
             await Task.Delay(TimeSpan.FromSeconds(result.FlightSeconds));
             if(_activeMatch!=match)return;
             userKicksTaken++;
@@ -1196,12 +1197,8 @@ public class AccessibleFootballWindow : Form
                 return;
             }
 
-            var diveMenu = new AccessibleMenu(T($"ركلات الترجيح - الركلة رقم {cpuKicksTaken + 1} للخصم ({userPenaltiesScored} - {cpuPenaltiesScored}) - اختر ارتماء حارسك", $"Opponent penalty {cpuKicksTaken + 1}. Score {userPenaltiesScored} - {cpuPenaltiesScored}. Keeper direction"), _screenReader);
-            diveMenu.AddItem(T("الارتماء نحو الزاوية اليمنى", "Dive right"), () => ExecuteCpuPenaltyShot(0));
-            diveMenu.AddItem(T("الثبات في منتصف المرمى", "Stay centre"), () => ExecuteCpuPenaltyShot(1));
-            diveMenu.AddItem(T("الارتماء نحو الزاوية اليسرى", "Dive left"), () => ExecuteCpuPenaltyShot(2));
             Ready(false);
-            AfterCommentary(() => PushMenu(diveMenu));
+            AfterCommentary(() => BeginDirectShootoutInput(true, _ => ExecuteCpuPenaltyShot(_shootoutInput!.KeeperDive)));
         }
 
         async void ExecuteCpuPenaltyShot(int userDive)
@@ -1209,14 +1206,13 @@ public class AccessibleFootballWindow : Form
             _currentMenu = null;
             _menuHistory.Clear();
             _inputHandler.Reset();
-            bool slow=Random.Shared.Next(4)==0;
-            if(slow)await Task.Delay(1200);
+            bool placed=Random.Shared.Next(4)==0;
             if(_activeMatch!=match)return;
             var taker=awayEligible.Taker(cpuKicksTaken);
             if(taker==null)return;
             var keeper=match.HomeTeam.Players.FirstOrDefault(p=>p.IsActiveOnPitch&&p.Role==PlayerRole.Goalkeeper);
             int angle=Random.Shared.Next(3);
-            var result=ShootoutKick.Resolve(angle,userDive,taker.Shooting,keeper?.Defending??50,slow,Random.Shared.NextDouble());
+            var result=ShootoutKick.ResolveAimed(angle==0?3.25f:angle==2?-3.25f:0,userDive,taker.Shooting,keeper?.Defending??50,placed,Random.Shared.NextDouble());
             SoundEffectsPlayer.PlayKick(angle==0?.8f:angle==2?-.8f:0);
             await Task.Delay(TimeSpan.FromSeconds(result.FlightSeconds));
             if(_activeMatch!=match)return;
@@ -1230,22 +1226,9 @@ public class AccessibleFootballWindow : Form
         void FinishShootout(MatchEngine m, int uScore, int cScore)
         {
             m.CompleteShootout(uScore,cScore);
-            AfterCommentary(async () =>
+            AfterCommentary(() =>
             {
-            _activeMatch = null;
-            _currentMenu = null;
-            _inputHandler.Reset();
-            _displayListBox.Visible = true;
-            SoundEffectsPlayer.PlayWhistle();
-
-            string outcome = uScore > cScore
-                ? T($"مبرووووك الفوز العظيم! فاز فريق {m.HomeTeam.Name} بركلات الترجيح بنتيجة {uScore} مقابل {cScore}!", $"{m.HomeTeam.Name} win on penalties, {uScore} - {cScore}.")
-                : T($"هارد لك! فاز فريق {m.AwayTeam.Name} بركلات الترجيح بنتيجة {cScore} مقابل {uScore}.", $"{m.AwayTeam.Name} win on penalties, {cScore} - {uScore}.");
-
-            await _screenReader.SpeakUntilFinishedAsync(outcome);
-            if (IsDisposed || _activeMatch != null) return;
-            SoundEffectsPlayer.StartMenuMusic();
-            OpenMainMenu();
+                ShowCompletedMatchSummary(m, uScore, cScore);
             });
         }
 
@@ -1266,7 +1249,7 @@ public class AccessibleFootballWindow : Form
         });
     }
 
-    private async void EndMatchAndReturnToMenu(bool waitForCommentary = true)
+    private void EndMatchAndReturnToMenu(bool waitForCommentary = true)
     {
         _gameLoopTimer?.Stop();
         _gameLoopTimer?.Dispose();
@@ -1289,21 +1272,80 @@ public class AccessibleFootballWindow : Form
         SoundEffectsPlayer.StopAll();
         _screenReader.CancelSpeech();
 
-        if (_activeMatch != null)
+        if (_activeMatch is { } completed)
         {
-            SoundEffectsPlayer.StopCrowdAmbiance();
-            SoundEffectsPlayer.PlayWhistle();
-            string finalSpeech = _activeMatch.AbandonmentReason is { } reason ? T($"{reason} النتيجة عند التوقف: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.", $"{reason} Score at stoppage: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}, {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.") : T($"نهاية المباراة! النتيجة النهائية: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، مقابل {_activeMatch.AwayTeam.Score} لـ {_activeMatch.AwayTeam.Name}. العودة للقائمة الرئيسية.", $"Full time: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}, {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.");
-            _activeMatch = null;
-            _currentMenu = null;
-            _menuHistory.Clear();
-            await _screenReader.SpeakUntilFinishedAsync(finalSpeech);
-            if (IsDisposed || _activeMatch != null) return;
+            ShowCompletedMatchSummary(completed);
+            return;
         }
 
         _displayListBox.Visible = true;
         SoundEffectsPlayer.StartMenuMusic();
         OpenMainMenu();
+    }
+
+    private void BeginDirectShootoutInput(bool keeper, Action<bool> submit)
+    {
+        _currentMenu = null;
+        _menuHistory.Clear();
+        _inputHandler.Reset();
+        _shootoutInput = new DirectShootoutInput(keeper);
+        _submitShootoutInput = submit;
+        _displayListBox.Visible = true;
+        _displayListBox.Enabled = true;
+        _displayListBox.Items.Clear();
+        string instructions = keeper
+            ? T("ركلة الخصم. الأسهم لضبط اتجاه الحارس. يمين أو يسار مع W أو S للارتماء؛ دون اتجاه للثبات في المنتصف.", "Opponent kick. Arrows aim your keeper. Hold left/right with W or S to dive; no direction stays central.")
+            : T("ركلتك. فوق وتحت يعدلان زاوية اتجاهك مثل اللعب. يمين أو يسار مع W للتسديد في الزاوية، أو S لكرة هادئة متقنة. دون اتجاه تسدد في المنتصف.", "Your kick. Up/down turn your aim as in play. Hold right/left with W for a corner shot, or S for precise lower power. No aim shoots centrally.");
+        _displayListBox.Items.Add(instructions);
+        _displayListBox.SelectedIndex = 0;
+        _statusLabel.Text = instructions;
+        _displayListBox.Focus();
+        _screenReader.Speak(instructions);
+        _shootoutAimTimer?.Dispose();
+        _shootoutAimTimer = new System.Windows.Forms.Timer { Interval = 20 };
+        var last = DateTime.UtcNow;
+        int spokenBand = 0;
+        var lastAimSpeech = DateTime.MinValue;
+        _shootoutAimTimer.Tick += (_, _) =>
+        {
+            var now = DateTime.UtcNow;
+            _shootoutInput?.Tick((float)Math.Min(.1, (now - last).TotalSeconds)); last = now;
+            if (_shootoutInput is not { Submitted: false } input) return;
+            int band = (int)MathF.Round(input.AimY * 2);
+            if (band != spokenBand && now - lastAimSpeech >= TimeSpan.FromMilliseconds(650))
+            {
+                spokenBand = band; lastAimSpeech = now;
+                string direction = input.AimY < -.25f ? T("يسار", "left") : input.AimY > .25f ? T("يمين", "right") : T("المنتصف", "centre");
+                _screenReader.Speak(T($"التصويب {direction}، {Math.Abs(input.AimY):0.0} متر من المنتصف.", $"Aim {direction}, {Math.Abs(input.AimY):0.0} metres from centre."));
+            }
+        };
+        _shootoutAimTimer.Start();
+    }
+
+    private void ShowCompletedMatchSummary(MatchEngine match, int? homePenalties = null, int? awayPenalties = null)
+    {
+        _gameLoopTimer?.Stop();
+        _gameLoopTimer?.Dispose();
+        _gameLoopTimer = null;
+        _shootoutAimTimer?.Dispose(); _shootoutAimTimer = null;
+        _shootoutInput = null; _submitShootoutInput = null; _shootoutHeld.Clear();
+        _coordinator.CancelPendingGoalSequence();
+        _commentaryEngine.EndPlaybackScope();
+        SoundEffectsPlayer.StopAll();
+        _inputHandler.Reset();
+        _activeMatch = null;
+        _currentMenu = null;
+        _menuHistory.Clear();
+        var lines = match.GetCompletedMatchSummary(homePenalties, awayPenalties);
+        var summary = new AccessibleMenu(lines[0], _screenReader);
+        foreach (string line in lines.Skip(1))
+        {
+            string item = line;
+            summary.AddItem(item, () => _screenReader.Speak(item));
+        }
+        summary.AddItem(T("العودة للقائمة الرئيسية", "Return to main menu"), OpenMainMenu);
+        // Retained until the player chooses to leave; do not replace it with the main menu.
+        SetActiveMenu(summary);
     }
 
     // =========================================================================
@@ -1429,6 +1471,17 @@ public class AccessibleFootballWindow : Form
             return;
         }
 
+        if (_activeMatch?.State == MatchState.PenaltyShootout && _shootoutInput is { Submitted: false } shootout)
+        {
+            e.Handled = true; e.SuppressKeyPress = false;
+            if (_shootoutHeld.Add(e.KeyCode) && shootout.KeyDown((int)e.KeyCode))
+            {
+                _shootoutAimTimer?.Stop();
+                var submit = _submitShootoutInput; _submitShootoutInput = null;
+                submit?.Invoke(e.KeyCode == Keys.S);
+            }
+            return;
+        }
         // No field/pause routing during shootout resolution or the final commentary handoff.
         if (_activeMatch?.State is MatchState.PenaltyShootout or MatchState.GameOver)
         {
@@ -1502,6 +1555,8 @@ public class AccessibleFootballWindow : Form
 
     private void OnWindowKeyUp(object? sender, KeyEventArgs e)
     {
+        _shootoutHeld.Remove(e.KeyCode);
+        _shootoutInput?.KeyUp((int)e.KeyCode);
         if (_activeMatch != null && IsMatchKey(e.KeyCode))
         {
             e.Handled = true;
