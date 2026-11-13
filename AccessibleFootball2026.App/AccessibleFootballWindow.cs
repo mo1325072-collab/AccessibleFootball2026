@@ -40,6 +40,8 @@ public class AccessibleFootballWindow : Form
     private readonly Stack<AccessibleMenu> _menuHistory = new();
     private AccessibleMenu? _currentMenu = null;
     private bool _isInStartupIntro = true;
+    private System.Windows.Forms.Timer? _startupIntroTimer;
+    private GameUpdateResult? _startupUpdate;
 
     // حالة المباراة الحية
     private MatchEngine? _activeMatch = null;
@@ -198,6 +200,8 @@ public class AccessibleFootballWindow : Form
 
         FormClosed += (_, _) =>
         {
+            _startupIntroTimer?.Stop();
+            _startupIntroTimer?.Dispose();
             _anthemEngine.StopAllSounds();
             _coordinator.CancelPendingGoalSequence();
             _commentaryEngine.Dispose();
@@ -208,25 +212,59 @@ public class AccessibleFootballWindow : Form
     {
         base.OnShown(e);
 
-        // 1. تشغيل نشيد دوري أبطال أوروبا الكامل كافتتاحية للعبة (Startup)
-        // لا يتحدث قارئ الشاشة مطلقاً في شاشة البداية احتراماً لنقاء النشيد
+        // The intro is its own state, not a main menu with music over it.
         _isInStartupIntro = true;
-        bool anthemStarted = _anthemEngine.PlayChampionsLeagueSample();
-        if (!anthemStarted)
+        _currentMenu = null;
+        _menuHistory.Clear();
+        _displayListBox.Items.Clear();
+        _displayListBox.Enabled = false;
+        _displayListBox.Visible = false;
+        _screenReader.CancelSpeech();
+        SoundEffectsPlayer.StopMenuMusic();
+        _statusLabel.Text = T("الافتتاحية", "Introduction");
+        _hintLabel.Text = T("Enter أو Space لتخطي الافتتاحية", "Enter or Space skips the introduction");
+        if (!_anthemEngine.PlayChampionsLeagueSample()) { CompleteStartupIntro(); return; }
+        _startupIntroTimer = new System.Windows.Forms.Timer { Interval = 100 };
+        _startupIntroTimer.Tick += (_, _) =>
         {
-            // النشيد غير متاح (ملف مفقود أو جهاز صوت رافض): لا نترك المستخدم الكفيف
-            // أمام شاشة صامتة لا تستجيب إلا لـ Enter/Space - نتجاوز الافتتاحية فوراً
-            _isInStartupIntro = false;
-            SoundEffectsPlayer.StartMenuMusic();
-        }
+            if (_isInStartupIntro && _anthemEngine.HasPlaybackCompleted) CompleteStartupIntro();
+        };
+        _startupIntroTimer.Start();
+    }
 
-        // 2. بناء القائمة الرئيسية (ستظهر وتبدأ موسيقاها بعد ضغط Enter أو Space)
+    private void CompleteStartupIntro()
+    {
+        if (!_isInStartupIntro || IsDisposed) return;
+        _startupIntroTimer?.Stop();
+        _startupIntroTimer?.Dispose();
+        _startupIntroTimer = null;
+        _anthemEngine.StopAllSounds();
+        _isInStartupIntro = false;
         OpenMainMenu();
+        if (MatchSettings.Current.CheckForUpdatesOnStartup) _ = CheckStartupUpdatesAsync();
+    }
+
+    private async System.Threading.Tasks.Task CheckStartupUpdatesAsync()
+    {
+        var result = await GameUpdateChecker.CheckAsync();
+        if (IsDisposed || result.State != GameUpdateState.Available) return;
+        _startupUpdate = result;
+        AnnounceStartupUpdateIfSafe();
+    }
+
+    private void AnnounceStartupUpdateIfSafe()
+    {
+        // Never speak or display a dialog over the exclusive intro or a match.
+        if (_startupUpdate == null || _isInStartupIntro || _activeMatch != null || _currentMenu == null || !ContainsFocus) return;
+        _screenReader.Speak(T($"يتوفر تحديث للعبة {_startupUpdate.Version}. افتح الإعدادات ثم التحقق من وجود تحديثات للتفاصيل.",
+            $"Game update {_startupUpdate.Version} is available. Open Settings, then Check for updates, for details."), interrupt: false);
+        _startupUpdate = null;
     }
 
     protected override void OnActivated(EventArgs e)
     {
         base.OnActivated(e);
+        AnnounceStartupUpdateIfSafe();
         if (_displayListBox != null && _displayListBox.CanFocus)
         {
             _displayListBox.Focus();
@@ -328,6 +366,8 @@ public class AccessibleFootballWindow : Form
 
     public void OpenMainMenu()
     {
+        if (_isInStartupIntro) return;
+        SoundEffectsPlayer.SetMatchAudioContext(false);
         _gameLoopTimer?.Stop();
         GoalBeaconPlayer.Stop();
         _commentaryEngine.ClearPendingLines();
@@ -343,13 +383,6 @@ public class AccessibleFootballWindow : Form
         menu.AddItem(LocalizationService.GetString("ExhibitionMatch"), () =>
         {
             StartMatchWizardFlow();
-        });
-
-        menu.AddItem(T("نهائي كأس مخصص", "Custom cup final"), () => StartMatchWizardFlow(cupFinal: true));
-
-        menu.AddItem(T("الكلاسيكو", "El Clasico"), () =>
-        {
-            StartClasicoWizardFlow();
         });
 
         menu.AddItem(LocalizationService.GetString("DraftMode"), () =>
@@ -392,6 +425,7 @@ public class AccessibleFootballWindow : Form
         });
 
         SetActiveMenu(menu);
+        AnnounceStartupUpdateIfSafe();
     }
 
     private static Team GetClasicoRealMadrid(TeamSide side)
@@ -861,7 +895,7 @@ public class AccessibleFootballWindow : Form
         _inputHandler.Reset();
         SetupMatchDisplayListBox(homeTeam, awayTeam);
 
-        SoundEffectsPlayer.StopMenuMusic();
+        SoundEffectsPlayer.SetMatchAudioContext(true);
 
         // مزامنة المعلق المعتمد مع الإعدادات
         _commentaryEngine.SwitchCommentator(MatchSettings.Current.Commentator);
@@ -1250,16 +1284,10 @@ public class AccessibleFootballWindow : Form
     {
         if (_isInStartupIntro)
         {
-            // نشيد دوري الأبطال لا يتوقف إلا بعد ضغط Enter أو Space حصراً
-            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
-            {
-                _isInStartupIntro = false;
-                _anthemEngine.StopAllSounds();
-                SoundEffectsPlayer.StartMenuMusic();
-                OpenMainMenu();
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-            }
+            // Suppress all control navigation during the exclusive intro, including the ListBox's defaults.
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) CompleteStartupIntro();
             return;
         }
         // 1. أولوية القوائم: إذا كنا داخل أي قائمة (الرئيسية، التشكيلة، الإعدادات، أو الإيقاف المؤقت داخل الماتش)
