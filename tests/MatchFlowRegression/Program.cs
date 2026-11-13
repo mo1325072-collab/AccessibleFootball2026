@@ -9,6 +9,7 @@ using AccessibleFootball2026.Audio.Commentary;
 using AccessibleFootball2026.App.Menus;
 using AccessibleFootball2026.Core.Tactics;
 
+MatchSettings.Current.AiVarEnabled=false; // Legacy direct-decision fixtures; explicit VAR fixtures below enable review.
 MatchSettings.Current.ExtraTimeEnabled = false;
 MatchSettings.Current.PenaltyShootoutEnabled = false;
 int passed = 0;
@@ -401,7 +402,7 @@ radarCoordinator.HandleMatchEvent(new MatchEvent(MatchEventType.TacticalRadarInf
 Check(reader.Spoken.Count==1,"semantic player-switch event remains silent in live match");
 m=New();var priorSpeed=m.ActiveUserPlayer.Speed;var priorStamina=m.ActiveUserPlayer.Stamina;m.ApplyInjury(m.ActiveUserPlayer,PlayerInjuryStatus.MinorKnock);
 Check(m.ActiveUserPlayer.Speed==priorSpeed*.8f&&m.ActiveUserPlayer.Stamina==priorStamina*.8f,"minor knock applies requested 20 percent speed and stamina reduction");
-Check(TacticalAiAdvisor.GenerateTacticalReport(m).Contains("وليس نموذج Qwen"),"missing model fallback explicitly labels native rules instead of claiming Qwen inference");
+Check(TacticalAiAdvisor.GenerateTacticalReport(m).Contains("بالقواعد المحلية")&&!TacticalAiAdvisor.GenerateTacticalReport(m).Contains("Qwen"),"tactical report uses code rules without model lookup or model branding");
 
 m=New();var runUpActor=m.ActiveUserPlayer;Check(m.BeginSlowRunUp(),"slow approach can begin before interval fixture");m.TriggerHalfTime();
 Check(typeof(MatchEngine).GetField("_runUpPlayer",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(m)==null,"new period clears an unfinished prior-period run-up");
@@ -415,22 +416,55 @@ Check(!unsupportedReview.EvidenceAvailable&&!unsupportedReview.Overturned&&float
 m=New();injured=m.HomeTeam.Players[9];replacement=new Player(903,"Injury replacement",14,SpecificPosition.ST,80,80,80,80,80);m.HomeTeam.Bench.Add(replacement);
 m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);m.ResolveInjurySubstitution(injured,replacement);int injurySubs=m.HomeTeam.SubstitutionsUsed;m.ApplyInjury(injured,PlayerInjuryStatus.SevereInjury);
 Check(m.HomeTeam.SubstitutionsUsed==injurySubs&&m.AwayTeam.SubstitutionsUsed==0,"repeated injury to a substituted-off player cannot change the other team or consume another substitution");
-if(!OperatingSystem.IsWindows())
+Check(typeof(TacticalAiAdvisor).GetMethod("QueryNeuralQwenModel")==null && typeof(TacticalAiAdvisor).GetMethod("RunModelProcess",BindingFlags.Static|BindingFlags.NonPublic)==null,"current advisor has no model process or lookup API");
+
+// The later R1 controls in ORIGINAL_REQUEST supersede the earlier D/S draft mapping.
+foreach(var pair in new[]{(0x53,GameAction.ShortPass),(0x44,GameAction.Cross),(0x57,GameAction.Shoot),(0x41,GameAction.ThroughBall),(0x11,GameAction.SwitchPlayer),(0xA2,GameAction.SwitchPlayer),(0xA3,GameAction.SwitchPlayer)})
 {
-    string fixture=Path.Combine(Path.GetTempPath(),Guid.NewGuid()+"-model-fixture");Directory.CreateDirectory(fixture);
-    string fake=Path.Combine(fixture,"fake-cli");
-    string Call(string program,string prompt,int seconds=2)=>(string)typeof(TacticalAiAdvisor).GetMethod("RunModelProcess",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{program,"model with spaces.gguf",prompt,30,seconds})!;
-    void Script(string body){File.WriteAllText(fake,"#!/bin/sh\n"+body+"\n");File.SetUnixFileMode(fake,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute);}
-    Script("printf 'fixture output only'; exit 7");Check(Call(fake,"test")=="","failed model process cannot be reported as successful inference");
-    Script("i=0; while [ $i -lt 5000 ]; do echo diagnostic >&2; i=$((i+1)); done; printf 'fixture result'");
-    Check(Call(fake,"name with \"quotes\" and spaces")=="fixture result","model process drains stderr alongside stdout without pipe deadlock");
-    Script("while [ \"$1\" != '-p' ]; do shift; done; shift; printf '%s' \"$1\"");
-    Check(Call(fake,"line one\nname with \"quotes\" and spaces")=="line one name with \"quotes\" and spaces","model prompt uses one argument preserving quotes spaces and line breaks");
-    Script("sleep 12; printf 'late result'");var timer=System.Diagnostics.Stopwatch.StartNew();
-    Check(Call(fake,"test",1)==""&&timer.Elapsed.TotalSeconds<5,"model timeout terminates process tree instead of leaving hanging inference");
-    Directory.Delete(fixture,true);
+    keyboard.Reset();keyboard.HandleKeyDown(0xA0,true);keyboard.HandleKeyDown(0x27,true);keyboard.HandleKeyDown(pair.Item1,true);
+    Check(keyboard.PollCurrentActions(true).SetEquals(new[]{GameAction.Sprint,GameAction.MoveRight,pair.Item2}),"modifier movement and action coexist: "+pair.Item1);
+    keyboard.HandleKeyDown(pair.Item1,false);
+    Check(keyboard.PollCurrentActions(false).SetEquals(new[]{GameAction.Sprint,GameAction.MoveRight}),"held key cannot turn into tackle after possession changes: "+pair.Item1);
+    keyboard.HandleKeyUp(pair.Item1);keyboard.HandleKeyUp(0xA0);keyboard.HandleKeyUp(0x27);
+    Check(keyboard.PollCurrentActions(false).Count==0,"release emits no phantom action: "+pair.Item1);
+}
+foreach(var arrow in new[]{0x25,0x26,0x27,0x28})
+{
+ keyboard.Reset();keyboard.HandleKeyDown(arrow,true);var first=keyboard.PollCurrentActions(true);Check(first.Count==1&&keyboard.PollCurrentActions(true).SetEquals(first),"arrow remains continuous "+arrow);keyboard.HandleKeyUp(arrow);Check(keyboard.PollCurrentActions(true).Count==0,"arrow release stops movement "+arrow);
 }
 
+keyboard.Reset();keyboard.HandleKeyDown(0xA0,true);keyboard.HandleKeyDown(0xA1,true);keyboard.HandleKeyUp(0xA0);Check(keyboard.PollCurrentActions(true).Contains(GameAction.Sprint),"releasing leftShift does not cancel still-held rightShift");keyboard.HandleKeyUp(0xA1);Check(!keyboard.PollCurrentActions(true).Contains(GameAction.Sprint),"lastShift release ends sprint");
+keyboard.Reset();keyboard.HandleKeyDown(0xA2,false);Check(keyboard.PollCurrentActions(false).Contains(GameAction.SwitchPlayer),"firstphysicalCtrl switches once");keyboard.HandleKeyDown(0xA3,false);keyboard.HandleKeyUp(0xA2);keyboard.HandleKeyDown(0xA3,false);Check(!keyboard.PollCurrentActions(false).Contains(GameAction.SwitchPlayer),"secondheldCtrl remains debounced after releasing firstCtrl");keyboard.HandleKeyUp(0xA3);keyboard.HandleKeyDown(0xA3,false);Check(keyboard.PollCurrentActions(false).Contains(GameAction.SwitchPlayer),"allCtrl released permits a fresh switch");
+
+float AimHeld(float step,int frames)
+{
+ var keys=new AccessibleFootball2026.Input.KeyboardInputHandler();var game=new MatchEngine(Make("aimh",TeamSide.Home),Make("aima",TeamSide.Away),new MatchEventBus(),keys);var actor=game.ActiveUserPlayer;actor.FacingDirection=new Vector2(1,0);game.Ball.CatchOrTackle(actor);keys.HandleKeyDown(0x26,true);for(int f=0;f<frames;f++)Invoke(game,"ProcessUserInput",step);return actor.FacingDirection.Y;
+}
+var fineAim=AimHeld(.02f,10);var coarseAim=AimHeld(.1f,2);Check(Math.Abs(fineAim-coarseAim)<.001f&&fineAim<-.1f&&fineAim>-.3f,"held aim is gradual and frame-rate independent, not saturated after two frames");
+
+// Real incident-driven VAR, not a name-only simulated verdict.
+MatchSettings.Current.AiVarEnabled=true;
+m=New();var varEvents=new List<MatchEvent>();m.EventBus.OnMatchEvent+=varEvents.Add;
+var varVictim=m.HomeTeam.Players[9];var varSpot=new Vector2(99,34);
+m.AwardFoulRestart(varVictim,varSpot);var varTime=m.MatchTimeMinutes;var varBall=m.Ball.Position;
+Check(m.VideoReviewPending&&m.Restart==null,"penalty incident starts actual announced review before restart is awarded");
+Check(varEvents.Count(e=>e.Type==MatchEventType.VideoReviewStarted)==1,"one audible start event per actual review");
+m.Update(3);Check(m.VideoReviewPending&&m.MatchTimeMinutes==varTime&&m.Ball.Position==varBall,"VAR wait freezes actual ball and clock for several seconds");
+Check(!m.DismissStoppageReplay(),"Enter cannot bypass pending video decision");
+m.Update(1);Check(!m.VideoReviewPending&&m.Restart?.Kind==RestartKind.Penalty,"review commits actual penalty once after delay");
+Check(varEvents.Count(e=>e.Type==MatchEventType.VideoReviewDecision)==1&&varEvents.Count(e=>e.Type==MatchEventType.PenaltyAwarded)==1,"penalty result and effect are emitted exactly once");
+m=New();var sent=m.AwayTeam.Players[4];m.IssueCard(sent,true,"fixture serious foul");Check(m.VideoReviewPending&&!sent.IsSentOff,"red card waits for review instead of removing player early");m.Update(4);Check(sent.IsSentOff&&!m.VideoReviewPending,"confirmed red card changes real roster after decision");
+m=New();m.Ball.Position=new Vector3(106,34,1);Invoke(m,"CheckRefereeRules");
+Check(m.VideoReviewPending&&m.HomeTeam.Score==0,"goal check does not increment score before confirmation");m.Update(4);Check(m.HomeTeam.Score==1&&!m.VideoReviewPending,"confirmed goal increments real score exactly once");m.Update(4);Check(m.HomeTeam.Score==1,"goal review cannot rescore on a later update");
+m=New();bool speechBusy=true;m.VideoAnnouncementPending=()=>speechBusy;m.AwardFoulRestart(m.HomeTeam.Players[9],new Vector2(99,34));m.Update(20);Check(m.VideoReviewPending&&m.Restart==null,"uncompleted start speech cannot be cut off by review timer");speechBusy=false;m.EventBus.OnMatchEvent+=e=>{if(e.Type==MatchEventType.VideoReviewDecision)speechBusy=true;};m.Update(4);Check(m.VideoReviewPending&&m.Restart==null,"verdict speech completes before actual decision effects can interrupt it");speechBusy=false;m.Update(.1f);Check(m.Restart?.Kind==RestartKind.Penalty,"completed verdict releases held penalty effect");
+m=New();m.AwardFoulRestart(m.HomeTeam.Players[9],new Vector2(Pitch.Length-Pitch.PenaltyBoxDepth-.25f,34));Check(m.VideoReviewPending,"close outside-area foul supports penalty versus no-penalty review");m.Update(4);Check(m.Restart?.Kind==RestartKind.FreeKick,"geometry outside box results in actual free kick, not false penalty");
+m=New();var wrongCard=m.AwayTeam.Players[3];var trueOffender=m.AwayTeam.Players[4];Check(m.ReviewCardDecision(wrongCard,trueOffender,false,true,true)&&m.VideoReviewPending,"observed mistaken identity triggers correction review");m.Update(4);Check(wrongCard.YellowCards==0&&trueOffender.YellowCards==1,"identity correction cards actual offender without punishing wrong player");
+m=New();var reviewedBooked=m.AwayTeam.Players[3];reviewedBooked.YellowCards=1;Check(m.ReviewCardDecision(reviewedBooked,reviewedBooked,false,false,true),"clearly incorrect second caution is reviewable under2026/27");m.Update(4);Check(reviewedBooked.YellowCards==1&&!reviewedBooked.IsSentOff,"cancelled incorrect second caution preserves first caution and eleven players");
+m=New();var offRunner=m.HomeTeam.Players[8];offRunner.Position2D=new Vector2(90.1f,34);for(int oi=0;oi<m.AwayTeam.Players.Count;oi++)m.AwayTeam.Players[oi].Position2D=new Vector2(oi==0?100:90,20+oi);
+m.CheckOffsideTrap(m.HomeTeam,m.AwayTeam,offRunner,new Vector2(100,34));m.Ball.Owner=null;m.Ball.Position=new Vector3(offRunner.Position2D,0);m.TryControlIncomingBall(offRunner,testRoll:1);m.Ball.Owner=null;m.Ball.Position=new Vector3(105.1f,34,1);Invoke(m,"CheckRefereeRules");Check(m.VideoReviewPending&&m.HomeTeam.Score==0,"actual kick-time offside plus goal starts review with no premature score");m.Update(4);Check(m.HomeTeam.Score==0&&m.Restart?.Kind==RestartKind.IndirectFreeKick,"VAR disallowed goal produces actual defending indirect restart and no score");
+m=New();m.AwardFoulRestart(m.HomeTeam.Players[9],new Vector2(99,34));m.TriggerHalfTime();Check(!m.VideoReviewPending,"period transition clears stale pending video decision");
+MatchSettings.Current.AiVarEnabled=false;
+m=New();m.AwardFoulRestart(m.HomeTeam.Players[9],new Vector2(99,34));Check(!m.VideoReviewPending&&m.Restart?.Kind==RestartKind.Penalty,"disabled VAR preserves direct referee decision without delay");
 
 // Build real menu objects in both languages, and exercise actions rather than dictionary-only tests.
 var languageBefore=MatchSettings.Current.Language;MatchSettings.Current.Language=UiLanguage.English;
