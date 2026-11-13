@@ -23,11 +23,53 @@ public static class SoundEffectsPlayer
     private static bool _menuMusicPlaying = false;
     private static bool _menuMusicRequested;
     private static bool _matchAudioContext;
+    private static bool _matchSoundsPaused;
+    private static bool _commentaryPaused;
+    private static DateTime _commentaryPausedAt;
+    public static void PauseMatchSounds()
+    {
+        lock (_lock)
+        {
+            if (_matchSoundsPaused) return;
+            _matchSoundsPaused = true;
+            PauseCrowdAmbiance();
+            if (_activeOneShots.ContainsKey("comm_voice"))
+            {
+                _commentaryPaused = true;
+                _commentaryPausedAt = DateTime.UtcNow;
+                SendMci("pause comm_voice");
+            }
+            SendMci("pause chant_ch");
+            foreach (string alias in _activeOneShots.Keys.ToArray())
+            {
+                if (alias is "comm_voice" or "chant_ch" || alias.StartsWith("ui_")) continue;
+                SendMci($"stop {alias}"); SendMci($"close {alias}");
+                _activeOneShots.Remove(alias); _activeOneShotPans.Remove(alias);
+            }
+        }
+    }
+    public static void ResumeMatchSounds()
+    {
+        lock (_lock)
+        {
+            if (!_matchAudioContext) return;
+            _matchSoundsPaused = false;
+            if (_commentaryPaused)
+            {
+                _commentaryBusyUntil += DateTime.UtcNow - _commentaryPausedAt;
+                _commentaryPaused = false;
+                SendMci("resume comm_voice");
+            }
+            SendMci("resume chant_ch");
+            ResumeCrowdAmbiance();
+        }
+    }
     public static void SetMatchAudioContext(bool active)
     {
         lock (_lock)
         {
             _matchAudioContext = active;
+            if (!active) _matchSoundsPaused = false;
             if (active) StopMenuMusic();
         }
     }
@@ -710,6 +752,7 @@ public static class SoundEffectsPlayer
         lock (_lock)
         {
             _commentaryBusyUntil = DateTime.MinValue;
+            _commentaryPaused = false;
             _activeOneShots.Remove("comm_voice");
             _activeOneShotPans.Remove("comm_voice");
             SendMci("stop comm_voice");
@@ -736,7 +779,7 @@ public static class SoundEffectsPlayer
     {
         lock (_lock)
         {
-            if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f) return false;
+            if (_commentaryPaused || !_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f) return false;
             if (DateTime.UtcNow < _commentaryBusyUntil) return true;
             if (!_activeOneShots.ContainsKey("comm_voice")) return false;
             var mode = new StringBuilder(128);
@@ -834,6 +877,7 @@ public static class SoundEffectsPlayer
         if (volume <= .001f || string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
         lock (_lock)
         {
+            if (_matchSoundsPaused && !alias.StartsWith("ui_", StringComparison.Ordinal)) return false;
             string type = alias is "comm_voice" or "chant_ch" ? "mpegvideo" : GetMciType(filePath);
             SendMci($"close {alias}");
             if (MciPlayback.SendString($"open \"{filePath}\" type {type} alias {alias}", null, 0, IntPtr.Zero) != 0) return false;
@@ -1152,6 +1196,8 @@ public static class SoundEffectsPlayer
 
     public static void StopAll()
     {
+        StopCommentaryAudio();
+        _matchSoundsPaused = false;
         _commentaryBusyUntil = DateTime.MinValue;
         StopMenuMusic();
         StopCrowdAmbiance();
