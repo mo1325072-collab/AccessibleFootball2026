@@ -240,9 +240,25 @@ Files: SmartAudioCoordinator.cs and tests/OriginalAssetHarness; existing MatchFl
 - Canceling a match now cancels its waiting or already-started goal announcement, releases its ducking claim and suppresses stale completion callbacks. Tests cover cancellation before commentary ends, cancellation during speech and a clean next goal.
 - Native NVDA completion, actual audible mixing, older-NVDA estimated waits and recorded-commentary ducking still need separate verification. These are not inferred from mocked completion.
 
+### Stage 7: beacon and integrated academy/volume checks
+
+Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAssetHarness, SettingsLifecycleHarness and PlayerJourneyHarness.
+
+- Twelve additional real-asset beacon checks pass without a production-code change: own-half silence in both directions, rising proximity strength, halftime perspective flip, left/center/right stereo commands before play at saved master/category volume, no possession/no pulse, and exact supplied-byte preservation.
+- Refreshed integrated settings lifecycle (66 checks), contextual commentary (65 checks) and player journeys (313 checks) remain green. Academy checks exercise every documented category in Arabic and English, second-preview replacement, Back cleanup and truthful missing-recording behavior.
+- This records the portable paths that passed. Native focus, actual spatial perception and audible balance remain unexecuted.
+
+### Stage 8: internal build continuity and archive integrity
+
+- Checked all 187 non-SFX files against public main at 16826a43c8dcd233493eb9be4b3697a67719ba64: no missing or mismatched source content (final-newline normalization only).
+- Cross-published a self-contained Windows x64 application and staged all 1,813 audio/catalog/support files with the executable, database and license notices.
+- Internal candidate: 1,820 payload files, 1,982,264,444 uncompressed bytes. Every payload was streamed back from ZIP and checked for size/SHA256: zero errors.
+- Candidate ZIP: 1,754,969,263 bytes, SHA256 56cf9d3492ec84c058d3c007ea02ab0b8192c1a1f9ea78ae493db3ed017e9fb0. It carries an Arabic candidate-not-release notice and a full payload manifest with known gaps.
+- The candidate is retained internally, not published as a release or sent for download. It predates these test/document-only additions. No large redundant transfer is needed while work continues.
+
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 75 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 87 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
