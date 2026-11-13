@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 90 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 103 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -270,3 +270,23 @@ Remaining work, not marked complete:
 3. Exercise commentary and reader ordering under overlapping events, interruptions, cancellation, silence settings and long utterances; verify ducking lifetime rather than assuming a fixed duration is sufficient.
 4. Audit beacon, positional panning, replays, academy stop/Back, menu transitions and volume settings as integrated journeys.
 5. Build/package the assembled assets reproducibly, verify final package content and run actual Windows/NVDA/native audio acceptance. No release is claimed before that evidence exists.
+
+
+### Stage 9: supplied chant index and team identity
+
+- The supplied 643-record JSON (SHA256 461ac2da17ecb401cbc020d23d32c94abf4008c9cddc131c6d6357663bfa510b) matches all recovered filenames, durations within 1ms, sample rates and channels. Its authenticity, category and slot-description text is a supplied claim, not independently established provenance. The original envelope is preserved unchanged.
+- The reader now accepts both the extractor Index/Label array and the supplied chants/konami_ainf_label envelope. Exact labels, including A_ prefixes, are preserved. Invalid roots/JSON and conflicting duplicate labels fail closed.
+- Historical PES2013 Dt01.img mapping: https://www.pesgaming.com/forums/threads/chant-map.92044/ (Oct26 2012 thread, community transcription attributed to OmarAhmed). It assigns Barcelona541-549 and RealMadrid550-557. A later transcription https://pes2013editor.blogspot.com/2017/09/chants-map.html repeats it, not independent official verification.
+- These concrete ranges agree with supplied SP_R0108 and SP_R0109 labels. Only existing files at those corroborated ranges+labels enter the two team pools. Entry549 is absent, so Barcelona currently uses541-548. Participation+correct-ground restrictions apply regardless of Home/Away slot, per the latest user correction. National teams and other clubs do not enter those pools.
+- Old fallback Chant_173/Chant_153 confused legacy team IDs with archive entry numbers: supplied173=A_SP_C0044_03 and153=A_SP_C0001_03. Those fallbacks are removed. Missing index/files never silently restore them.
+- The evidence establishes team-pool identity, not per-suffix goal, comeback or whistle meaning. The old suffix01..05 semantic claims were removed. Non-protest triggers choose a team-pool recording without claiming its acoustic subtype. Unverified protest triggers stay silent instead of playing a cheerful generic chant or raising a whistle callback. Dedicated verified protest/celebration meanings remain open.
+- The 2018 relinking guide https://pesnewupdate.com/tutorial-relinking-chants-by-predator002/ also names R0108 Barcelona, but describes CPK/ACB/AWB rather than this Dt01.img. It is not used to infer new archive ranges. SP_R cannot safely be classified as national-only: the corroborated club chants are there.
+- Anthem files are not replaced from the historical chant list. Byte equality with chants and inconsistent names remains a provenance gap. No claim of genuine anthem identity, licensing, native playback or Windows/NVDA acceptance is made here.
+- Real-asset command tests pass103/103 after reproducing the prior pool/parser failures; they exercise supplied and legacy schemas, absent/malformed/conflicting indices, and keep the reader-only crowd reduction checks. Windows-target application builds with0errors. The older internal candidate is unchanged and does not yet include this source/index repair. It is not a release.
+
+
+### Stage 10: stadium scope and participation correction (in progress)
+
+- User clarification at18:03:41 defines home as ownership of the selected stadium, not a UI slot. A team must participate and the selected stadium must be its real ground. Home/Away slot is irrelevant. Madrid+Barcelona at Bernabeu selects Madrid, at CampNou selects Barcelona, at SanSiro stays neutral. Context handling now selects that ground's participating owner and its own score/opponent, rather than always the Home slot.
+- Live production roster blob5bda1b220c73fa2c350c7301b6e57a54f8b753b3 contains529teams:318clubs+211national teams across13groups.643is the chant-record count. There are no stadium fields. Only stadiums bound to actually present production teams may be added; shared/multiple grounds are not forced into1:1counts. Complete stadium coverage is still in progress, not claimed here.
+- Venue identity is separate from recording identity: confirmed grounds do not authenticate Acoustic_2/3/10 as recordings of those grounds.
