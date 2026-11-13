@@ -190,7 +190,7 @@ public class TacticalAiAdvisor
             var formReq = FormationManager.GetRequirement(match.HomeTeam.CurrentFormation);
             if (formReq.IsDefensive && match.HomeTeam.Tactics.PressingIntensity > 60)
             {
-                sb.Append($"تحذير تكتيكي عاجل: خطتك الحالية ({formReq.ArabicName}) دفاعية ولكنك تلعب بضغط عالي ({match.HomeTeam.Tactics.PressingIntensity}%)! هذا تناقض كارثي يمزق الخطوط ويستنزف اللياقة دون جدوى. نوصي بخفض الضغط لـ 25 أو التحول إلى 4-3-3A. ");
+                sb.Append($"تحذير تكتيكي عاجل: خطتك الحالية ({formReq.ArabicName}) دفاعية ولكنك تلعب بضغط عالي ({match.HomeTeam.Tactics.PressingIntensity}%)! هذا يتعارض مع إعداد الكتلة المنخفضة الحالي ويخفض تنسيق الالتحامات في اللعبة. خفض الضغط أو اختر إعداداً آخر. ");
             }
             else if (minute >= 75 && goalDiff > 0 && match.HomeTeam.CurrentFormation != FormationType.Formation532_Counter)
             {
@@ -198,7 +198,7 @@ public class TacticalAiAdvisor
             }
             else if (minute >= 65 && goalDiff < 0 && match.HomeTeam.CurrentFormation != FormationType.Formation433_Attack)
             {
-                sb.Append("نصيحة تكتيكية: التحول إلى خطة 4-3-3 A الهجومية بصانع ألعاب متقدم لتكثيف الضغط العالي والعودة في النتيجة.");
+                sb.Append("نصيحة تكتيكية: التحول إلى خطة 4-3-3 بوسط متدرج وصانع ألعاب متقدم لتكثيف الضغط العالي والعودة في النتيجة.");
             }
             else
             {
@@ -286,7 +286,7 @@ public class TacticalAiAdvisor
             list.Add(new TacticalRecommendation
             {
                 Title = suggestedFormation == FormationType.Formation343_AllOut
-                    ? LocalizationService.Text("التحول إلى خطة 3-4-3 الهجومية الكاسحة (All Out Attack)", "Switch to 3-4-3 attack")
+                    ? LocalizationService.Text("التحول إلى 3-4-3 بجناحين وظهيري جناح", "Switch to 3-4-3 with wide forwards")
                     : LocalizationService.Text("التحول إلى خطة 4-3-3 الهجومية (ضغط عالي)", "Switch to 4-3-3 attack"),
                 Description = LocalizationService.Text("زيادة عدد المهاجمين والأجنحة للعودة في النتيجة وتكثيف الكرات داخل الصندوق.", "Add forwards and wide players while trailing."),
                 SuggestedFormation = suggestedFormation,
