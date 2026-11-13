@@ -62,7 +62,7 @@ Check(File.Exists(Path.Combine(root,"Anthems","National","EGY.wav")),"originalna
 anthemCommands.Clear();
 transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{anthemCommands.Add(command);buffer?.Append("stopped");return 0;}));
 var stadiumAudit=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(root);
-Check(stadiumAudit.ActiveStadiumKey=="NeutralStadium","new stadium session starts neutral rather than assuming Real Madrid's ground");
+Check(stadiumAudit.ActiveStadiumKey==""&&stadiumAudit.ActiveStadiumName==LocalizationService.Text("لم يتم اختيار ملعب","No stadium selected"),"newstadiumsessionisunselectednotinventedneutralground");
 var madrid=AccessibleFootball2026.Core.Models.TeamDatabase.CreateRealMadrid();
 var barcelona=AccessibleFootball2026.Core.Models.TeamDatabase.CreateBarcelona();
 stadiumAudit.ActiveStadiumKey="SantiagoBernabeu";stadiumAudit.SetMatchTeams(madrid,barcelona);
@@ -89,7 +89,7 @@ Directory.CreateDirectory(Path.Combine(sparseRoot,"SFX","StadiumAcoustics"));
 File.Copy(Path.Combine(root,"SFX","StadiumAcoustics","Acoustic_3.wav"),Path.Combine(sparseRoot,"SFX","StadiumAcoustics","Acoustic_3.wav"));
 var sparseStadium=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(sparseRoot){ActiveStadiumKey="SantiagoBernabeu"};
 sparseStadium.SetMatchTeams(madrid,barcelona);
-anthemCommands.Clear();sparseStadium.ActiveStadiumKey="NeutralStadium";sparseStadium.SetMatchTeams(madrid,barcelona);
+anthemCommands.Clear();sparseStadium.ActiveStadiumKey="";sparseStadium.SetMatchTeams(madrid,barcelona);
 Check(!anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("Acoustic_3.wav")),"missing neutral acoustic never substitutes the available Bernabeu file");
 var acousticField=typeof(SoundEffectsPlayer).GetField("_stadiumAcousticPath",BindingFlags.Static|BindingFlags.NonPublic)!;
 Check(acousticField.GetValue(null)==null,"missing selected acoustic clears stale previous stadium configuration");
