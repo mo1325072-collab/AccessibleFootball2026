@@ -37,42 +37,33 @@ public static class GoalBeaconPlayer
         }
     }
 
+    // 40m is the chosen edge of the user's approximate 35-40m emergence range.
+    public const float EmergenceDistance = 40f;
     public static void CalculateBeacon(float playerX, float playerY, bool isSecondHalf, float masterVolume, out float distance, out float volume, out float pan)
+        => CalculateBeacon(playerX,playerY,isSecondHalf,isSecondHalf?-1f:1f,0f,masterVolume,out distance,out volume,out pan);
+
+    public static void CalculateBeacon(float playerX, float playerY, bool isSecondHalf, float facingX, float facingY, float masterVolume, out float distance, out float volume, out float pan)
     {
-        float targetGoalX = isSecondHalf ? GoalLeftX : GoalRightX;
-        float dx = playerX - targetGoalX;
-        float dy = playerY - GoalCenterY;
-        distance = MathF.Sqrt(dx * dx + dy * dy);
-
-        // 1. حساب مستوى الصوت (Volume Curve): صمت تام إذا كان اللاعب في نصف ملعبه الدفاعي (D > 52.5m)
-        if (distance > MaxBeaconDistance)
-        {
-            volume = 0.0f;
-        }
-        else
-        {
-            float proximity = (MaxBeaconDistance - distance) / MaxBeaconDistance;
-            // منحنى تصاعدي ناعم: (Proximity)^1.5
-            volume = Math.Clamp(masterVolume * MathF.Pow(proximity, 1.5f), 0.0f, 1.0f);
-        }
-
-        // 2. حساب التوزيع المجسم ثلاثي الأبعاد (3D Stereo Panning):
-        // في الشوط الأول: ينظر للأمام نحو X=105. إذا كان اللاعب في الأعلى (Y < 34)، فإن المرمى يقع ليمينه نسبياً
-        float deltaY = GoalCenterY - playerY;
-        float basePan = Math.Clamp(deltaY / GoalCenterY, -1.0f, 1.0f);
-
-        // في الشوط الثاني: تنقلب الرؤية لأن اللاعب ينظر للخلف نحو X=0
-        pan = isSecondHalf ? -basePan : basePan;
+        float dx=(isSecondHalf?GoalLeftX:GoalRightX)-playerX,dy=GoalCenterY-playerY;
+        distance=MathF.Sqrt(dx*dx+dy*dy);
+        float level=distance>=MaxBeaconDistance?0f:distance>EmergenceDistance
+            ?.02f*(MaxBeaconDistance-distance)/(MaxBeaconDistance-EmergenceDistance)
+            :.02f+.98f*MathF.Pow(Math.Clamp((EmergenceDistance-distance)/EmergenceDistance,0,1),1.5f);
+        volume=Math.Clamp(masterVolume,0,1)*level;
+        float headingLength=MathF.Sqrt(facingX*facingX+facingY*facingY);
+        if(headingLength<.001f){facingX=isSecondHalf?-1:1;facingY=0;headingLength=1;}
+        // Positive cross product is the listener's right in pitch coordinates (Y grows down).
+        pan=distance<.001f?0:Math.Clamp((facingX*dy-facingY*dx)/(headingLength*distance),-1,1);
     }
 
-    public static void UpdateBeacon(float playerX, float playerY, bool isSecondHalf, bool hasPossession, float masterVolume = 1.0f)
+    public static void UpdateBeacon(float playerX, float playerY, bool isSecondHalf, bool hasPossession, float masterVolume = 1.0f, float? facingX = null, float? facingY = null)
     {
         if (!hasPossession)
         {
             return;
         }
 
-        CalculateBeacon(playerX, playerY, isSecondHalf, masterVolume, out float dist, out float vol, out float pan);
+        CalculateBeacon(playerX, playerY, isSecondHalf, facingX ?? (isSecondHalf?-1:1), facingY ?? 0, masterVolume, out float dist, out float vol, out float pan);
 
         if (vol <= 0.001f)
         {
