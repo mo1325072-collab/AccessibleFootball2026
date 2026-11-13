@@ -363,13 +363,13 @@ public static class AdversarialM5AudioChallenge
 
         // 3. PlayNationalAnthemSample with synthetic/non-existent nation ID
         anthemEngine.PlayNationalAnthemSample("NON_EXISTENT_NATION_XYZ_999");
-        Assert(anthemEngine.LastPlayedAnthem == "NON_EXISTENT_NATION_XYZ_999", 
-            "LastPlayedAnthem must be updated even if audio file is synthetic");
+        Assert(anthemEngine.LastPlayedAnthem == null, 
+            "Canceled national preview must not report playback");
 
-        // 4. PlayNationalAnthemSample with null teamId -> Falls back to default "EGY"
+        // 4. Canceled national sample stays inert with null ID
         anthemEngine.PlayNationalAnthemSample(null);
-        Assert(anthemEngine.LastPlayedAnthem == "EGY", 
-            "LastPlayedAnthem must fall back to 'EGY' when null teamId is provided");
+        Assert(anthemEngine.LastPlayedAnthem == null, 
+            "Canceled national sample must not substitute EGY");
 
         // 5. PlayChampionsLeagueSample -> Must not crash even in headless MCI environment
         anthemEngine.PlayChampionsLeagueSample();
