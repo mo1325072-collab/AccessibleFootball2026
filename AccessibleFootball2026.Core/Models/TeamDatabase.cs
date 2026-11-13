@@ -135,3 +135,43 @@ public static class TeamDatabase
     public static Team CreateEngland() => JsonDatabaseProvider.GetTeamByName("England") ?? EuropeanNationalTeams.CreateEngland();
     public static Team CreateSpain() => JsonDatabaseProvider.GetTeamByName("Spain") ?? EuropeanNationalTeams.CreateSpain();
 }
+
+
+/// <summary>A sourced ground may belong to several production teams, and a team may use several grounds.
+/// Coverage is deliberately partial. Never create missing stadium facts from team names or roster counts.</summary>
+public sealed record StadiumDefinition(string Key, string ArabicName, string EnglishName,
+    bool NationalTeams, string[] TeamNames, string SourceUrl)
+{
+    public string DisplayName => LocalizationService.Text(ArabicName, EnglishName);
+    public bool IsGroundFor(Team team) => team.IsNationalTeam == NationalTeams &&
+        TeamNames.Contains(team.Name, StringComparer.OrdinalIgnoreCase);
+}
+
+public static class StadiumCatalog
+{
+    // Checked2026-11-13. These are supported grounds, not claims that nations use only one venue.
+    private static readonly StadiumDefinition[] Verified =
+    {
+        new("SantiagoBernabeu","سانتياجو برنابيو","Santiago Bernabeu",false,new[] {"Real Madrid"},"https://bernabeu.realmadrid.com/"),
+        new("CampNou","سبوتيفاي كامب نو","Spotify Camp Nou",false,new[] {"FC Barcelona"},"https://www.fcbarcelona.com/en/card/4510623/spotify-camp-nou-202627-pass"),
+        new("SanSiro","سان سيرو (جوزيبي مياتزا)","San Siro (Giuseppe Meazza)",false,new[] {"Inter Milan","AC Milan"},"https://sansirostadium.com/the-stadium/?lang=en"),
+        new("Wembley","ويمبلي","Wembley",true,new[] {"England"},"https://www.wembleystadium.com/about/stadium-facts-and-features"),
+        new("HampdenPark","هامبدن بارك (باركليز هامبدن)","Hampden Park (Barclays Hampden)",true,new[] {"Scotland"},"https://www.scottishfa.co.uk/en/barclays-hampden"),
+        new("CardiffCity","كارديف سيتي","Cardiff City Stadium",true,new[] {"Wales"},"https://faw.cymru/news/venues-confirmed-for-nations-league-fixtures/"),
+        new("Parken","باركن","Parken Stadium",true,new[] {"Denmark"},"https://faw.cymru/news/venues-confirmed-for-nations-league-fixtures/"),
+        new("Ullevaal","أوليفول","Ullevaal Stadium",true,new[] {"Norway"},"https://faw.cymru/news/venues-confirmed-for-nations-league-fixtures/"),
+    };
+
+    public static IReadOnlyList<StadiumDefinition> GetAvailableStadiums()
+    {
+        // Only the actual production JSON universe, never a fallback team invented to fill a venue.
+        var teams = JsonDatabaseProvider.AllTeams;
+        return Verified.Where(v => teams.Any(v.IsGroundFor)).ToList();
+    }
+
+    public static StadiumDefinition? Find(string key) =>
+        GetAvailableStadiums().FirstOrDefault(s => s.Key == key);
+
+    public static IReadOnlyList<Team> GetTeamsAwaitingGroundEvidence() =>
+        JsonDatabaseProvider.AllTeams.Where(t => !Verified.Any(s => s.IsGroundFor(t))).ToList();
+}
