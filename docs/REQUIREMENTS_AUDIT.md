@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 121 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 136 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -367,3 +367,12 @@ Remaining work, not marked complete:
 - User explicitly rejects the neutral stadium option. Removed that selectable item and its announcement. A fresh session has no selected ground, not an invented neutral venue; its display name says no stadium selected. Unknown or stale keys cannot select a team's chants. Generic background crowd fallback remains an audio safety path, not a selectable stadium identity.
 - No original audio, chant index, roster or research evidence was deleted. Unsupported StadiumDefinition rows were removed from current catalog source, not just hidden in UI; their venue facts remain in saved evidence and Git history. National ceremony and academy-only entries were removed under the user's separate requests. Game audio outside the academy was retained.
 - Earlier 81/83 and later name-coverage counts were researched venue metadata, not verified chant coverage. Current two offered grounds reflect two wired mappings, not proven absence of other chants. Mapping work continues from supplied files and historical slot metadata.
+
+
+### Stage 20: Three more wired team-chant mappings
+
+- Implemented Manchester United / Old Trafford, Inter Milan / San Siro, and AC Milan / San Siro. Current implemented coverage is five production teams using four offered grounds, not the much larger historical candidate inventory. The new pools contain 19 present recordings: 535-540 / SP_R0100, 592-597 / SP_R0119 and 604-610 / SP_R0121. Existing Madrid and Barcelona routes are retained.
+- Evidence standard: the 2012 PESGaming dt01 original-slot map attributes those exact ranges; the 2014 editing reference lists the same ranges; the supplied index labels and actual recovered files match every new entry. The later 2017 transcription is derivative, not independent confirmation. This corroborates historical slot attribution, not independent listening authentication or proof that this archive was never modified. No renamed national-anthem copy is used as country/team evidence.
+- Sources: https://www.pesgaming.com/forums/threads/chant-map.92044/ and http://agunbharok.blogspot.com/2014/05/edit-teamstadionwasitturf-lapangandan.html . Venue relationship is confirmed by https://sansirostadium.com/the-stadium/?lang=en and https://www.premierleague.com/en/news/4725666/all-you-need-to-know-about-the-20-premier-league-stadiums/ .
+- The engine now resolves explicit team-name/range/label records instead of the old Madrid-or-Barcelona branch. Every candidate still needs both exact range and original label prefix, plus an existing recording. Unknown teams/keys fail without substituting Madrid or Barcelona. Shared San Siro appears once; the designated home club supplies chants when both participants own it, otherwise the sole participating owner does, including the away slot. Full random clip completion and no goal-triggered chant rules remain.
+- 136/136 recorded-command/real-file checks pass, including all 19 new file/label checks, exact playback range for each new club, ownership/visitor refusal, and reversed Milan/Inter derby ownership. The research inventory's 100 historical groups is not implemented coverage. Remaining mappings stay open. No native Windows/NVDA or independent audible chant certification is claimed.
