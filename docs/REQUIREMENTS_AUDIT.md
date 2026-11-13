@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 136 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 156 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -376,3 +376,10 @@ Remaining work, not marked complete:
 - Sources: https://www.pesgaming.com/forums/threads/chant-map.92044/ and http://agunbharok.blogspot.com/2014/05/edit-teamstadionwasitturf-lapangandan.html . Venue relationship is confirmed by https://sansirostadium.com/the-stadium/?lang=en and https://www.premierleague.com/en/news/4725666/all-you-need-to-know-about-the-20-premier-league-stadiums/ .
 - The engine now resolves explicit team-name/range/label records instead of the old Madrid-or-Barcelona branch. Every candidate still needs both exact range and original label prefix, plus an existing recording. Unknown teams/keys fail without substituting Madrid or Barcelona. Shared San Siro appears once; the designated home club supplies chants when both participants own it, otherwise the sole participating owner does, including the away slot. Full random clip completion and no goal-triggered chant rules remain.
 - 136/136 recorded-command/real-file checks pass, including all 19 new file/label checks, exact playback range for each new club, ownership/visitor refusal, and reversed Milan/Inter derby ownership. The research inventory's 100 historical groups is not implemented coverage. Remaining mappings stay open. No native Windows/NVDA or independent audible chant certification is claimed.
+
+
+### Stage 21: Five further wired mappings, separate from research
+
+- Added and tested Valencia / Mestalla (558-563, SP_R0110), Paris Saint-Germain / Parc des Princes (572-575, SP_R0114), Marseille / CEPAC Velodrome (566-571, SP_R0113), Bayern / Allianz Arena (624-626, SP_R0127), and Atletico / Riyadh Air Metropolitano (642-646, SP_R0172). All 24 new entries have both exact supplied labels and present WAV files. Current implementation is ten production teams / nine offered grounds; historical candidate inventory is not implementation coverage.
+- Same original-slot evidence standard and caveats as Stage 20. The exact production team names were checked in the live-recovered production database. Current ground sources are retained on each entry; Atletico uses the current Riyadh Air stadium field, not the older Civitas FAQ. Marseille's current CEPAC name comes from the naming partner's announcement, not the stale Orange listing. No invented neutral option and no per-event slot semantics are introduced.
+- 156/156 real-file/recorded-command checks pass after extending each team's owner/visitor, file/label and playback-range tests. Other supplied tracks remain open research. No independent listening authentication or native Windows/NVDA verification is claimed.
