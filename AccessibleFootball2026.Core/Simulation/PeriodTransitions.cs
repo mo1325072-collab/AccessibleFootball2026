@@ -24,6 +24,7 @@ public partial class MatchEngine
 
     private void ResetPeriodPlayState()
     {
+        _videoDecision=null;_videoVerdict=null;_videoVerdictAnnounced=false;_videoSeconds=0;
         _tacticalDecisionWait.Clear();
         _transitionTeamId=null;_transitionUntil=0;_tacticalLastOwnerTeamId=null;
         AwaitingStoppageConfirmation = false;
