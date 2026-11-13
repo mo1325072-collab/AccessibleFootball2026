@@ -83,3 +83,6 @@ All selectable grounds were reviewed: previous automatic acoustic selections wer
 
 ### Follow-on crowd facts
 After removing the false continuous bed, crowd.active must still reflect actually playing team chants/reactions. The factual property now checks these crowd aliases' current playing status, excluding stopped/paused/stale channels, failed status checks, mute and noncrowd music/SFX. At lineup, only a participating ground owner's existing approved full chant may start. That actual crowd playback can qualify an existing Fares opening; the music itself cannot. Chants are not cut by intro skip.
+
+### Native acceptance fixture refresh
+The Windows-only test harness still passed four reflected arguments to the now-five-argument match start and assumed no pre-match state. Its fixtures now explicitly select a ground and complete lineup before legacy gameplay checks; added native timer/skip/focus checks cover the new lineup. KeyUp and skip-latch checks expect Handled without SuppressKeyPress so WinForms can deliver releases. Focus loss clears a held lineup dismissal key. Lineup completion explicitly restores ListBox focus. Cross-compiling this test harness is not native Windows execution.
