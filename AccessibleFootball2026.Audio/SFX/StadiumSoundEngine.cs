@@ -46,7 +46,7 @@ public class StadiumSoundEngine
     {
         // Both user conditions: participates in this match + owns the selected ground.
         // Home/Away is the player's team slot, not proof of the stadium's crowd identity.
-        if (team.IsNationalTeam || ResolveGroundCrowdTeam() != team)
+        if (ResolveGroundCrowdTeam() != team)
             return false;
 
         return TeamChantCatalog.Find(team) != null;
