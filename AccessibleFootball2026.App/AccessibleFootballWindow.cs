@@ -40,6 +40,8 @@ public class AccessibleFootballWindow : Form
     private readonly Stack<AccessibleMenu> _menuHistory = new();
     private AccessibleMenu? _currentMenu = null;
     private bool _isInStartupIntro = true;
+    private bool _isInMatchAnthems;
+    private bool _skipMatchAnthems;
 
     // حالة المباراة الحية
     private MatchEngine? _activeMatch = null;
@@ -198,6 +200,8 @@ public class AccessibleFootballWindow : Form
 
         FormClosed += (_, _) =>
         {
+            _skipMatchAnthems = true;
+            _anthemEngine.StopAllSounds();
             _coordinator.CancelPendingGoalSequence();
             _commentaryEngine.Dispose();
         };
@@ -327,6 +331,8 @@ public class AccessibleFootballWindow : Form
 
     public void OpenMainMenu()
     {
+        _gameLoopTimer?.Stop();
+        GoalBeaconPlayer.Stop();
         _commentaryEngine.ClearPendingLines();
         _coordinator.CancelPendingGoalSequence();
         UpdateWindowHeadings();
@@ -820,8 +826,9 @@ public class AccessibleFootballWindow : Form
         return true;
     }
 
-    private void StartInteractiveMatch(Team homeTeam, Team awayTeam, bool cupFinal = false, bool rivalry = false)
+    private async void StartInteractiveMatch(Team homeTeam, Team awayTeam, bool cupFinal = false, bool rivalry = false)
     {
+        if (_isInMatchAnthems) return;
         string? lineupIssue = homeTeam.GetMatchStartIssue() ?? awayTeam.GetMatchStartIssue();
         if (lineupIssue != null)
         {
@@ -829,6 +836,8 @@ public class AccessibleFootballWindow : Form
             _screenReader.Speak(lineupIssue);
             return;
         }
+        _gameLoopTimer?.Stop();
+        GoalBeaconPlayer.Stop();
         _commentaryEngine.ClearPendingLines();
         _coordinator.CancelPendingGoalSequence();
         _currentMenu = null;
@@ -844,7 +853,13 @@ public class AccessibleFootballWindow : Form
 
         if (homeTeam.IsNationalTeam || awayTeam.IsNationalTeam)
         {
-            _anthemEngine.PlayMatchNationalAnthems(homeTeam, awayTeam);
+            _isInMatchAnthems = true;
+            _skipMatchAnthems = false;
+            _screenReader.CancelSpeech();
+            _statusLabel.Text = T("السلام الوطني. Enter أو Space للتخطي.", "National anthems. Enter or Space to skip.");
+            try { await _anthemEngine.PlayMatchNationalAnthemsAsync(homeTeam, awayTeam, () => _skipMatchAnthems || IsDisposed); }
+            finally { _isInMatchAnthems = false; _inputHandler.Reset(); }
+            if (IsDisposed) return;
         }
 
         _stadiumSoundEngine.SetMatchTeams(homeTeam, awayTeam);
@@ -1227,6 +1242,16 @@ public class AccessibleFootballWindow : Form
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_isInMatchAnthems)
+        {
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space || e.KeyCode == Keys.Escape)
+            {
+                _skipMatchAnthems = true;
+                _anthemEngine.StopAllSounds();
+            }
+            e.Handled = true; e.SuppressKeyPress = true;
+            return;
+        }
         if (_isInStartupIntro)
         {
             // نشيد دوري الأبطال لا يتوقف إلا بعد ضغط Enter أو Space حصراً
