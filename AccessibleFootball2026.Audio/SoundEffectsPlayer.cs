@@ -111,6 +111,8 @@ public static class SoundEffectsPlayer
         return paths.FirstOrDefault() ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio");
     }
 
+    public static string BaseAudioDirectory => _baseAudioDir;
+
     public static void Initialize(string? dir = null)
     {
         if (!string.IsNullOrEmpty(dir)) _baseAudioDir = dir;
