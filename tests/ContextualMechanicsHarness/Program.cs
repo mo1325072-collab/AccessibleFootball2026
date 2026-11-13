@@ -7,6 +7,7 @@ using AccessibleFootball2026.Core.Input;
 using AccessibleFootball2026.Core.Simulation;
 using AccessibleFootball2026.Audio;
 
+MatchSettings.Current.AiVarEnabled=false; // Existing direct-decision fixtures. VAR timing is checked in MatchFlowRegression.
 int passed=0,failed=0;
 void Check(bool ok,string label){ Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(ok)passed++;else failed++;}
 Team Team(string id,TeamSide side){var t=new Team(id,id,side);for(int i=0;i<11;i++)t.Players.Add(new Player(i+(side==TeamSide.Home?100:200),"P"+i,i+1,i==0?SpecificPosition.GK:SpecificPosition.ST,75,75,75,75,75));return t;}
