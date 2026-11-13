@@ -122,6 +122,7 @@ public partial class MatchEngine
     /// <summary>The UI calls only after Enter and after the commentary/announcement finishes.</summary>
     public bool DismissStoppageReplay()
     {
+        if(VideoReviewPending)return false;
         if (PendingInjuryPlayer != null) return false;
         if (State is MatchState.Paused or MatchState.HalfTime or MatchState.GameOver) return false;
         if (!AwaitingStoppageConfirmation && !AnalysisReplayPending && State != MatchState.GoalCelebration) return false;
