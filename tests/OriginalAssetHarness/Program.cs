@@ -82,6 +82,31 @@ await Task.Delay(50);skip=true;await ceremony;
 Check(stopwatch.ElapsedMilliseconds<1000&&national.WasSkipped&&!national.IsAnthemPlaying,"skip cancels ceremony promptly while awaited playback is active");
 transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>command.StartsWith("open ")?1:0));
 Check(!national.TryPlayNationalAnthemSample("EGY")&&national.LastPlayedAnthem==null&&!national.IsAnthemPlaying,"device failure never reports a successfully played anthem");
+
+// Stadium subject: event identity tests do not authenticate the chant's recording label.
+anthemCommands.Clear();
+transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{anthemCommands.Add(command);buffer?.Append("stopped");return 0;}));
+var stadiumAudit=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(root);
+Check(stadiumAudit.ActiveStadiumKey=="NeutralStadium","new stadium session starts neutral rather than assuming Real Madrid's ground");
+var madrid=AccessibleFootball2026.Core.Models.TeamDatabase.CreateRealMadrid();
+var barcelona=AccessibleFootball2026.Core.Models.TeamDatabase.CreateBarcelona();
+stadiumAudit.ActiveStadiumKey="SantiagoBernabeu";stadiumAudit.SetMatchTeams(madrid,barcelona);
+Check(stadiumAudit.ShouldPlayChantForTeam(madrid)&&!stadiumAudit.ShouldPlayChantForTeam(barcelona),"home-team chant gate recognizes real database Madrid only at its selected ground");
+anthemCommands.Clear();
+stadiumAudit.HandleMatchContext(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.FoulCommitted,"foul",subjectPlayer:madrid.Players[0]),0,0,1);
+Check(!anthemCommands.Any(c=>c.StartsWith("play chant_ch")),"home foul cannot trigger home crowd protesting an opponent foul");
+anthemCommands.Clear();
+stadiumAudit.HandleMatchContext(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.FoulCommitted,"foul",subjectPlayer:barcelona.Players[0]),0,0,1);
+Check(anthemCommands.Any(c=>c.StartsWith("play chant_ch")),"opponent foul still reaches selected home chant route (recording identity separate)");
+stadiumAudit.ActiveStadiumKey="CampNou";stadiumAudit.SetMatchTeams(madrid,barcelona);
+Check(!stadiumAudit.ShouldPlayChantForTeam(madrid)&&!stadiumAudit.ShouldPlayChantForTeam(barcelona),"away side at its own stadium cannot impersonate the home crowd");
+
+var atletico=new AccessibleFootball2026.Core.Models.Team("ESP_ATM","أتلتيكو مدريد",AccessibleFootball2026.Core.Models.TeamSide.Home);
+stadiumAudit.ActiveStadiumKey="SantiagoBernabeu";stadiumAudit.SetMatchTeams(atletico,barcelona);
+Check(!stadiumAudit.ShouldPlayChantForTeam(atletico),"another Madrid club cannot impersonate Real Madrid through substring matching");
+anthemCommands.Clear();stadiumAudit.SetMatchTeams(madrid,barcelona);
+stadiumAudit.HandleMatchContext(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.FoulCommitted,"unknown foul"),0,0,1);
+Check(!anthemCommands.Any(c=>c.StartsWith("play chant_ch")),"unknown foul actor does not invent an away-team foul");
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
 
