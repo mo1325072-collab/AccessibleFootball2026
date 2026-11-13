@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 134 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 137 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -333,3 +333,19 @@ Remaining work, not marked complete:
 - User listened to the existing EGY file preview and identified it as a chant. The exact supplied WAV SHA256b76a2253a9f3ecb365c0c708551bbc9cdf99b8f511b82c5380a6258f812b3d94 is now excluded from national-anthem lookup and preview, while all source bytes remain unchanged. No actual chant team is inferred from that judgment.
 - Exclusion is recording-specific, not a permanent country ban. Other countries are not classified from the user's Egypt-only identification; their recording identities remain individually unverified. A future verified Egypt replacement can use the same country code without matching the rejected file hash.
 -134/134portable checks remain green, including Egypt ceremony/preview refusal and the existing duration/skip/device-error tests using a different file fixture. Passing those other-country playback tests does not authenticate their music. No source asset is deleted or replaced.
+
+
+### Stage 16: Actual Spanish production clubs
+
+- Added sourced grounds for the remaining 18 Spanish clubs, using current LALIGA club stadium fields. Catalog now81distinctgrounds for83of529productionteams,446stillawaitingevidence. All20Spanishproductionclubs nowhaveanentry; noextrateams introduced.
+- Betis uses Estadio La Cartuja, corroborated by the current2026/27homefixture, rather than the same club page's stale Benito Villamarin FAQ. Rayo uses Estadio de Vallecas from the current league club/fixture page, not an unconfirmed temporary Butarque lead. Atletico's current stadium field names Riyadh Air Metropolitano; the older Civitas FAQ is not used. Sociedad lists Anoeta and describes Reale Arena, retained as one entry.
+- Each added entry includes its exact fetched league URL. Names do not establish acoustic identity or chant availability. Existing verified Madrid/Barcelona entries are preserved.
+-138/138portable checks and Windows-target build0errors after this catalog extension. Native runtime verification remains open.
+
+
+### Stage 17: National anthem feature canceled by user
+
+- User classifies the supplied national-labeled recordings as national-team chants and explicitly cancels the national-anthem feature itself. This supersedes the earlier single-file rejection and per-country authentication work. This is the user's supplied-set classification, not independent music certification or a claim about recordings elsewhere.
+- Removed the national pre-match ceremony and keyboard/wait state, the academy national-anthem entry and callback. Legacy national API entrypoints remain inert for binary/source compatibility: no file lookup, no open command and no waiting. No country mappings are invented for chant playback.
+- Preserved all original bytes, approved Champions League intro/academy playback, Gemini menu music and Move/Select v2. No replacement anthem sourcing is needed.
+-137/137real-file/recorded-command checks after cancellation; national no-play/no-wait, academy removal and UCL preservation are covered. Native Windows/NVDA checks remain unexecuted.
