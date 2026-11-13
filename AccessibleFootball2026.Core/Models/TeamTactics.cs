@@ -41,7 +41,7 @@ public enum AttackingFocus
 public static class TacticsExtensions
 {
     public static string ToDisplayName(this AttackingFocus value) => LocalizationService.CurrentLanguage == UiLanguage.English
-        ? value switch { AttackingFocus.Balanced => "Balanced", AttackingFocus.Wings => "Wings and crosses", AttackingFocus.Central => "Central passing", AttackingFocus.LongBall => "Long balls", AttackingFocus.ShootOnSight => "Shoot on sight", AttackingFocus.CounterAttack => "Counter-attack", _ => "Balanced" }
+        ? value switch { AttackingFocus.Balanced => "Balanced", AttackingFocus.Wings => "Wings", AttackingFocus.Central => "Passing", AttackingFocus.LongBall => "Long balls", AttackingFocus.ShootOnSight => "Long-range shooting", AttackingFocus.CounterAttack => "Counter-attack", _ => "Balanced" }
         : value.ToArabicName();
     public static string ToDisplayName(this DefensiveMarking value) => LocalizationService.CurrentLanguage == UiLanguage.English
         ? value == DefensiveMarking.ManToMan ? "Man-to-man" : "Zonal" : value.ToArabicName();
@@ -51,11 +51,11 @@ public static class TacticsExtensions
     public static string ToArabicName(this AttackingFocus focus) => focus switch
     {
         AttackingFocus.Balanced => "متوازن",
-        AttackingFocus.Wings => "أجناب وعرضيات",
-        AttackingFocus.Central => "عمق وتيكي تاكا",
-        AttackingFocus.LongBall => "كرات طويلة",
-        AttackingFocus.ShootOnSight => "تسديد عن بعد",
-        AttackingFocus.CounterAttack => "هجمات مرتدة خاطفة",
+        AttackingFocus.Wings => "الأجناب",
+        AttackingFocus.Central => "التمريرات",
+        AttackingFocus.LongBall => "الكرات الطويلة",
+        AttackingFocus.ShootOnSight => "التسديد عن بعد",
+        AttackingFocus.CounterAttack => "الهجوم المرتد",
         _ => "متوازن"
     };
 
