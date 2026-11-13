@@ -469,7 +469,7 @@ public class CommentaryEngine : IDisposable
         // Even goals and penalties wait for the currently spoken phrase. New events never cut a recording.
         // Admission/throttling below drops routine stale events rather than overlapping sentences.
         bool isFinalAnalysis = matchEvent.Type == MatchEventType.MatchAnalysis && matchEvent.Context.TryGet("match.finished",out var finished) && finished=="true";
-        bool isCritical = isFinalAnalysis || matchEvent.Type is MatchEventType.GoalScored or MatchEventType.DramaticComeback or MatchEventType.HatTrickAchieved or MatchEventType.WoodworkHit or MatchEventType.RedCard or MatchEventType.FullTime or MatchEventType.HalfTime or MatchEventType.ExtraTimeHalfTime or MatchEventType.PenaltyAwarded or MatchEventType.FreeKickAwarded;
+        bool isCritical = isFinalAnalysis || matchEvent.Type is MatchEventType.GoalScored or MatchEventType.DramaticComeback or MatchEventType.HatTrickAchieved or MatchEventType.WoodworkHit or MatchEventType.RedCard or MatchEventType.FullTime or MatchEventType.ShootoutFinished or MatchEventType.HalfTime or MatchEventType.ExtraTimeHalfTime or MatchEventType.PenaltyAwarded or MatchEventType.FreeKickAwarded;
 
         if (isCritical) { lock (_queueLock) _routineCandidates.Clear(); }
         if (!force && !isCritical && IsRoutinePlay(matchEvent.Type))
@@ -497,7 +497,7 @@ public class CommentaryEngine : IDisposable
             MatchEventType.GoalkeeperSave => "Saves",
             MatchEventType.WoodworkHit => "Woodwork",
             MatchEventType.StoppageTimeAnnounced => "StoppageTime",
-            MatchEventType.FullTime => "FullTime",
+            MatchEventType.FullTime or MatchEventType.ShootoutFinished => "FullTime",
             MatchEventType.HalfTime => "HalfTime",
             MatchEventType.YellowCard => "Cards",
             MatchEventType.RedCard => "RedCards",
@@ -517,7 +517,7 @@ public class CommentaryEngine : IDisposable
             MatchEventType.GoalkeeperSave => "Save",
             MatchEventType.WoodworkHit => "Woodwork",
             MatchEventType.StoppageTimeAnnounced => "StoppageTime",
-            MatchEventType.FullTime => "FullTime",
+            MatchEventType.FullTime or MatchEventType.ShootoutFinished => "FullTime",
             MatchEventType.HalfTime => "HalfTime",
             MatchEventType.YellowCard => "Card",
             MatchEventType.RedCard => "RedCard",
