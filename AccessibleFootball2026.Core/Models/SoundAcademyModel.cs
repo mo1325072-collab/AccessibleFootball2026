@@ -265,15 +265,6 @@ public static class SoundAcademyDatabase
             "النشيد الرسمي التاريخي لبطولة دوري أبطال أوروبا، يعزف عند انطلاق المباريات الكبرى والنهائيات.",
             "The iconic UEFA Champions League orchestral anthem played before premier continental matches.",
             resolver?.Invoke("ChampionsLeagueAnthem")
-        ),
-        new(
-            "NationalAnthem",
-            "anthems",
-            "السلام الوطني للمنتخبات (National Anthems)",
-            "Official National Anthems",
-            "عزف السلام الوطني الرسمي للمنتخبات المتنافسة في كأس العالم والبطولات القارية قبل ركلة البداية.",
-            "Official national anthems played during pre-match ceremonies of international tournament fixtures.",
-            resolver?.Invoke("NationalAnthem")
         )
     };
 }
