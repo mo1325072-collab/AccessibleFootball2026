@@ -37,6 +37,7 @@ public class AccessibleSettingsForm : Form
     private CheckBox _chkAutoSubs = null!;
     private CheckBox _chkAutoTactics = null!;
     private CheckBox _chkAiVar = null!;
+    private CheckBox _chkStartupUpdates = null!;
 
     private Button _btnSave = null!;
     private Button _btnReset = null!;
@@ -256,6 +257,46 @@ public class AccessibleSettingsForm : Form
         mainPanel.SetColumnSpan(_chkAiVar, 2);
         row++;
 
+        _chkStartupUpdates = CreateCheckBox(isArabic ? "التحقق من وجود تحديثات عند فتح اللعبة" : "Check for updates when the game starts");
+        mainPanel.Controls.Add(_chkStartupUpdates, 0, row);
+        mainPanel.SetColumnSpan(_chkStartupUpdates, 2);
+        row++;
+        var updateButton = new Button
+        {
+            Text = isArabic ? "التحقق من وجود تحديثات" : "Check for updates",
+            AccessibleName = isArabic ? "التحقق من وجود تحديثات" : "Check for updates",
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            MinimumSize = new Size(200, 40)
+        };
+        updateButton.Click += async (_, _) =>
+        {
+            updateButton.Enabled = false;
+            _screenReader.Speak(LocalizationService.Text("جار التحقق من وجود تحديثات.", "Checking for updates."));
+            var result = await GameUpdateChecker.CheckAsync();
+            if (IsDisposed) return;
+            updateButton.Enabled = true;
+            string message = result.State switch
+            {
+                GameUpdateState.Available => LocalizationService.Text($"يتوفر إصدار جديد {result.Version}. افتح صفحة الإصدار من المتصفح؟ لا يتم تنزيل أو تثبيت شيء تلقائياً.", $"Version {result.Version} is available. Open its release page in your browser? Nothing will be downloaded or installed automatically."),
+                GameUpdateState.Current => LocalizationService.Text("نسختك هي الأحدث بين إصدارات اللعبة المنشورة القابلة للتثبيت.", "Your version is current among published installable game releases."),
+                GameUpdateState.NoPublishedGame => LocalizationService.Text("لا يوجد إصدار لعبة رسمي قابل للتثبيت منشور حالياً. ملفات البناء ليست تحديثاً للعبة.", "No official installable game release has been published yet. Build inputs are not a game update."),
+                _ => LocalizationService.Text("تعذر التحقق من التحديثات. تحقق من الاتصال وحاول مرة أخرى؛ لم يتم التأكد من حالة نسختك.", "Could not check for updates. Check your connection and retry; your version status is not confirmed.")
+            };
+            _screenReader.Speak(message);
+            var answer = MessageBox.Show(this, message, LocalizationService.Text("تحديث اللعبة", "Game update"),
+                result.State == GameUpdateState.Available ? MessageBoxButtons.YesNo : MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (answer == DialogResult.Yes && result.ReleaseUrl != null)
+            {
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(result.ReleaseUrl) { UseShellExecute = true }); }
+                catch { _screenReader.Speak(result.ReleaseUrl); }
+            }
+        };
+        mainPanel.Controls.Add(updateButton, 0, row);
+        mainPanel.SetColumnSpan(updateButton, 2);
+        row++;
+        mainPanel.RowCount = row;
+
         // 15. أزرار الحفظ والاستعادة والإلغاء
         var buttonPanel = new FlowLayoutPanel
         {
@@ -383,6 +424,7 @@ public class AccessibleSettingsForm : Form
             _chkAutoSubs.Checked = s.AutoSubstitutionsEnabled;
             _chkAutoTactics.Checked = s.AutoTacticalAdjustmentsEnabled;
             _chkAiVar.Checked = s.AiVarEnabled;
+            _chkStartupUpdates.Checked = s.CheckForUpdatesOnStartup;
         }
         finally
         {
@@ -423,6 +465,8 @@ public class AccessibleSettingsForm : Form
             ("إغلاق (Esc)", "Close (Esc)"),
             ("استعادة الافتراضيات", "Reset Defaults"),
             ("حفظ الإعدادات", "Save Settings"),
+            ("التحقق من وجود تحديثات", "Check for updates"),
+            ("التحقق من وجود تحديثات عند فتح اللعبة", "Check for updates when the game starts"),
         };
         string Localize(string? text)
         {
@@ -536,6 +580,7 @@ public class AccessibleSettingsForm : Form
         s.AutoSubstitutionsEnabled = _chkAutoSubs.Checked;
         s.AutoTacticalAdjustmentsEnabled = _chkAutoTactics.Checked;
         s.AiVarEnabled = _chkAiVar.Checked;
+        s.CheckForUpdatesOnStartup = _chkStartupUpdates.Checked;
 
         if (!s.Save())
         {
