@@ -69,6 +69,12 @@ public class AccessibleFootballWindow : Form
         _coordinator = coordinator;
         _anthemEngine = anthemEngine;
 
+        GamePlanMenuBuilder.OpenTacticsDialog = team =>
+        {
+            using var dialog = new AccessibleTacticsForm(team, _screenReader);
+            dialog.ShowDialog(this);
+            _displayListBox.Focus();
+        };
         InitializeWindowComponents();
         SetupAudioEvents();
     }
@@ -130,6 +136,15 @@ public class AccessibleFootballWindow : Form
 
         KeyDown += OnWindowKeyDown;
         KeyUp += OnWindowKeyUp;
+        KeyPress += (_, key) =>
+        {
+            // Consume characters without suppressing KeyUp. KeyUp is needed to release/re-arm game controls.
+            if (!_isInStartupIntro && _currentMenu == null && _activeMatch != null) key.Handled = true;
+        };
+        _displayListBox.PreviewKeyDown += (_, key) =>
+        {
+            if (!_isInStartupIntro && _currentMenu == null && _activeMatch != null && IsMatchKey(key.KeyCode)) key.IsInputKey = true;
+        };
     }
 
     private bool _replayDismissRequested;
@@ -204,6 +219,8 @@ public class AccessibleFootballWindow : Form
             _startupIntroTimer?.Dispose();
             _anthemEngine.StopAllSounds();
             _coordinator.CancelPendingGoalSequence();
+            _commentaryEngine.EndPlaybackScope();
+            SoundEffectsPlayer.StopAll();
             _commentaryEngine.Dispose();
         };
     }
@@ -279,6 +296,7 @@ public class AccessibleFootballWindow : Form
 
     private void SetupMatchDisplayListBox(Team homeTeam, Team awayTeam)
     {
+        _commentaryEngine.ResumePlayback();
         _displayListBox.Visible = true;
         _displayListBox.Enabled = true;
         _displayListBox.Items.Clear();
@@ -301,6 +319,12 @@ public class AccessibleFootballWindow : Form
 
     public void SetActiveMenu(AccessibleMenu menu)
     {
+        if (_activeMatch is { } menuMatch && (menuMatch.State is MatchState.Paused or MatchState.HalfTime || menuMatch.PendingInjuryPlayer != null))
+        {
+            _commentaryEngine.SuspendPlayback();
+            _coordinator.CancelPendingGoalSequence();
+            GoalBeaconPlayer.Stop();
+        }
         _currentMenu = menu;
         _displayListBox.Visible = true;
         _displayListBox.Enabled = true;
@@ -367,6 +391,8 @@ public class AccessibleFootballWindow : Form
     public void OpenMainMenu()
     {
         if (_isInStartupIntro) return;
+        _commentaryEngine.EndPlaybackScope();
+        SoundEffectsPlayer.StopAll();
         SoundEffectsPlayer.SetMatchAudioContext(false);
         _gameLoopTimer?.Stop();
         GoalBeaconPlayer.Stop();
@@ -893,6 +919,8 @@ public class AccessibleFootballWindow : Form
         _menuHistory.Clear();
         _replayDismissRequested = false;
         _inputHandler.Reset();
+        _commentaryEngine.EndPlaybackScope();
+        SoundEffectsPlayer.StopAll();
         SetupMatchDisplayListBox(homeTeam, awayTeam);
 
         SoundEffectsPlayer.SetMatchAudioContext(true);
@@ -1244,7 +1272,7 @@ public class AccessibleFootballWindow : Form
         _gameLoopTimer?.Dispose();
         _gameLoopTimer = null;
         _inputHandler.Reset();
-        if (waitForCommentary && _activeMatch is { State: MatchState.GameOver } ending)
+        if (waitForCommentary && _currentMenu == null && _activeMatch is { State: MatchState.GameOver } ending)
         {
             if (ending.WinningGoalReplay() is { } winningReplay) _commentaryEngine.QueueGoalReplay(winningReplay);
             _commentaryEngine.RunAfterRecordedCommentary(() =>
@@ -1257,7 +1285,9 @@ public class AccessibleFootballWindow : Form
             return;
         }
         _coordinator.CancelPendingGoalSequence();
-        _commentaryEngine.ClearPendingLines();
+        _commentaryEngine.EndPlaybackScope();
+        SoundEffectsPlayer.StopAll();
+        _screenReader.CancelSpeech();
 
         if (_activeMatch != null)
         {
@@ -1458,7 +1488,8 @@ public class AccessibleFootballWindow : Form
             if (IsMatchKey(e.KeyCode))
             {
                 e.Handled = true;
-                e.SuppressKeyPress = true;
+                // SuppressKeyPress also suppresses KeyUp in WinForms, leaving held/discrete keys latched.
+                e.SuppressKeyPress = false;
 
                 bool isPossession = _activeMatch.Ball.Owner != null && 
                                     _activeMatch.HomeTeam.Players.Contains(_activeMatch.Ball.Owner);
@@ -1474,7 +1505,7 @@ public class AccessibleFootballWindow : Form
         if (_activeMatch != null && IsMatchKey(e.KeyCode))
         {
             e.Handled = true;
-            e.SuppressKeyPress = true;
+            e.SuppressKeyPress = false;
             _inputHandler.HandleKeyUp((int)e.KeyCode);
         }
     }
