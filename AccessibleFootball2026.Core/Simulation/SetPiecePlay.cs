@@ -22,6 +22,11 @@ public partial class MatchEngine
         var incidentPosition=foulSpot??victim.Position2D;
         bool penalty = !indirect && (right ? incidentPosition.X >= Pitch.Length - Pitch.PenaltyBoxDepth : incidentPosition.X <= Pitch.PenaltyBoxDepth)
             && incidentPosition.Y >= Pitch.PenaltyYMin && incidentPosition.Y <= Pitch.PenaltyYMax;
+        float boxLine=right?Pitch.Length-Pitch.PenaltyBoxDepth:Pitch.PenaltyBoxDepth;
+        bool boundaryDoubt=!indirect && Math.Abs(incidentPosition.X-boxLine)<=.5f && incidentPosition.Y>=Pitch.PenaltyYMin && incidentPosition.Y<=Pitch.PenaltyYMax;
+        if((penalty||boundaryDoubt) && BeginVideoReview(VideoReviewCategory.Penalty,()=>AwardFoulRestart(victim,incidentPosition,indirect),
+            penalty?T($"قرار الفار: ركلة جزاء لصالح {team.Name}.",$"VAR decision: penalty awarded to {team.Name}."):
+                T("قرار الفار: المخالفة خارج منطقة الجزاء. ركلة حرة وليست ركلة جزاء.","VAR decision: foul outside the penalty area. Free kick, no penalty."),penalty?"penalty":"noPenalty"))return;
         var designated = penalty ? team.PenaltyTaker : team.FreeKickTaker;
         var taker = designated?.IsActiveOnPitch == true ? designated : team.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper);
         if (taker == null) return;
