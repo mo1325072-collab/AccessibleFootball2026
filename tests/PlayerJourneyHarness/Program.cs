@@ -11,7 +11,8 @@ using AccessibleFootball2026.Core.Simulation;
 int passed=0,failed=0;
 void Check(bool ok,string name){Console.WriteLine((ok?"PASS ":"FAIL ")+name);if(ok)passed++;else failed++;}
 Team Team(string id,TeamSide side=TeamSide.Home){var t=new Team(id,id,side);for(int i=0;i<18;i++){var p=new Player((side==TeamSide.Home?0:100)+i,id+i,i+1,i is 0 or 11?SpecificPosition.GK:i<5||i is 12 or 13?SpecificPosition.CB:i<8||i is 14 or 15?SpecificPosition.CM:SpecificPosition.ST,75,75,75,75,75);if(i<11)t.Players.Add(p);else t.Bench.Add(p);}t.SetupFormation433();return t;}
-MatchSettings.Current.ResetToDefaults();MatchSettings.Current.ExtraTimeEnabled=false;MatchSettings.Current.PenaltyShootoutEnabled=false;
+MatchSettings.Current.ResetToDefaults();MatchSettings.Current.AiVarEnabled=false; // Direct-decision fixtures; VAR timing is exercised in MatchFlowRegression.
+MatchSettings.Current.ExtraTimeEnabled=false;MatchSettings.Current.PenaltyShootoutEnabled=false;
 var input=new Input();MatchEngine Match()=>new(Team("h"),Team("a",TeamSide.Away),new MatchEventBus(),input);
 // The draft must produce real unique squad members even when source clubs overlap.
 var duplicateClub=Team("duplicate");duplicateClub.Bench.AddRange(duplicateClub.Players.Select(p=>p.Clone()));var draft=new DreamTeamBuilder();draft.AddUserSourceClub(duplicateClub);draft.AddCpuSourceClub(Team("other",TeamSide.Away));draft.DraftBothTeams(new Random(22));
@@ -157,7 +158,8 @@ foreach(var language in new[]{UiLanguage.Arabic,UiLanguage.English})
 var finalFoul=Match();finalFoul.AwayTeam.Tactics.Tackling=TacklingAggression.Reckless;foreach(var p in finalFoul.AwayTeam.Players.Where(p=>p.Role!=PlayerRole.Goalkeeper).Take(4).ToArray())finalFoul.IssueCard(p,true);var finalTackler=finalFoul.AwayTeam.Players.First(p=>p.IsActiveOnPitch&&p.Role!=PlayerRole.Goalkeeper);finalFoul.HandleFoulSanction(finalTackler,finalFoul.HomeTeam.Players[9],true,true);
 Check(finalFoul.State==MatchState.GameOver&&finalFoul.AbandonmentReason!=null&&finalFoul.Restart==null&&finalFoul.PendingInjuryPlayer==null&&!finalFoul.AwaitingStoppageConfirmation,"same severe foul that abandons a match cannot reopen a restart/injury menu afterward");
 // Complete repeated matches, not only individual methods. Invariants are checked after every tick.
-MatchSettings.Current.ResetToDefaults();MatchSettings.Current.MatchDurationMinutes=1;MatchSettings.Current.ExtraTimeEnabled=false;MatchSettings.Current.PenaltyShootoutEnabled=false;
+MatchSettings.Current.ResetToDefaults();MatchSettings.Current.AiVarEnabled=false; // Direct-decision fixtures; VAR timing is exercised in MatchFlowRegression.
+MatchSettings.Current.MatchDurationMinutes=1;MatchSettings.Current.ExtraTimeEnabled=false;MatchSettings.Current.PenaltyShootoutEnabled=false;
 for(int seed=0;seed<60;seed++)
 {
  var rng=new Random(seed);MatchSettings.Current.Difficulty=(DifficultyLevel)(seed%4);float frameTime=seed<20?.02f:seed<40?.1f:.25f;var game=Match();game.SetStoppageMinutes(0,0);bool finite=true,ownerLegal=true,ballFlags=true,finished=false;int frames=0;
@@ -182,7 +184,8 @@ for(int seed=0;seed<60;seed++)
 var audioRoot=Path.Combine(Path.GetTempPath(),"journey-audio-"+Guid.NewGuid());
 foreach(var relative in new[]{"SFX/Kicks/Kick_101.wav","SFX/Tackles/StandTackle.wav","SFX/Tackles/SlideTackle.wav"}){var path=Path.Combine(audioRoot,relative);Directory.CreateDirectory(Path.GetDirectoryName(path)!);File.WriteAllBytes(path,new byte[100]);}
 var commands=new List<string>();MciPlayback.TestCommand=(command,buffer)=>{commands.Add(command);buffer?.Append("stopped");return 0;};
-MatchSettings.Current.ResetToDefaults();MatchSettings.Current.MasterVolumePercent=50;MatchSettings.Current.SfxVolumePercent=40;SoundEffectsPlayer.Initialize(audioRoot);
+MatchSettings.Current.ResetToDefaults();MatchSettings.Current.AiVarEnabled=false; // Direct-decision fixtures; VAR timing is exercised in MatchFlowRegression.
+MatchSettings.Current.MasterVolumePercent=50;MatchSettings.Current.SfxVolumePercent=40;SoundEffectsPlayer.Initialize(audioRoot);
 foreach(var (play,alias) in new (Action<float>,string)[]{(SoundEffectsPlayer.PlayKick,"kick"),(SoundEffectsPlayer.PlayShotKick,"shot_kick"),(SoundEffectsPlayer.PlayPassKick,"pass_kick"),(SoundEffectsPlayer.PlayCrossKick,"cross_kick"),(SoundEffectsPlayer.PlayStandTackle,"stand_tackle"),(SoundEffectsPlayer.PlaySlideTackle,"slide_tackle")})
 {
  foreach(var pan in new[]{-1f,0f,1f})
