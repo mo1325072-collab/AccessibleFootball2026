@@ -70,25 +70,10 @@ public class StadiumSoundEngine
 
     public void ApplyStadiumAcousticsForTeam(Team homeTeam)
     {
-        // ربط هوية الملعب الحقيقي في PES 2013 بالملف الصوتي للملعب
-        string acousticFile = ActiveStadiumKey switch
-        {
-            "SantiagoBernabeu" => Path.Combine(_acousticsDir, "Acoustic_3.wav"), // سانتياجو برنابيو في PES 2013
-            "CampNou" => Path.Combine(_acousticsDir, "Acoustic_2.wav"),          // كامب نو في PES 2013
-            _ => Path.Combine(_acousticsDir, "Acoustic_10.wav")                  // ملعب محايد بصوت جماهير PES 2013 عام
-        };
-
-        if (File.Exists(acousticFile))
-        {
-            SoundEffectsPlayer.SetStadiumAcoustics(acousticFile);
-        }
-        else
-        {
-            // A missing ground must not silently become another stadium or retain last match's ground.
-            // Stop clears the prior acoustic selection. General crowd ambience remains available.
-            SoundEffectsPlayer.StopCrowdAmbiance();
-            SoundEffectsPlayer.StartCrowdAmbiance();
-        }
+        // No source establishes a real-stadium identity for these legacy Acoustic_N files.
+        // Full listening identified music in 3 and 10. Never auto-select an unverified bed
+        // (including CampNou's old 2); chants/reactions remain independent and audible.
+        SoundEffectsPlayer.SetStadiumAcoustics(null);
     }
 
     /// <summary>
@@ -177,12 +162,22 @@ public class StadiumSoundEngine
         var candidates = new List<string>();
         foreach (var pair in _chantLabelIndex)
         {
+            // Exact user-identified Egypt recording takes precedence over the conflicting historical Juventus slot.
+            if (pair.Value == 600 && pool.TeamName != "Egypt") continue;
             if (pair.Value < pool.FirstIndex || pair.Value > pool.LastIndex ||
                 !pair.Key.StartsWith(pool.LabelPrefix, StringComparison.OrdinalIgnoreCase)) continue;
             foreach (string dir in new[] { _chantsDir, Path.Combine(_chantsDir, "SP_R"), Path.Combine(_chantsDir, "Clubs") })
             {
                 string candidate = Path.Combine(dir, $"Chant_{pair.Value}.wav");
-                if (File.Exists(candidate)) { candidates.Add(candidate); break; }
+                if (File.Exists(candidate))
+                {
+                    if (pool.ConfirmedRecordingSha256 != null)
+                    {
+                        string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(candidate))).ToLowerInvariant();
+                        if (!hash.Equals(pool.ConfirmedRecordingSha256, StringComparison.OrdinalIgnoreCase)) continue;
+                    }
+                    candidates.Add(candidate); break;
+                }
             }
         }
         return candidates.Count == 0 ? null : candidates[Random.Shared.Next(candidates.Count)];
