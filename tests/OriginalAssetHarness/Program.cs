@@ -274,7 +274,7 @@ anthemCommands.Clear();effectsCoordinator.HandleMatchEvent(chantGoalEvent);
 Check(anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("CrowdGoal.wav"))&&anthemCommands.Contains("play crowd_goal from 0"),"actualgoaleventusesexistingCrowdGoalassetandcrowdgoalchannel");
 Check(Directory.GetFiles(Path.Combine(root,"SFX","Crowd"),"CrowdMiss.wav").Length==1,"suppliedCrowdMissfileexistsforgasp_routewithoutsyntheticcreation");
 var grounds=StadiumCatalog.GetAvailableStadiums();
-Check(grounds.Count==65&&grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"sixtyfivegroundscover71wiredchantteamswithoutpadding");
+Check(grounds.Count==66&&grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"sixtysixgroundscover72wiredchantteamswithoutpadding");
 Check(grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"nogroundwithoutcorroboratedteamchantpoolisoffered");
 Check(StadiumCatalog.Find("Anfield")==null&&StadiumCatalog.Find("Emirates")==null,"priorpaddinggroundsremovednotmerelyhiddenbygroup");
 Check(StadiumCatalog.GetGroundsForProductionGroup("Premier League (England)").Count==1,"unsupportedteamsdonotcreateotherstadiumchoices");
