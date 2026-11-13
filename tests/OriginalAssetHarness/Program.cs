@@ -129,6 +129,16 @@ foreach(var (kind,alias) in new (AccessibleFootball2026.Core.MatchEventType,stri
  (AccessibleFootball2026.Core.MatchEventType.PenaltyAwarded,"whistle"),
  (AccessibleFootball2026.Core.MatchEventType.OpponentTackleSuccessful,"earcon_ch")})
  RouteCheck(new AccessibleFootball2026.Core.MatchEvent(kind,"event"),alias,"match event reaches its production effect path: "+kind);
+var videoReader=new ControlledReader();var videoAudio=new SmartAudioCoordinator(videoReader);SmartAudioCoordinator.SilenceLiveMatchSpeech=true;
+videoAudio.HandleMatchEvent(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.VideoReviewStarted,"VAR checking"));
+Check(videoReader.Pending.Count==1&&videoAudio.HasPendingVideoAnnouncement,"VAR checking bypasses live silence and waits for actual reader completion");
+videoReader.Pending[0].SetResult();await Task.Delay(30);Check(!videoAudio.HasPendingVideoAnnouncement,"finished VAR speech releases the engine announcement gate");
+anthemCommands.Clear();videoAudio.HandleMatchEvent(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.VideoReviewDecision,"Offside confirmed"){Context=AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty.With(("var.outcome","offside"))});
+Check(anthemCommands.Any(c=>c=="play crowd_miss from 0")&&!anthemCommands.Any(c=>c=="play crowd_goal from 0"),"VAR offside plays existing disappointed crowd, never goal cheer");
+videoReader.Pending.Last().SetResult();await Task.Delay(30);
+anthemCommands.Clear();videoAudio.HandleMatchEvent(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.PenaltyAwarded,"Penalty"));
+Check(anthemCommands.Count(c=>c=="play crowd_goal from 0")==1,"awarded penalty uses existing goal crowd celebration once");videoReader.Pending.Last().SetResult();
+
 // Reader ducking follows completion, including overlapping announcements.
 var completionReader=new ControlledReader();var speechCoordinator=new SmartAudioCoordinator(completionReader);var ducking=new List<float>();
 speechCoordinator.OnCrowdVolumeDucking+=factor=>{lock(ducking)ducking.Add(factor);};
@@ -168,6 +178,19 @@ Check(nearStrength>farStrength&&farStrength>0,"beacon grows smoothly nearer the 
 GoalBeaconPlayer.CalculateBeacon(100,10,false,1,out distance,out strength,out var firstHalfPan);
 GoalBeaconPlayer.CalculateBeacon(5,10,true,1,out distance,out strength,out var secondHalfPan);
 Check(firstHalfPan>0&&secondHalfPan<0&&Math.Abs(firstHalfPan+secondHalfPan)<.0001,"beacon left/right perspective flips at halftime");
+// Listener-facing bearings, independent of pitch wing or half.
+GoalBeaconPlayer.CalculateBeacon(95,24,false,1,1,1,out _,out _,out var aimedPan);
+Check(Math.Abs(aimedPan)<.0001,"beacon is centered when player actually faces goal from a diagonal position");
+GoalBeaconPlayer.CalculateBeacon(95,34,false,0,1,1,out _,out _,out var turnedPan);
+Check(turnedPan<-.99,"goal on left after turning down pitch is heard on left");
+GoalBeaconPlayer.CalculateBeacon(95,34,false,0,-1,1,out _,out _,out turnedPan);
+Check(turnedPan>.99,"goal on right after turning up pitch is heard on right");
+GoalBeaconPlayer.CalculateBeacon(10,24,true,-1,1,1,out _,out _,out aimedPan);
+Check(Math.Abs(aimedPan)<.0001,"second-half diagonal actual facing centers the goal too");
+GoalBeaconPlayer.CalculateBeacon(52.5f,34,false,1,out _,out var midfieldLevel,out _);
+GoalBeaconPlayer.CalculateBeacon(65,34,false,1,out _,out var emergenceLevel,out _);
+GoalBeaconPlayer.CalculateBeacon(87,34,false,1,out _,out var boxLevel,out _);
+Check(midfieldLevel==0&&emergenceLevel>0&&emergenceLevel<=.021&&boxLevel>emergenceLevel,"beacon is hushed in midfield, emerges near40m and increases at18m");
 MatchSettings.Current.MasterVolumePercent=50;MatchSettings.Current.GoalBeaconVolumePercent=40;MatchSettings.Current.ApplyLive();
 foreach(var pan in new[]{-1f,0f,1f})
 {
