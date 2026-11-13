@@ -103,7 +103,26 @@ public static class SoundEffectsPlayer
         : alias == "lineup_music" ? GetEffectiveMusicVolume()
         : IsCrowdOneShot(alias) ? GetEffectiveCrowdVolume() * _crowdDucking : GetEffectiveSfxVolume();
     private static bool IsCrowdOneShot(string alias) => alias == "chant_ch" || alias.StartsWith("crowd_", StringComparison.Ordinal);
-    public static bool IsCrowdActive => _crowdPlaying && !_crowdPaused && GetEffectiveCrowdVolume() > .001f;
+    public static bool IsCrowdActive
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (_matchSoundsPaused || GetEffectiveCrowdVolume() * _crowdDucking <= .001f) return false;
+                if (_crowdPlaying && !_crowdPaused) return true;
+                // A real chant/reaction is crowd even without a continuous bed. Stale entries,
+                // paused channels, failed status queries and intentional music are not evidence.
+                foreach (string alias in _activeOneShots.Keys.Where(IsCrowdOneShot))
+                {
+                    var mode=new StringBuilder(64);
+                    if (MciPlayback.SendString($"status {alias} mode",mode,mode.Capacity,IntPtr.Zero)==0 &&
+                        mode.ToString().Trim().Equals("playing",StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                return false;
+            }
+        }
+    }
     public static string? LastPlayedSound { get; private set; }
     public static string? LastPlayedFilePath { get; private set; }
 
