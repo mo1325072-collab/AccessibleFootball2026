@@ -194,6 +194,21 @@ SoundEffectsPlayer.StopAll();using(var variety=new CommentaryEngine(CommentatorI
  Check(variety.TryCommentOnEvent(new MatchEvent(MatchEventType.HalfTime,"half"))&&Path.GetFileName(SoundEffectsPlayer.LastPlayedFilePath)=="half.wav","critical halftime still starts after repeated routine events");
 }
 SoundEffectsPlayer.StopAll();
+// Shootout completion must use the existing truthful FullTime recording, even while busy.
+var finalDir=Path.Combine(root,"final","Commentary","FaresAwad");Directory.CreateDirectory(finalDir);
+File.WriteAllBytes(Path.Combine(finalDir,"end.wav"),new byte[100]);
+File.WriteAllText(Path.Combine(finalDir,"commentary_context.json"),JsonSerializer.Serialize(new {version=1,clips=new[]{
+ new{id="end",file="end.wav",@event="FullTime",transcript="full time",review="verified",all=new[]{new{fact="match.finished",op="eq",value="true"}},priority=0}
+}}));
+using(var ending=new CommentaryEngine(CommentatorId.FaresAwad,Path.Combine(root,"final")))
+{
+ SoundEffectsPlayer.PlayCommentaryAudio(Path.Combine(root,"chant.wav"));
+ bool accepted=ending.TryCommentOnEvent(new MatchEvent(MatchEventType.ShootoutFinished,"end"){Context=AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty.With(("match.finished",true))});
+ Check(accepted,"shootout completion cannot be throttled away during a previous outcome recording");
+ SoundEffectsPlayer.StopCommentaryAudio();Call(ending,"DispatchPending",new object?[]{null}!);Thread.Sleep(100);
+ Check(Path.GetFileName(SoundEffectsPlayer.LastPlayedFilePath)=="end.wav","shootout completion plays the existing conditioned FullTime recording");
+}
+SoundEffectsPlayer.StopAll();
 var updateRelease = new { draft=false,prerelease=false,tag_name="game-v2026.11.15",html_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/tag/game-v2026.11.15",assets=new[]{new{name="AccessibleFootball2026-Full-Setup.exe",size=1234,state="uploaded",browser_download_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/download/game-v2026.11.15/AccessibleFootball2026-Full-Setup.exe"}}};
 var updateJson=JsonSerializer.Serialize(new[]{updateRelease});
 Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(updateJson).State==AccessibleFootball2026.App.GameUpdateState.Available,"update checker accepts a stable newer game release with uploaded installer");
