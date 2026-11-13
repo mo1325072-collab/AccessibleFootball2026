@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 112 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 114 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -300,3 +300,11 @@ Remaining work, not marked complete:
 - Every entry carries its sourceURL and is filtered against actual production JSON teams at runtime. No unrelated team or fabricated stadium is added. Missing evidence stays missing. Stadium identity does not imply a matching authentic acoustic recording or team chant exists.
 - Stadium selection now intercepts all valid match starts, not just Clasico. Cup-final and rivalry flags survive the choice; explicit selection is consumed once before match initialization. Neutral is always available, and other catalog grounds may be selected as neutral venues for unrelated teams. The old ordinary-match hard reset is removed only after an explicit selection.
 -112/112real-asset and catalog command checks, settings66/66 and player journeys313/313 pass. Windows-target application builds with0errors. The checks include sharedground membership, production-only filtering, nationalgroundtypes, honest520pendingcount, unknownkeyrefusal and selected stadium naming. Native WinForms keyboard/focus and actual Windows/NVDA/audio behavior are not certified by these checks.
+
+
+### Stage 12: complete production English-league ground pass
+
+- All20clubs in the production PremierLeague(England) group now have a current documented ground. Official league source read in full: https://www.premierleague.com/en/news/4725666/all-you-need-to-know-about-the-20-premier-league-stadiums/ , DavidCoverdale,26September2026. Only team-to-ground identity is used, not its capacities, anecdotes or unrelated claims.
+- Exact production names are bound to the source identities, including ArsenalFC,BrentfordFC,EvertonFC,LiverpoolFC,ChelseaFC,FulhamFC,SunderlandAFC. Everton is bound to HillDickinsonStadium, not the former GoodisonPark. No team is added or league roster changed.
+- Catalog now28unique grounds covering29actual teams, with500still awaiting sourced grounds. This supersedes Stage11's partial8/9/520checkpoint. SharedSanSiro staysoneground, and national grounds are not claimedexclusive.
+-114/114real-asset/catalogchecks pass including all20Englishclubs exactlyonecurrentdocumentedground and no staleGoodisonfallback. Broadergroundcoverage, authenticstadiumacoustics, mostteamchants and nativeWindowsUI/audioacceptanceremainopen. Candidateisstillinternalandhasnotbeenrebuiltfor theselaterrepairs.
