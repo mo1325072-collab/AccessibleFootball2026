@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+<ItemGroup>
+<ProjectReference Include="../../AccessibleFootball2026.Core/AccessibleFootball2026.Core.csproj" />
+<ProjectReference Include="../../AccessibleFootball2026.Input/AccessibleFootball2026.Input.csproj" />
+<ProjectReference Include="../../AccessibleFootball2026.Audio/AccessibleFootball2026.Audio.csproj" />
+<Compile Include="../../AccessibleFootball2026.App/Menus/AccessibleMenuSystem.cs" Link="AccessibleMenuSystem.cs" />
+<Compile Include="../../AccessibleFootball2026.App/Menus/GamePlanMenuBuilder.cs" Link="GamePlanMenuBuilder.cs" />
+<Compile Include="../../AccessibleFootball2026.App/Menus/TeamSelectionManager.cs" Link="TeamSelectionManager.cs" />
+<Compile Include="../../AccessibleFootball2026.App/Menus/SoundAcademyMenuBuilder.cs" Link="SoundAcademyMenuBuilder.cs" />
+<Compile Include="../../AccessibleFootball2026.App/Menus/UserGuideMenuBuilder.cs" Link="UserGuideMenuBuilder.cs" />
+</ItemGroup>
+</Project>
