@@ -326,3 +326,10 @@ Remaining work, not marked complete:
 - Goals retain the existing crowd_goal/CrowdGoal route, not a team chant. MissedChance retains crowd_miss/CrowdMiss. Recovered CrowdGoal, CrowdMiss and CrowdCheer are byte-identical to supplied Crowd files, with numeric duplicates411,425,412respectively. This is byte provenance and routing evidence, not a claim of independent audible semantic or licensing verification.
 - Compact stadium first menu shows verified participating grounds once, then Chooseanotherstadium. That opens remaining grounds grouped by actual database competition; owned grounds are excluded from that list. Back/Escape uses existing menu history. Neutral remains available. Missing ground evidence is never filled with an invented venue.
 -134/134real-file/recorded-command checks, settings66/66, journeys313/313 and Windows-target build0errors. Tests cover active clip refusal, completion, force refusal, status error, next-match cleanup, actual goal crowd route and missedchance route. Native Windows/NVDA/mixing/menu acceptance remains unexecuted. Crowd reduction remains screen-reader-only, never recorded commentator.
+
+
+### Stage 15: Egypt-labeled recording rejected as national anthem
+
+- User listened to the existing EGY file preview and identified it as a chant. The exact supplied WAV SHA256b76a2253a9f3ecb365c0c708551bbc9cdf99b8f511b82c5380a6258f812b3d94 is now excluded from national-anthem lookup and preview, while all source bytes remain unchanged. No actual chant team is inferred from that judgment.
+- Exclusion is recording-specific, not a permanent country ban. Other countries are not classified from the user's Egypt-only identification; their recording identities remain individually unverified. A future verified Egypt replacement can use the same country code without matching the rejected file hash.
+-134/134portable checks remain green, including Egypt ceremony/preview refusal and the existing duration/skip/device-error tests using a different file fixture. Passing those other-country playback tests does not authenticate their music. No source asset is deleted or replaced.
