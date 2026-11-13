@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AccessibleFootball2026.Core.Models;
 
@@ -26,6 +27,8 @@ public static class UserGuideDatabase
         new("rules", "قوانين التحكيم والتبديلات (IFAB)", "IFAB Rules & Substitutions"),
         new("radar_beacon", "الرادار الصوتي ومنارة المرمى 3D", "Tactical Radar & 3D Spatial Goal Beacon"),
         new("penalties_extratime", "ركلات الترجيح والأشواط الإضافية", "Extra Time & Penalty Shootouts"),
+        new("tactics", "التكتيك: المكسب والتكلفة", "Tactics: benefits and costs"),
+        new("formations", "الخطط وأدوار اللاعبين", "Formations and player roles"),
         new("modes", "أوضاع اللعب والبطولات", "Game Modes & Tournaments")
     };
 
@@ -36,6 +39,8 @@ public static class UserGuideDatabase
         "radar_beacon" => GetRadarBeaconItems(),
         "penalties_extratime" => GetExtraTimePenaltiesItems(),
         "modes" => GetModesItems(),
+        "formations" => GetFormationItems(),
+        "tactics" => GetTacticalItems(),
         _ => new List<UserGuideItem>()
     };
 
@@ -47,8 +52,30 @@ public static class UserGuideDatabase
         list.AddRange(GetRadarBeaconItems());
         list.AddRange(GetExtraTimePenaltiesItems());
         list.AddRange(GetModesItems());
+        list.AddRange(GetFormationItems());
+        list.AddRange(GetTacticalItems());
         return list;
     }
+
+    private static List<UserGuideItem> GetTacticalItems() => new()
+    {
+        new("tactical_coordination","tactics","","درجة التناغم ليست نسبة فرص","Coordination is not a chance-creation percentage",
+            "الدرجة تبدأ100 وتخصم تعارضات التعليمات. المضاعف يساوي الدرجة مقسومة100 في1.25، بحد أدنى0.40. يدخل في قوة الالتحام، لا يمنح أهدافاً أو تسديدات مجانية. الأوصاف الإيجابية لا تضيف نقاطاً فوق100.",
+            "Score starts at 100 and deducts instruction conflicts. The multiplier is score/100 times 1.25, with a floor of 0.40. It scales duel strength, not free goals or shots. Positive descriptions do not add points above 100."),
+        new("tactical_duel","tactics","","كيف يحسم الاستخلاص","How the ball-winning duel is decided",
+            "قوة المستخلص:50 بالمئة دفاع و30 بدني و20 سرعة. حامل الكرة:45 مراوغة و35 بدني و20 سرعة. تطبق ملاءمة المركز واللياقة والتناغم ثم الحجز والزاوية والقرب والمساندة. النتيجة42 زائد0.55 في فرق القوتين وتعديلات الموقف والصعوبة؛ عند50 أو أكثر يكسب المستخلص دون قرعة. الاقتراب بالجسم أولاً قد ينتج فاولاً.",
+            "Tackler strength: 50 percent defending, 30 physical, 20 speed. Carrier: 45 dribbling, 35 physical, 20 speed. Position fit, stamina and coordination apply, then shielding, angle, proximity and support. Score is 42 plus 0.55 times the strength difference plus situation and difficulty modifiers. At 50 or above the challenger wins without a random draw. Body-first contact can be a foul."),
+        new("tactical_energy","tactics","","العمر والدقائق والطاقة","Age, minutes and energy",
+            "تحت ضغط يتجاوز75، مع استمرار التعليمات وراحة الشوط: تحت19 لا يتعرض لاستنزاف الضغط الإضافي؛19 إلى24 يجهد آخر10 دقائق؛25 إلى29 يستهلك أغلب طاقته حوالي60؛30 فأكثر يتعب بين40 و45. تغيير الضغط يغير الاستنزاف القادم ولا يعيد الطاقة. البديل يبدأ بطاقته الخاصة. تحت40 تبدأ عقوبة الحركة والتركيز، و25 عتبة إنهاك في ضبط اللعبة. هذه أرقام لعبة وليست حقائق طبية.",
+            "With sustained pressing above 75 and the halftime recovery: under 19 avoids the extra pressing load; ages 19-24 tire in the last ten minutes; ages 25-29 use most energy around minute 60; ages 30 and above tire between 40 and 45. Changing pressure changes future drain, not spent energy. A substitute starts from their own energy. Below 40 movement and concentration fall; 25 is the game's exhaustion threshold. These are game settings, not medical claims."),
+        new("tactical_tradeoffs","tactics","","الخيارات والمقابل","Instructions and tradeoffs",
+            "الضغط العالي يزيد الملاحقة والدعم لكنه يستهلك الطاقة ويكشف الظهر. المنطقة تحمي الشكل؛ رجل لرجل يلاحق خصماً وقد يسحب المدافع من ممره. القصير يقرب المخارج ويعرضها للضغط، والطويل يتجاوز الخطوط بكرة تحتاج استقبالاً. الإيقاع السريع يبكر القرار ويكلف طاقة؛ الهادئ يتيح عودة الدفاع. الأطراف توسع اللعب، والعمق يقرب الوسط؛ التسديد البعيد يزيد المحاولات من مسافة أصعب. المرتدة لها نافذة6ثوان بعد الاستعادة. المصيدة تعتمد على خط فعلي متزامن ويمكن أن يكسرها لاعب متعب. الشراسة تكسب التحاماً أنظف عند الزاوية المناسبة وتزيد خطر الفاول والبطاقة والإصابة عند زاوية خاطئة.",
+            "High press increases pursuit and support but spends energy and exposes the space behind. Zonal protects shape; man-marking tracks an opponent who can drag a defender out of a lane. Short passing links nearby outlets but invites pressure; long passing bypasses lines with a contested reception. Fast tempo acts sooner and costs energy; slow tempo lets defence recover. Wings adds width; central play brings midfield closer; long shots trade earlier attempts for harder distance. Counters have a six-second window after a regain. A real coordinated offside line can be broken by a tired player. Commitment helps a clean challenge at a good angle and increases foul, card and injury costs at a bad one.")
+    };
+
+    private static List<UserGuideItem> GetFormationItems() => FormationManager.GetAllFormations().Select(f =>
+        new UserGuideItem("formation_" + (int)f, "formations", "", f.ToArabicName(), f.ToEnglishName(),
+            FormationSuitability.Requirements(f, UiLanguage.Arabic), FormationSuitability.Requirements(f, UiLanguage.English))).ToList();
 
     private static List<UserGuideItem> GetControlsItems() => new()
     {
