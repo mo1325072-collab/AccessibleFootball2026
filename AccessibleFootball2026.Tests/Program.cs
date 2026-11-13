@@ -76,6 +76,7 @@ public static class Program
 
         try
         {
+            TestPreMatchLineupGate();
             TestBilingualSettingsPreserveControls();
             TestSettingsSaveReloadCancelAndFailure();
             TestInjuryChoiceWindowRouting();
@@ -115,6 +116,60 @@ public static class Program
         public void CancelSpeech() { }
         public System.Threading.Tasks.Task SpeakUntilFinishedAsync(string text, bool interrupt = true)
         { Speak(text, interrupt); return System.Threading.Tasks.Task.CompletedTask; }
+    }
+
+    private static void StartFixtureMatch(AccessibleFootballWindow window, Team home, Team away, bool finishLineup=true)
+    {
+        Field<AccessibleFootball2026.Audio.SFX.StadiumSoundEngine>(window,"_stadiumSoundEngine").ActiveStadiumKey="SantiagoBernabeu";
+        typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch",BindingFlags.NonPublic|BindingFlags.Instance)!
+            .Invoke(window,new object[]{home,away,false,false,true});
+        if(finishLineup)typeof(AccessibleFootballWindow).GetMethod("CompleteMatchLineup",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(window,null);
+    }
+
+    private static void TestPreMatchLineupGate()
+    {
+        var commands=new List<string>();string mode="playing";
+        MciPlayback.TestCommand=(command,buffer)=>{commands.Add(command);buffer?.Append(mode);return 0;};
+        try
+        {
+            foreach(var skipKey in new[]{Keys.Enter,Keys.Space})
+            {
+                using var window=CreateTestWindow(out var input);window.Show();
+                StartFixtureMatch(window,TeamDatabase.CreateRealMadrid(),TeamDatabase.CreateBarcelona(),false);
+                var timer=Field<System.Windows.Forms.Timer>(window,"_gameLoopTimer");timer.Stop();
+                var gate=Field<AccessibleFootball2026.Core.Input.MatchLineupInput>(window,"_matchLineup");
+                var match=Field<MatchEngine>(window,"_activeMatch");float before=match.MatchTimeMinutes;
+                var tick=typeof(System.Windows.Forms.Timer).GetMethod("OnTick",BindingFlags.NonPublic|BindingFlags.Instance)!;
+                // Real recorded opening and music may be absent from a minimal native fixture.
+                // Keep the real timer's completion gate pending through the real commentary queue.
+                var engine=Field<CommentaryEngine>(window,"_commentaryEngine");
+                typeof(CommentaryEngine).GetField("_playbackSuspended",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(engine,true);
+                tick.Invoke(timer,new object[]{EventArgs.Empty});
+                Assert(gate.IsActive&&match.MatchTimeMinutes==before,"Real lineup timer freezes simulation before skip "+skipKey);
+                var down=typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyDown",BindingFlags.NonPublic|BindingFlags.Instance)!;
+                var up=typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyUp",BindingFlags.NonPublic|BindingFlags.Instance)!;
+                var shot=new KeyEventArgs(Keys.W);down.Invoke(window,new object[]{window,shot});
+                Assert(shot.Handled&&!shot.SuppressKeyPress&&gate.IsActive,"Lineup consumes gameplay keys without starting match");
+                commands.Clear();var skip=new KeyEventArgs(skipKey);down.Invoke(window,new object[]{window,skip});
+                Assert(!gate.IsActive&&skip.Handled&&commands.Contains("stop lineup_music")&&commands.Contains("close lineup_music")&&commands.Contains("stop comm_voice"),"Native skip closes lineup music/commentary before gameplay "+skipKey);
+                int close=commands.IndexOf("close lineup_music"),whistle=commands.FindIndex(c=>c=="play whistle from 0");
+                Assert(whistle<0||close<whistle,"Lineup audio closes before kickoff whistle");
+                var held=new KeyEventArgs(skipKey);down.Invoke(window,new object[]{window,held});
+                Assert(held.Handled&&!held.SuppressKeyPress,"Held skip repeat cannot enter gameplay/radar");
+                up.Invoke(window,new object[]{window,new KeyEventArgs(skipKey)});
+                var list=Field<ListBox>(window,"_displayListBox");Assert(list.Visible&&list.Enabled&&list.Focused,"Lineup completion restores live focus");
+                timer.Stop();
+            }
+            using(var natural=CreateTestWindow(out var input))
+            {
+                natural.Show();mode="stopped";StartFixtureMatch(natural,TeamDatabase.CreateRealMadrid(),TeamDatabase.CreateBarcelona(),false);
+                var timer=Field<System.Windows.Forms.Timer>(natural,"_gameLoopTimer");timer.Stop();
+                var engine=Field<CommentaryEngine>(natural,"_commentaryEngine");engine.EndPlaybackScope();engine.ResumePlayback();
+                typeof(System.Windows.Forms.Timer).GetMethod("OnTick",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(timer,new object[]{EventArgs.Empty});
+                Assert(!Field<AccessibleFootball2026.Core.Input.MatchLineupInput>(natural,"_matchLineup").IsActive,"Real native timer completes lineup naturally when both channels finish");
+            }
+        }
+        finally { MciPlayback.TestCommand=null; }
     }
 
     private static T Field<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(target)!;
@@ -197,7 +252,7 @@ public static class Program
         {
             using var window = CreateTestWindow(out var input);
             window.Show();
-            typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
+            StartFixtureMatch(window, TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek());
             var timer = Field<System.Windows.Forms.Timer>(window, "_gameLoopTimer"); timer.Stop();
             var key = typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyDown", BindingFlags.NonPublic | BindingFlags.Instance)!;
             key.Invoke(window, new object[] { window, new KeyEventArgs(Keys.Escape) });
@@ -217,7 +272,7 @@ public static class Program
     {
         using var window = CreateTestWindow(out var input);
         window.Show();
-        typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
+        StartFixtureMatch(window, TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek());
         var match = Field<MatchEngine>(window, "_activeMatch");
         var timer = Field<System.Windows.Forms.Timer>(window, "_gameLoopTimer"); timer.Stop();
         typeof(MatchEngine).GetProperty("State")!.SetValue(match, MatchState.GameOver);
@@ -235,7 +290,7 @@ public static class Program
         using var window=CreateTestWindow(out var input);
         window.Show();
         var start=typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch",BindingFlags.NonPublic|BindingFlags.Instance)!;
-        start.Invoke(window,new object[]{TeamDatabase.CreateAlAhly(),TeamDatabase.CreateZamalek(),false,false});
+        StartFixtureMatch(window, TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek());
         var match=Field<MatchEngine>(window,"_activeMatch");var timer=Field<System.Windows.Forms.Timer>(window,"_gameLoopTimer");timer.Stop();
         var injured=match.HomeTeam.Players[9];match.HomeTeam.Bench.Clear();
         var first=new Player(9501,"First reserve",51,SpecificPosition.ST,99,99,99,99,99);var chosen=new Player(9502,"Chosen reserve",52,SpecificPosition.ST,60,60,60,60,60);match.HomeTeam.Bench.AddRange(new[]{first,chosen});
@@ -310,23 +365,23 @@ public static class Program
         foreach (var key in matchKeys)
         {
             using var window = CreateTestWindow(out var inputHandler);
-            startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
+            StartFixtureMatch(window, TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek());
 
             var keDown = new KeyEventArgs(key);
             onKeyDownMethod!.Invoke(window, new object[] { window, keDown });
-            Assert(keDown.SuppressKeyPress && keDown.Handled, $"Match KeyDown suppression for {key}",
+            Assert(!keDown.SuppressKeyPress && keDown.Handled, $"Match KeyDown consumes press but permits release for {key}",
                 $"SuppressKeyPress={keDown.SuppressKeyPress}, Handled={keDown.Handled}");
 
             var keUp = new KeyEventArgs(key);
             onKeyUpMethod!.Invoke(window, new object[] { window, keUp });
-            Assert(keUp.SuppressKeyPress && keUp.Handled, $"Match KeyUp suppression for {key}",
+            Assert(!keUp.SuppressKeyPress && keUp.Handled, $"Match KeyUp release routing for {key}",
                 $"SuppressKeyPress={keUp.SuppressKeyPress}, Handled={keUp.Handled}");
         }
 
         // Test Escape (pause trigger) during match
         {
             using var window = CreateTestWindow(out var inputHandler);
-            startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
+            StartFixtureMatch(window, TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek());
 
             var keEscape = new KeyEventArgs(Keys.Escape);
             onKeyDownMethod!.Invoke(window, new object[] { window, keEscape });
@@ -337,7 +392,7 @@ public static class Program
         // Q is the lofted through-ball command, not end-match.
         {
             using var window = CreateTestWindow(out var inputHandler);
-            startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
+            StartFixtureMatch(window, TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek());
 
             var keQ = new KeyEventArgs(Keys.Q);
             onKeyDownMethod!.Invoke(window, new object[] { window, keQ });
@@ -383,7 +438,7 @@ public static class Program
         var onKeyDownMethod = typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyDown", BindingFlags.NonPublic | BindingFlags.Instance);
 
         using var window = CreateTestWindow(out var inputHandler);
-        startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
+        StartFixtureMatch(window, TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek());
 
         // B is assigned to low cross. Z and F1 remain unassigned.
         Keys[] unassignedKeys = new[] { Keys.Z, Keys.F1 };
@@ -410,7 +465,7 @@ public static class Program
         var listBox = (ListBox)(displayListBoxField!.GetValue(window) ?? throw new InvalidOperationException("Missing display list"));
 
         var startMatchMethod = typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance);
-        startMatchMethod!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
+        StartFixtureMatch(window, TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek());
 
         Assert(listBox.Focused, "Before Tab: _displayListBox has focus");
 
@@ -613,7 +668,7 @@ public static class Program
         var homeTeam = TeamDatabase.CreateRealMadrid();
         var awayTeam = TeamDatabase.CreateBarcelona();
         var startMatchMethod = typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance);
-        startMatchMethod!.Invoke(window, new object[] { homeTeam, awayTeam, false, false });
+        StartFixtureMatch(window, homeTeam, awayTeam);
 
         Assert(listBox.Visible, "Phase 2 (Match Start): _displayListBox.Visible == true");
         Assert(listBox.Enabled, "Phase 2 (Match Start): _displayListBox.Enabled == true");
@@ -668,7 +723,7 @@ public static class Program
         var homeTeam = TeamDatabase.CreateLiverpool();
         var awayTeam = TeamDatabase.CreateManchesterCity();
         var startMatchMethod = typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance);
-        startMatchMethod!.Invoke(window, new object[] { homeTeam, awayTeam, false, false });
+        StartFixtureMatch(window, homeTeam, awayTeam);
 
         var activeMatchField = typeof(AccessibleFootballWindow).GetField("_activeMatch", BindingFlags.NonPublic | BindingFlags.Instance);
         var match = (MatchEngine)activeMatchField!.GetValue(window)!;
