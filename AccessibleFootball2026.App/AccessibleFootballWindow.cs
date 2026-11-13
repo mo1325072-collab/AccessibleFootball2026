@@ -836,6 +836,7 @@ public class AccessibleFootballWindow : Form
             _screenReader.Speak(lineupIssue);
             return;
         }
+        if (!rivalry) _stadiumSoundEngine.ActiveStadiumKey = "NeutralStadium";
         _gameLoopTimer?.Stop();
         GoalBeaconPlayer.Stop();
         _commentaryEngine.ClearPendingLines();
