@@ -206,32 +206,19 @@ Check(!anthemCommands.Any(c=>c=="play beacon_ch from 0"),"gameplay beacon cannot
 GoalBeaconPlayer.Stop();Check(beaconBytes.SequenceEqual(File.ReadAllBytes(Path.Combine(root,"SFX","Beacon","GoalBeacon.wav"))),"beacon initialization preserves supplied source recording bytes");
 MatchSettings.Current.MasterVolumePercent=100;MatchSettings.Current.GoalBeaconVolumePercent=100;MatchSettings.Current.ApplyLive();
 
-// Recorded commentary must duck crowd separately from the reader's ducking claim.
+// User preference: recorded commentator never ducks crowd; reader speech still does.
 anthemCommands.Clear();
-transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{anthemCommands.Add(command);buffer?.Append(command=="status comm_voice mode"?"playing":"stopped");return 0;}));
+transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{anthemCommands.Add(command);buffer?.Append("stopped");return 0;}));
 SoundEffectsPlayer.SetCrowdDucking(1);SoundEffectsPlayer.StartCrowdAmbiance();SoundEffectsPlayer.SetCrowdVolume(1000,true);
-var beforeRecording=anthemCommands.Last(c=>c.StartsWith("setaudio crowd volume to "));
-int baseCrowd=int.Parse(beforeRecording.Split(' ').Last());anthemCommands.Clear();
+int baseCrowd=int.Parse(anthemCommands.Last(c=>c.StartsWith("setaudio crowd volume to ")).Split(' ').Last());
+anthemCommands.Clear();
 var voicePath=Path.Combine(root,"Commentary","FaresAwad",catalog.Entries.First().File);
-Check(SoundEffectsPlayer.PlayCommentaryAudio(voicePath),"actual supplied commentary clip reaches its playback path for mixing check");
-Check(anthemCommands.Any(c=>c=="setaudio crowd volume to "+(int)(baseCrowd*.2f)),"starting recorded commentary ducks the active crowd without waiting for reader speech");
-anthemCommands.Clear();SoundEffectsPlayer.SetCrowdDucking(.2f);SoundEffectsPlayer.StopCommentaryAudio();
-Check(!anthemCommands.Any(c=>c=="setaudio crowd volume to "+baseCrowd),"ending recording cannot undo an active reader ducking claim");
-anthemCommands.Clear();SoundEffectsPlayer.SetCrowdDucking(1);
-Check(anthemCommands.Any(c=>c=="setaudio crowd volume to "+baseCrowd),"crowd restores only after recording and reader both release ducking");
-
-var mixingCommands=new System.Collections.Concurrent.ConcurrentQueue<string>();bool voicePlaying=true;
-transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{mixingCommands.Enqueue(command);buffer?.Append(command=="status comm_voice mode"&&voicePlaying?"playing":"stopped");return 0;}));
-SoundEffectsPlayer.PlayCommentaryAudio(voicePath);voicePlaying=false;
-typeof(SoundEffectsPlayer).GetField("_commentaryBusyUntil",BindingFlags.Static|BindingFlags.NonPublic)!.SetValue(null,DateTime.MinValue);
-await Task.Delay(250);
-Check(mixingCommands.Contains("setaudio crowd volume to "+baseCrowd),"natural commentary completion restores crowd even while match is held");
-SoundEffectsPlayer.PlayCommentaryAudio(voicePath);SoundEffectsPlayer.SetCrowdDucking(.2f);mixingCommands.Clear();voicePlaying=false;
-typeof(SoundEffectsPlayer).GetField("_commentaryBusyUntil",BindingFlags.Static|BindingFlags.NonPublic)!.SetValue(null,DateTime.MinValue);
-await Task.Delay(250);
-Check(!mixingCommands.Contains("setaudio crowd volume to "+baseCrowd),"natural commentary completion respects a still-active reader claim");
-SoundEffectsPlayer.StopAll();mixingCommands.Clear();await Task.Delay(250);
-Check(!mixingCommands.Any(c=>c=="play crowd repeat"),"stop-all cancels commentary watcher without reviving crowd later");
+Check(SoundEffectsPlayer.PlayCommentaryAudio(voicePath),"supplied commentary still plays under reader-only mixing preference");
+SoundEffectsPlayer.SetCrowdVolume(1000,true);
+Check(anthemCommands.Last(c=>c.StartsWith("setaudio crowd volume to "))=="setaudio crowd volume to "+baseCrowd,"recorded commentary leaves crowd at its unchanged normal level");
+SoundEffectsPlayer.SetCrowdDucking(.2f);anthemCommands.Clear();SoundEffectsPlayer.StopCommentaryAudio();SoundEffectsPlayer.SetCrowdVolume(1000,true);
+Check(anthemCommands.Last(c=>c.StartsWith("setaudio crowd volume to "))=="setaudio crowd volume to "+(int)(baseCrowd*.2f),"commentary stop preserves reader-only crowd reduction");
+SoundEffectsPlayer.SetCrowdDucking(1);
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
 
