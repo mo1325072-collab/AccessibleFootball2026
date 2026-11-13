@@ -874,6 +874,7 @@ public class AccessibleFootballWindow : Form
         SoundEffectsPlayer.PlayWhistle();
 
         var match = new MatchEngine(homeTeam, awayTeam, _eventBus, _inputHandler) { Mode = cupFinal ? MatchMode.CupFinal : MatchMode.Friendly, RivalryScenario = rivalry };
+        match.VideoAnnouncementPending = () => _coordinator.HasPendingVideoAnnouncement;
         _activeMatch = match;
         match.OnAnalysisReplayReady += replay =>
         {
@@ -944,7 +945,9 @@ public class AccessibleFootballWindow : Form
                     _activeMatch.ActiveUserPlayer.Position2D.X,
                     _activeMatch.ActiveUserPlayer.Position2D.Y,
                     isSecondHalf: !_activeMatch.UserAttackingRight,
-                    hasPossession: hasPossession
+                    hasPossession: hasPossession,
+                    facingX: _activeMatch.ActiveUserPlayer.FacingDirection.X,
+                    facingY: _activeMatch.ActiveUserPlayer.FacingDirection.Y
                 );
 
                 // فحص الأهازيج الدورية بحسب سياق اللعب
