@@ -178,3 +178,59 @@ Football confederations, not geographic sovereignty, determine these categories.
 - https://inside.fifa.com/associations/CONMEBOL
 - https://inside.fifa.com/associations/OFC
 - https://inside.fifa.com/associations/UEFA
+
+## Audio audit ledger - 13 November 2026
+
+This is a subject-by-subject coverage record, not a declaration that the game is ready.
+Portable tests record the production playback commands against the assembled files. They do not execute Windows MCI, NVDA, Windows Forms focus or audible mixing. Cross-building the Windows application is not a native runtime test.
+
+### Stage 1: recovery and preservation
+
+- Recovered all 874 items in the supplied PES2013_SFX tree, including 873 audio files. Exact Git blob hashes verified for 1,793,052,627 bytes.
+- Merged with the previously approved commentary and menu assets. The assembled audio tree has 1,813 files including catalogs and supporting data. No conflicting-byte overwrite was needed.
+- All supplied WAV containers parse. Container integrity is not proof of the recording's identity or origin.
+- Gemini MenuMusic.mp3 and approved Move/Select v2 bytes remain unchanged. Legacy MenuMusic.wav is not substituted for Gemini music.
+
+### Stage 2: selected root, action sounds and academy consumers
+
+Files: SoundEffectsPlayer.cs, CallnameManager.cs, CommentaryEngine.cs, StadiumSoundEngine.cs, AnthemEngine.cs and tests/OriginalAssetHarness.
+
+- All default audio consumers now use the startup-selected root. They cannot independently select a stale D: installation.
+- Ground pass, shot and cross prefer their checked named supplied recordings rather than an unrelated random numeric kick pool. Real-file regression covers the actual methods and MCI commands.
+- Academy woodwork playback reaches the supplied checked PostHit file.
+- Supplied GoalNet.wav is identical to the generated fallback. It is preserved, but the academy does not claim it is an original recording. Missing goalkeeper-save samples are reported unavailable in the academy.
+- This stage's passing checks do not authenticate all match effects. Match-event-to-effect coverage remains an independent stage below.
+
+### Stage 3: national anthem consumers and ceremony lifecycle
+
+Files: AnthemEngine.cs, AccessibleFootballWindow.cs and tests/OriginalAssetHarness.
+
+- The ten available filename codes are mapped from exact country names in the real JSON database, and legacy NAT_ IDs. A club cannot trigger a national ceremony merely through its name.
+- Missing-country playback does not substitute another country's file. Device failure does not claim successful playback. Stop clears playback state.
+- Match ceremonies use an awaited, nonblocking path. They wait for playback completion rather than truncating each recording after four seconds. Enter, Space or Escape can cancel the ceremony. The second recording does not overlap the first.
+- Tests cover all ten real database factories, a recording that stays active past four seconds, sequencing, cancellation, state and missing-file/device failure paths.
+- Recording identity is OPEN: all ten supplied National WAVs duplicate other supplied chant/whistle files byte-for-byte. Example: EGY equals SP_R/Chant_600, ARG equals SP_C/Chant_200, TUN equals SP_C/Chant_153, ALG equals Whistle_152/Whistle.wav. This establishes ambiguous provenance, not which label is wrong. No recording has been disabled or replaced on that basis.
+
+### Stage 4: stadium and chant consumers
+
+Files: StadiumSoundEngine.cs, AccessibleFootballWindow.cs, tools/AudioExtractor/Program.cs and tests/OriginalAssetHarness.
+
+- Default ground is neutral. Normal matches reset the previous special-ground selection. The home/ground gate recognizes actual database Madrid/Barcelona without accepting Atletico Madrid through a substring match.
+- Home or unknown fouls do not masquerade as away-team fouls for home crowd protest. Away fouls still reach the existing home chant route. New matches reset chant cooldown.
+- A missing chosen acoustic no longer silently selects any available stadium or retains the previous stadium. It clears the old selection and uses general crowd ambience. Removed duplicate acoustic application at match startup.
+- Identity is OPEN: extractor filenames Chant_N use archive entry Index, not team ID. Original AINF labels are preserved only in chants_index.json. That index and original dt01.img are absent from the recovered tree; supplied WAVs have no original-label metadata.
+- The existing numeric generic chant fallback is retained pending identity evidence. Its existence does not verify Madrid/Barcelona identity, nor does a passing route test authenticate its recording. The selected Acoustic_2/3/10 ground identities also remain source claims, not independently authenticated recordings.
+
+### Coverage evidence and remaining stages
+
+Latest OriginalAssetHarness result: 50 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+
+Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
+
+Remaining work, not marked complete:
+
+1. Authenticate anthem/chant/stadium recording identities from source labels or independently verified recordings with suitable use permission.
+2. Audit every match-event-to-effect route, including goalkeeper save, trap/tackle variants and missing-file behavior.
+3. Exercise commentary and reader ordering under overlapping events, interruptions, cancellation, silence settings and long utterances; verify ducking lifetime rather than assuming a fixed duration is sufficient.
+4. Audit beacon, positional panning, replays, academy stop/Back, menu transitions and volume settings as integrated journeys.
+5. Build/package the assembled assets reproducibly, verify final package content and run actual Windows/NVDA/native audio acceptance. No release is claimed before that evidence exists.
