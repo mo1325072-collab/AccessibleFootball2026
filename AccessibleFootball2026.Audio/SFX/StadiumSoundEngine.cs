@@ -30,12 +30,8 @@ public class StadiumSoundEngine
     public Team? ActiveHomeTeam { get; private set; }
     public Team? ActiveAwayTeam { get; private set; }
     public string ActiveStadiumKey { get; set; } = "NeutralStadium";
-    public string ActiveStadiumName => ActiveStadiumKey switch
-    {
-        "SantiagoBernabeu" => "ملعب سانتياجو برنابيو (معقل ريال مدريد)",
-        "CampNou" => "ملعب كامب نو (معقل برشلونة)",
-        _ => "ملعب محايد (صوت جماهير محايد فقط)"
-    };
+    public string ActiveStadiumName => StadiumCatalog.Find(ActiveStadiumKey)?.DisplayName ??
+        LocalizationService.Text("ملعب محايد", "Neutral stadium");
 
     public bool ShouldPlayChantForTeam(Team team)
     {
