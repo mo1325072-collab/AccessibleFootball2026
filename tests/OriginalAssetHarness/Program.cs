@@ -274,7 +274,7 @@ anthemCommands.Clear();effectsCoordinator.HandleMatchEvent(chantGoalEvent);
 Check(anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("CrowdGoal.wav"))&&anthemCommands.Contains("play crowd_goal from 0"),"actualgoaleventusesexistingCrowdGoalassetandcrowdgoalchannel");
 Check(Directory.GetFiles(Path.Combine(root,"SFX","Crowd"),"CrowdMiss.wav").Length==1,"suppliedCrowdMissfileexistsforgasp_routewithoutsyntheticcreation");
 var grounds=StadiumCatalog.GetAvailableStadiums();
-Check(grounds.Count==49&&grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"fortyninegroundscoverfiftyonewiredchantteamswithoutpadding");
+Check(grounds.Count==65&&grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"sixtyfivegroundscover71wiredchantteamswithoutpadding");
 Check(grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"nogroundwithoutcorroboratedteamchantpoolisoffered");
 Check(StadiumCatalog.Find("Anfield")==null&&StadiumCatalog.Find("Emirates")==null,"priorpaddinggroundsremovednotmerelyhiddenbygroup");
 Check(StadiumCatalog.GetGroundsForProductionGroup("Premier League (England)").Count==1,"unsupportedteamsdonotcreateotherstadiumchoices");
@@ -299,6 +299,18 @@ foreach(var pool in TeamChantCatalog.Pools)
  Check(anthemCommands.Any(c=>c.StartsWith("open ")&&present.Any(n=>c.Contains("Chant_"+n+".wav"))),"eachownerplaysexactavailablemappedrange: "+owner.Name);
  if(owner!=madrid&&owner.Name!="Real Madrid")Check(!indexedStadium.ShouldPlayChantForTeam(madrid),"visitingMadridcannotclaimotherground: "+owner.Name);
 }
+// Mixed club/national venues appear once and apply the same participant ownership gate.
+foreach(var (clubName,nationName,key) in new[]{("Real Betis Balompié","Spain","LaCartuja"),("Ajax Amsterdam","Netherlands","JohanCruijff"),("AS Roma","Italy","OlimpicoRome"),("FC Bayern Munich","Germany","BayernAllianz")})
+{
+ var club=JsonDatabaseProvider.GetTeamByName(clubName)!;var nation=JsonDatabaseProvider.GetTeamByName(nationName)!;
+ Check(grounds.Count(g=>g.Key==key)==1&&StadiumCatalog.Find(key)!.IsGroundFor(club)&&StadiumCatalog.Find(key)!.IsGroundFor(nation),"typedmixedgroundofferedonce: "+key);
+ indexedStadium.ActiveStadiumKey=key;indexedStadium.SetMatchTeams(nation,club);
+ Check(indexedStadium.ShouldPlayChantForTeam(nation)&&!indexedStadium.ShouldPlayChantForTeam(club),"mixedgroundhomeNationwins: "+key);
+ indexedStadium.SetMatchTeams(club,nation);
+ Check(indexedStadium.ShouldPlayChantForTeam(club)&&!indexedStadium.ShouldPlayChantForTeam(nation),"mixedgroundhomeClubwins: "+key);
+ Check(!StadiumCatalog.Find(key)!.IsGroundFor(new Team("fake",nationName,TeamSide.Home)),"fakeclubcannotclaimmixednationalowner: "+key);
+}
+Check(TeamChantCatalog.Find(JsonDatabaseProvider.GetTeamByName("Northern Ireland")!)==null,"IrishhistoricalpoolnotassignedtoNorthernIreland");
 Check(TeamChantCatalog.Find(new Team("fake","England",TeamSide.Home))==null,"clubnamedEnglandcannotclaimnationalchantidentity");
 Check(TeamChantCatalog.Find(JsonDatabaseProvider.GetTeamByName("Wales")!)!.NationalTeams,"nationalchantpoolisnotcanceledanthemfeature");
 Check(!loadedLabels!.Any(l=>l.Value==582)&&!loadedLabels.Any(l=>l.Value==653)&&!loadedLabels.Any(l=>l.Value==669),"knownmissingAjaxBolognaCeltaentriesarenotinvented");
