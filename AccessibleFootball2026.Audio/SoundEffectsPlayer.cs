@@ -100,6 +100,7 @@ public static class SoundEffectsPlayer
     private static readonly Dictionary<string, float> _activeOneShots = new();
     private static readonly Dictionary<string, float> _activeOneShotPans = new();
     private static float ChannelVolume(string alias) => alias == "comm_voice" ? (_commentaryEnabled ? GetEffectiveCommentaryVolume() : 0)
+        : alias == "lineup_music" ? GetEffectiveMusicVolume()
         : IsCrowdOneShot(alias) ? GetEffectiveCrowdVolume() * _crowdDucking : GetEffectiveSfxVolume();
     private static bool IsCrowdOneShot(string alias) => alias == "chant_ch" || alias.StartsWith("crowd_", StringComparison.Ordinal);
     public static bool IsCrowdActive => _crowdPlaying && !_crowdPaused && GetEffectiveCrowdVolume() > .001f;
@@ -392,11 +393,28 @@ public static class SoundEffectsPlayer
         }
     }
 
+    // User listened to full clips on 2026-11-14: both are music, not continuous crowd.
+    // Byte identity also rejects their renamed CrowdAmbiance duplicate, without deleting files
+    // or suppressing working chants, reactions, commentary, menu music or other recordings.
+    private static readonly Dictionary<string,(long Length, DateTime WriteTime, bool Rejected)> _bedIdentityCache = new();
+    private static bool IsConfirmedMusicalBed(string path)
+    {
+        var info = new FileInfo(path);
+        if (!info.Exists) return true;
+        if (_bedIdentityCache.TryGetValue(path,out var cached) && cached.Length==info.Length && cached.WriteTime==info.LastWriteTimeUtc)
+            return cached.Rejected;
+        string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+        bool rejected = hash is "3c4a3810f58f1d68edec53496315449fa07025763117faf370201f324d0d38ef" or
+                                "515db44e86949df23bd2d9bf658198b23183b39c98ef5c12323bdbed8192794f";
+        _bedIdentityCache[path]=(info.Length,info.LastWriteTimeUtc,rejected);
+        return rejected;
+    }
+
     private static void StartRequestedCrowd()
     {
         if (!_crowdRequested || _crowdPaused || _crowdPlaying || GetEffectiveCrowdVolume() <= .001f) return;
         string? path = _stadiumAcousticPath ?? ResolveAudioPath("SFX", "Crowd", "CrowdAmbiance");
-        if (path == null) return;
+        if (string.IsNullOrWhiteSpace(path) || IsConfirmedMusicalBed(path)) return;
         SendMci("close crowd");
         if (MciPlayback.SendString($"open \"{path}\" type mpegvideo alias crowd", null, 0, IntPtr.Zero) != 0) return;
         int volume = Math.Clamp((int)(_crowdIntensity * _crowdDucking * GetEffectiveCrowdVolume()), 0, 1000);
@@ -574,16 +592,47 @@ public static class SoundEffectsPlayer
 
     public static bool TryPlayAudibleChant(string filePath) => PlayOneShot(filePath, "chant_ch");
 
-    public static void SetStadiumAcoustics(string acousticPath)
+    public static void SetStadiumAcoustics(string? acousticPath)
     {
-        if (string.IsNullOrEmpty(acousticPath) || !File.Exists(acousticPath)) return;
+        if (acousticPath != null && !File.Exists(acousticPath)) return;
         lock (_lock)
         {
             CloseCrowdChannel();
-            _stadiumAcousticPath = acousticPath;
+            _stadiumAcousticPath = acousticPath ?? string.Empty; // Explicit no-bed selection must not fall back to a mislabeled file.
             _crowdIntensity = 800;
             _crowdRequested = true; _crowdPaused = false;
             StartRequestedCrowd(); // Volume is applied before play, and zero never opens the channel.
+        }
+    }
+
+    // Intentional pre-match use, distinct from the forbidden continuous-crowd context.
+    public static bool PlayMatchLineupMusic()
+    {
+        string path=Path.Combine(_baseAudioDir,"SFX","StadiumAcoustics","Acoustic_3.wav");
+        if (!File.Exists(path)) return false;
+        string hash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+        if (hash!="3c4a3810f58f1d68edec53496315449fa07025763117faf370201f324d0d38ef") return false;
+        return PlayOneShot(path,"lineup_music");
+    }
+    public static bool IsMatchLineupMusicPlaying
+    {
+        get
+        {
+            lock(_lock)
+            {
+                if (GetEffectiveMusicVolume() <= .001f || !_activeOneShots.ContainsKey("lineup_music")) return false;
+                var mode=new StringBuilder(64);
+                int result=MciPlayback.SendString("status lineup_music mode",mode,mode.Capacity,IntPtr.Zero);
+                return result==0 && mode.ToString().Trim().Equals("playing",StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+    public static void StopMatchLineupMusic()
+    {
+        lock(_lock)
+        {
+            SendMci("stop lineup_music"); SendMci("close lineup_music");
+            _activeOneShots.Remove("lineup_music"); _activeOneShotPans.Remove("lineup_music");
         }
     }
 
