@@ -477,10 +477,28 @@ public static class SoundEffectsPlayer
         return PlayOneShot(p, "crowd_applause", customVolume: GetEffectiveCrowdVolume());
     }
 
+    // A failed status query is not evidence of completion. StopAll still clears the channel.
+    public static bool IsTeamChantActive
+    {
+        get
+        {
+            lock (_lock)
+            {
+                if (!_activeOneShots.ContainsKey("chant_ch")) return false;
+                var mode = new System.Text.StringBuilder(64);
+                int result = MciPlayback.SendString("status chant_ch mode", mode, 64, IntPtr.Zero);
+                return result != 0 || !mode.ToString().Trim().Equals("stopped", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
     public static void PlayOneShotChant(string filePath)
     {
-        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
-        PlayOneShot(filePath, "chant_ch", customVolume: GetEffectiveCrowdVolume());
+        lock (_lock)
+        {
+            if (IsTeamChantActive || string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
+            PlayOneShot(filePath, "chant_ch", customVolume: GetEffectiveCrowdVolume());
+        }
     }
 
     public static bool TryPlayAudibleChant(string filePath) => PlayOneShot(filePath, "chant_ch", customVolume: GetEffectiveCrowdVolume());
