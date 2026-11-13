@@ -46,18 +46,30 @@ public static class GamePlanMenuBuilder
         return menu;
     }
 
+    public static AccessibleMenu CreateShootoutEligibilityMenu(ShootoutRoster roster, int targetCount, IScreenReader reader, Action onExcluded)
+    {
+        var menu = new AccessibleMenu(T($"الترجيح: استبعاد {roster.Players.Count - targetCount} لاعبين", $"Shootout: exclude {roster.Players.Count - targetCount} players"), reader);
+        foreach (var player in roster.Players.Where(p => p.Role != PlayerRole.Goalkeeper).ToArray())
+        {
+            var candidate = player;
+            menu.AddItem(candidate.Name, () => { if (roster.Exclude(candidate, targetCount)) onExcluded(); });
+        }
+        return menu;
+    }
+
     public static AccessibleMenu CreatePreMatchMenu(
         Team userTeam, 
         IScreenReader screenReader, 
         Action<AccessibleMenu> pushMenu, 
         Action popMenu, 
-        Action onStartMatch)
+        Action onStartMatch,
+        bool startMatch = true)
     {
         var menu = new AccessibleMenu(T($"خطة لعب {userTeam.Name}", $"Game plan: {userTeam.Name}"), screenReader);
 
-        menu.AddItem(T("بدء المباراة", "Start match"), () =>
+        menu.AddItem(startMatch ? T("بدء المباراة", "Start match") : T("اعتماد الخطة لهذه الجلسة", "Apply plan for this session"), () =>
         {
-            screenReader.Speak(T("انطلاق المباراة بالتشكيلة والخيارات المعتمدة", "Match starting"));
+            screenReader.Speak(startMatch ? T("انطلاق المباراة بالتشكيلة والخيارات المعتمدة", "Match starting") : T("تم اعتماد الخطة لهذه الجلسة", "Plan applied for this session"));
             onStartMatch();
         });
 
@@ -469,6 +481,8 @@ public static class GamePlanMenuBuilder
             });
         }
 
+        menu.AddItem(T("متطلبات الخطة وملاءمة اللاعبين", "Formation requirements and player fit"), () =>
+            screenReader.Speak(FormationSuitability.Requirements(userTeam.CurrentFormation) + " " + FormationSuitability.Describe(userTeam)));
         menu.AddItem(T("إلغاء", "Cancel"), () => popMenu());
         return menu;
     }
@@ -480,38 +494,24 @@ public static class GamePlanMenuBuilder
     {
         var menu = new AccessibleMenu(T($"الأسلوب والتكتيك - {userTeam.Name}", $"Style and tactics: {userTeam.Name}"), screenReader);
 
-        // 1. شريط مستوى الضغط
-        menu.AddItem(T($"شريط الضغط: {userTeam.Tactics.PressingIntensity}%", $"Pressing: {userTeam.Tactics.PressingIntensity}%"), () =>
+        menu.AddSlider(T("شريط الضغط", "Pressing"), userTeam.Tactics.PressingIntensity,0,100,1,v=>
         {
-            userTeam.Tactics.PressingIntensity = userTeam.Tactics.PressingIntensity switch
-            {
-                <= 25 => 45,
-                <= 50 => 75,
-                <= 75 => 90,
-                _ => 20
-            };
-            string tier = userTeam.Tactics.PressingIntensity <= 25 ? T("دفاع متراجع تحت الكرة (Low Block)", "Low block")
-                : (userTeam.Tactics.PressingIntensity <= 50 ? T("ضغط متوسط متوازن", "Balanced pressing")
-                : (userTeam.Tactics.PressingIntensity <= 75 ? T("ضغط نشط ومتقدم", "Advanced pressing")
-                : T("ضغط عالي خانق (Gegenpress)", "Gegenpress")));
-            screenReader.Speak(T($"تم ضبط شريط الضغط عند {userTeam.Tactics.PressingIntensity}%: {tier}", $"Pressing {userTeam.Tactics.PressingIntensity}%: {tier}"));
+            userTeam.Tactics.PressingIntensity=v;
+            ((AccessibleSliderMenuItem)menu.GetItem(2)).Value=userTeam.Tactics.DefensiveLineDepth;
         });
-
-        // 2. شريط أسلوب التمرير والريتم
-        menu.AddItem(T($"شريط التمرير: {userTeam.Tactics.PassingDirectness}%", $"Passing directness: {userTeam.Tactics.PassingDirectness}%"), () =>
+        menu.AddSlider(T("شريط التمرير", "Passing directness"),userTeam.Tactics.PassingDirectness,0,100,1,v=>
         {
-            userTeam.Tactics.PassingDirectness = userTeam.Tactics.PassingDirectness switch
-            {
-                <= 25 => 45,
-                <= 50 => 75,
-                <= 75 => 90,
-                _ => 20
-            };
-            string tier = userTeam.Tactics.PassingDirectness <= 25 ? T("بناء هجمة قصير من الـ 18", "Short build-up")
-                : (userTeam.Tactics.PassingDirectness <= 50 ? T("تمرير أرضي متوازن", "Balanced passing")
-                : (userTeam.Tactics.PassingDirectness <= 75 ? T("تمرير مباشر يكسر الخطوط", "Direct passing")
-                : T("كرات طولية سريعة في ضهر الدفاع", "Long balls behind defence")));
-            screenReader.Speak(T($"تم ضبط شريط التمرير عند {userTeam.Tactics.PassingDirectness}%: {tier}", $"Passing directness {userTeam.Tactics.PassingDirectness}%: {tier}"));
+            userTeam.Tactics.PassingDirectness=v;
+            ((AccessibleSliderMenuItem)menu.GetItem(3)).Value=userTeam.Tactics.Tempo;
+        });
+        menu.AddSlider(T("عمق خط الدفاع", "Defensive line depth"),userTeam.Tactics.DefensiveLineDepth,0,100,1,v=>userTeam.Tactics.DefensiveLineDepth=v);
+        menu.AddSlider(T("سرعة الإيقاع", "Tempo"),userTeam.Tactics.Tempo,0,100,1,v=>userTeam.Tactics.Tempo=v);
+        menu.AddItem(T("إعادة ربط الخط بالضغط والإيقاع بالتمرير", "Relink line to pressing and tempo to passing"),()=>
+        {
+            userTeam.Tactics.UseLinkedDefensiveLine();userTeam.Tactics.UseLinkedTempo();
+            ((AccessibleSliderMenuItem)menu.GetItem(2)).Value=userTeam.Tactics.DefensiveLineDepth;
+            ((AccessibleSliderMenuItem)menu.GetItem(3)).Value=userTeam.Tactics.Tempo;
+            screenReader.Speak(T($"عمق الدفاع {userTeam.Tactics.DefensiveLineDepth}، والإيقاع {userTeam.Tactics.Tempo}.",$"Defensive line {userTeam.Tactics.DefensiveLineDepth}, tempo {userTeam.Tactics.Tempo}."));
         });
 
         // 3. طريقة الدفاع
@@ -520,6 +520,7 @@ public static class GamePlanMenuBuilder
             userTeam.Tactics.Marking = userTeam.Tactics.Marking == DefensiveMarking.Zonal
                 ? DefensiveMarking.ManToMan
                 : DefensiveMarking.Zonal;
+            menu.GetItem(5).Title=T($"طريقة الدفاع: {userTeam.Tactics.Marking.ToArabicName()}",$"Marking: {userTeam.Tactics.Marking.ToDisplayName()}");
             string detail = userTeam.Tactics.Marking == DefensiveMarking.Zonal
                 ? T("دفاع منطقة: تغطية جماعية تحمي الفريق وتغلق المساحات", "Zonal marking: cover spaces together")
                 : T("دفاع رجل لرجل: صراعات فردية لصيقة، تتطلب مدافعين أقوياء في الـ 1v1", "Man-to-man marking: close individual duels");
@@ -537,6 +538,7 @@ public static class GamePlanMenuBuilder
                 TacklingAggression.Aggressive => TacklingAggression.Reckless,
                 _ => TacklingAggression.Cautious
             };
+            menu.GetItem(6).Title=T($"شراسة العرقلة: {userTeam.Tactics.Tackling.ToArabicName()}",$"Tackling: {userTeam.Tactics.Tackling.ToDisplayName()}");
             screenReader.Speak(T($"تم ضبط شراسة العرقلة على: {userTeam.Tactics.Tackling.ToArabicName()}", $"Tackling: {userTeam.Tactics.Tackling.ToDisplayName()}"));
         });
 
@@ -544,6 +546,7 @@ public static class GamePlanMenuBuilder
         menu.AddItem(T("مصيدة التسلل", "Offside trap") + ": " + T(userTeam.Tactics.OffsideTrap ? "مفعلة" : "معطلة", userTeam.Tactics.OffsideTrap ? "On" : "Off"), () =>
         {
             userTeam.Tactics.OffsideTrap = !userTeam.Tactics.OffsideTrap;
+            menu.GetItem(7).Title=T("مصيدة التسلل", "Offside trap")+": "+T(userTeam.Tactics.OffsideTrap?"مفعلة":"معطلة",userTeam.Tactics.OffsideTrap?"On":"Off");
             screenReader.Speak(T("مصيدة التسلل", "Offside trap") + ": " + T(userTeam.Tactics.OffsideTrap ? "مفعلة" : "معطلة", userTeam.Tactics.OffsideTrap ? "On" : "Off"));
         });
 
@@ -559,14 +562,15 @@ public static class GamePlanMenuBuilder
                 AttackingFocus.ShootOnSight => AttackingFocus.CounterAttack,
                 _ => AttackingFocus.Balanced
             };
+            menu.GetItem(8).Title=T($"أسلوب الهجوم: {userTeam.Tactics.Focus.ToArabicName()}",$"Attacking focus: {userTeam.Tactics.Focus.ToDisplayName()}");
             screenReader.Speak(T($"تم تغيير أسلوب الهجوم إلى: {userTeam.Tactics.Focus.ToArabicName()}", $"Attacking focus: {userTeam.Tactics.Focus.ToDisplayName()}"));
         });
 
         // 7. تقرير التناغم التكتيكي
         menu.AddItem(T("تقرير التناغم والانسجام التكتيكي", "Tactical synergy"), () =>
         {
-            var synergy = userTeam.Tactics.CalculateSynergy();
-            string msg = T($"التناغم التكتيكي: {synergy.SynergyScore} من 100، معامل الأداء: {synergy.AdvantageMultiplier:F2}x. ", $"Tactical synergy {synergy.SynergyScore}/100, performance multiplier {synergy.AdvantageMultiplier:F2}x. ");
+            var synergy = userTeam.Tactics.CalculateSynergy(userTeam.CurrentFormation);
+            string msg = T($"التناغم التكتيكي: {synergy.SynergyScore} من 100، معامل تنسيق الالتحامات: {synergy.AdvantageMultiplier:F2}x. ", $"Tactical synergy {synergy.SynergyScore}/100, duel coordination multiplier {synergy.AdvantageMultiplier:F2}x. ");
             if (synergy.PositiveSynergies.Count > 0)
             {
                 msg += T("نقاط القوة: ", "Strengths: ") + string.Join("، ", synergy.PositiveSynergies) + ". ";
@@ -575,7 +579,7 @@ public static class GamePlanMenuBuilder
             {
                 msg += T("تحذيرات وتناقضات: ", "Conflicts: ") + string.Join("، ", synergy.Conflicts) + ". ";
             }
-            screenReader.Speak(msg);
+            screenReader.Speak(msg + TacticalEffectsSummary.Describe(userTeam));
         });
 
         menu.AddItem(T("رجوع", "Back"), () => popMenu());
