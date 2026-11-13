@@ -39,51 +39,24 @@ foreach(var name in new[]{"Move","Select"})
 }
 var catalog=new ContextualCommentaryCatalog(Path.Combine(root,"Commentary","FaresAwad"));
 Check(catalog.IsValid&&catalog.Entries.Count==935&&catalog.Entries.Select(c=>c.File).Distinct().Count()==902,"all approved contextual mappings resolve to the 902 active recordings");
-// Anthem subject: exact identity, missing-file refusal, playback state and match route.
+// National ceremony canceled; original bytes are retained as user-classified national-team chants.
 var anthemCommands=new List<string>();
 transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{anthemCommands.Add(command);buffer?.Append("stopped");return 0;}));
 var national=new AccessibleFootball2026.Audio.Anthems.AnthemEngine(new Reader(),Path.Combine(root,"Anthems"));
-national.PlayNationalAnthemSample("UNKNOWN");
-Check(!anthemCommands.Any(c=>c.StartsWith("open ")),"missing national anthem never substitutes another country's recording");
-anthemCommands.Clear();
 var egypt=AccessibleFootball2026.Core.Models.TeamDatabase.CreateEgypt();
-national.PlayMatchNationalAnthems(egypt,new AccessibleFootball2026.Core.Models.Team("club","Club",AccessibleFootball2026.Core.Models.TeamSide.Away),skipChecker:()=>false);
-Check(!anthemCommands.Any(c=>c.Contains("EGY.wav")),"useridentifiedEGYchant neverplays asEgyptnationalanthem");
-Check(!national.TryPlayNationalAnthemSample("EGY")&&!national.IsAnthemPlaying,"useridentifiedEGYchant isalsoblockedinanthem_preview");
-Check(national.TryPlayNationalAnthemSample("MAR")&&national.IsAnthemPlaying,"othercountryplaybackstate notgeneralizedfromEgyptidentification");
-national.StopAllSounds();Check(!national.IsAnthemPlaying,"stopping anthem clears actual playback state");
-
-foreach(var (factory,code) in new (Func<AccessibleFootball2026.Core.Models.Team>,string)[]{
- (AccessibleFootball2026.Core.Models.TeamDatabase.CreateMorocco,"MAR"),
- (AccessibleFootball2026.Core.Models.TeamDatabase.CreateAlgeria,"ALG"),(AccessibleFootball2026.Core.Models.TeamDatabase.CreateTunisia,"TUN"),
- (AccessibleFootball2026.Core.Models.TeamDatabase.CreateSaudiArabia,"KSA"),(AccessibleFootball2026.Core.Models.TeamDatabase.CreateFrance,"FRA"),
- (AccessibleFootball2026.Core.Models.TeamDatabase.CreateEngland,"ENG"),(AccessibleFootball2026.Core.Models.TeamDatabase.CreateSpain,"ESP"),
- (AccessibleFootball2026.Core.Models.TeamDatabase.CreateArgentina,"ARG"),(AccessibleFootball2026.Core.Models.TeamDatabase.CreateBrazil,"BRA")})
-{
- anthemCommands.Clear();var actual=factory();
- await national.PlayMatchNationalAnthemsAsync(actual,new AccessibleFootball2026.Core.Models.Team("club","Club",AccessibleFootball2026.Core.Models.TeamSide.Away));
- Check(anthemCommands.Count(c=>c.StartsWith("open ")&&c.Contains(code+".wav"))==1,"actual database team uses exact available national file: "+code);
-}
-Check(AccessibleFootball2026.Audio.Anthems.AnthemEngine.ResolveNationalAnthemCode(new AccessibleFootball2026.Core.Models.Team("EGY","Egypt",AccessibleFootball2026.Core.Models.TeamSide.Home))==null,"club named Egypt cannot trigger national ceremony");
-anthemCommands.Clear();
-var stopwatch=System.Diagnostics.Stopwatch.StartNew();bool secondStarted=false;
-transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{
- anthemCommands.Add(command);
- if(command.StartsWith("open ")&&command.Contains("ARG.wav"))secondStarted=true;
- if(command=="status anthem mode")buffer?.Append(secondStarted||stopwatch.ElapsedMilliseconds>=4300?"stopped":"playing");return 0;
-}));
-var ceremony=national.PlayMatchNationalAnthemsAsync(AccessibleFootball2026.Core.Models.TeamDatabase.CreateMorocco(),AccessibleFootball2026.Core.Models.TeamDatabase.CreateArgentina());
-Check(!ceremony.IsCompleted,"match ceremony yields while first anthem plays instead of blocking UI thread");
-await Task.Delay(4100);
-Check(!ceremony.IsCompleted&&!secondStarted,"national anthem remains active beyond old four-second truncation without overlapping away anthem");
-await ceremony;
-Check(secondStarted&&!national.IsAnthemPlaying,"away anthem follows natural home completion then closes cleanly");
-transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{buffer?.Append("playing");return 0;}));
-bool skip=false;stopwatch.Restart();ceremony=national.PlayMatchNationalAnthemsAsync(AccessibleFootball2026.Core.Models.TeamDatabase.CreateMorocco(),AccessibleFootball2026.Core.Models.TeamDatabase.CreateArgentina(),()=>skip);
-await Task.Delay(50);skip=true;await ceremony;
-Check(stopwatch.ElapsedMilliseconds<1000&&national.WasSkipped&&!national.IsAnthemPlaying,"skip cancels ceremony promptly while awaited playback is active");
-transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>command.StartsWith("open ")?1:0));
-Check(!national.TryPlayNationalAnthemSample("MAR")&&national.LastPlayedAnthem==null&&!national.IsAnthemPlaying,"device failure never reports a successfully played anthem");
+foreach(var code in new[]{"EGY","MAR","ALG","TUN","KSA","FRA","ENG","ESP","ARG","BRA","UNKNOWN"})
+ Check(!national.TryPlayNationalAnthemSample(code),"cancelednationalpreviewrefuses "+code);
+national.PlayNationalAnthemSample();
+var ceremony=national.PlayMatchNationalAnthemsAsync(egypt,AccessibleFootball2026.Core.Models.TeamDatabase.CreateArgentina());
+Check(ceremony.IsCompletedSuccessfully,"cancelednationalceremonydoesnotwait");
+national.PlayMatchNationalAnthems(egypt,AccessibleFootball2026.Core.Models.TeamDatabase.CreateMorocco());
+Check(!anthemCommands.Any(c=>c.StartsWith("open ")),"cancelednationalentrypointscannotopenanyrecording");
+Check(AccessibleFootball2026.Audio.Anthems.AnthemEngine.ResolveNationalAnthemCode(egypt)==null,"cancelednationalfeaturehasnoidentityroute");
+Check(!SoundAcademyDatabase.GetAllItems().Any(i=>i.Id=="NationalAnthem"),"nationalpreviewremovedfromacademy");
+Check(SoundAcademyDatabase.GetAllItems().Any(i=>i.Id=="ChampionsLeagueAnthem"),"approvedUCLacademypreviewpreserved");
+Check(national.PlayChampionsLeagueSample()&&national.IsAnthemPlaying,"approvedUCLsampleplaybackpreserved");
+national.StopAllSounds();Check(!national.IsAnthemPlaying,"UCLstopclearsstate");
+Check(File.Exists(Path.Combine(root,"Anthems","National","EGY.wav")),"originalnationalnamedchantbytesremainpresent");
 
 // Stadium subject: event identity tests do not authenticate the chant's recording label.
 anthemCommands.Clear();
@@ -302,13 +275,13 @@ Check(anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("CrowdGoal.wav"))&
 Check(Directory.GetFiles(Path.Combine(root,"SFX","Crowd"),"CrowdMiss.wav").Length==1,"suppliedCrowdMissfileexistsforgasp_routewithoutsyntheticcreation");
 var grounds=StadiumCatalog.GetAvailableStadiums();
 Check(JsonDatabaseProvider.AllTeams.Count==529&&JsonDatabaseProvider.AllTeams.Count(t=>t.IsNationalTeam)==211,"stadium scope uses actual529productionteams including211national teams, not643chants");
-Check(grounds.Count==63&&grounds.All(g=>JsonDatabaseProvider.AllTeams.Any(g.IsGroundFor)),"every offered stadium is tied to at least one actual production team");
+Check(grounds.Count==81&&grounds.All(g=>JsonDatabaseProvider.AllTeams.Any(g.IsGroundFor)),"every offered stadium is tied to at least one actual production team");
 Check(grounds.Select(g=>g.Key).Distinct().Count()==grounds.Count&&grounds.All(g=>Uri.IsWellFormedUriString(g.SourceUrl,UriKind.Absolute)),"sourced stadium keys are unique and carry recoverable source URLs");
 var sanSiro=grounds.Single(g=>g.Key=="SanSiro");
 Check(sanSiro.IsGroundFor(JsonDatabaseProvider.GetTeamByName("AC Milan")!)&&sanSiro.IsGroundFor(JsonDatabaseProvider.GetTeamByName("Inter Milan")!),"one shared SanSiro entry represents both production Milan clubs");
 Check(!sanSiro.IsGroundFor(madrid)&&!sanSiro.IsGroundFor(barcelona),"Madrid and Barcelona cannot claim SanSiro ownership");
 Check(grounds.Count(g=>g.NationalTeams)==5&&grounds.Where(g=>g.NationalTeams).All(g=>JsonDatabaseProvider.AllTeams.Any(t=>t.IsNationalTeam&&g.IsGroundFor(t))),"five documented national grounds belong to actual national entries without fabricated clubs");
-Check(StadiumCatalog.GetTeamsAwaitingGroundEvidence().Count==464,"catalog honestly leaves464teams awaiting sourced grounds instead of inventing1:1venues");
+Check(StadiumCatalog.GetTeamsAwaitingGroundEvidence().Count==446,"catalog honestly leaves446teams awaiting sourced grounds instead of inventing1:1venues");
 var englishTeams=JsonDatabaseProvider.AllTeams.Where(t=>JsonDatabaseProvider.GetAllClubs().Contains(t)&&t.Name.Length>0).Where(t=>new[]{"Arsenal FC","Brentford FC","Brighton & Hove Albion","Tottenham Hotspur","Manchester City","Sunderland AFC","Everton FC","Hull City","Liverpool FC","Leeds United","Aston Villa","Chelsea FC","Ipswich Town","Nottingham Forest","Newcastle United","Crystal Palace","Fulham FC","Manchester United","AFC Bournemouth","Coventry City"}.Contains(t.Name)).ToList();
 Check(englishTeams.Count==20&&englishTeams.All(t=>grounds.Count(g=>g.IsGroundFor(t))==1),"all20actualEnglishleagueclubs have exactlyone current documented ground in first pass");
 Check(grounds.Single(g=>g.IsGroundFor(JsonDatabaseProvider.GetTeamByName("Everton FC")!)).Key=="HillDickinson","Everton uses currentHillDickinson not staleGoodisonPark");
@@ -325,7 +298,7 @@ Check(indexedStadium.ResolveGroundCrowdTeam()==null,"neitherparticipantownsSanSi
 indexedStadium.ActiveStadiumKey="SantiagoBernabeu";indexedStadium.SetMatchTeams(barcelona,madrid);
 Check(indexedStadium.ResolveGroundCrowdTeam()==madrid,"sharedgroundtiebreak doesnot imposehome-slotgate on soleMadridowner");
 var dbRows=System.Text.Json.JsonDocument.Parse(File.ReadAllText(JsonDatabaseProvider.LoadedDatabasePath!)).RootElement.GetProperty("teams");
-foreach(var group in new[]{"Serie A (Italy)","Bundesliga (Germany)"})
+foreach(var group in new[]{"Serie A (Italy)","Bundesliga (Germany)","LaLiga (Spain)"})
 {
  var names=dbRows.EnumerateArray().Where(t=>t.GetProperty("group").GetString()==group).Select(t=>t.GetProperty("team").GetString()!).ToList();
  Check(names.All(n=>grounds.Any(g=>g.IsGroundFor(JsonDatabaseProvider.GetTeamByName(n)!))),"everyactualproductionclub has documentedcurrentground: "+group);
@@ -334,6 +307,9 @@ Check(grounds.Single(g=>g.Key=="OlimpicoRome").TeamNames.Length==2,"RomeOlimpico
 Check(StadiumCatalog.GetGroundsForProductionGroup("Serie A (Italy)").Count==18,"ItalianstadiumgroupdeduplicatesMilanandRome sharedgrounds");
 Check(StadiumCatalog.GetGroundsForProductionGroup("Bundesliga (Germany)").Count==18,"Germanstadiumgroupcovers18actualclubs");
 Check(StadiumCatalog.GetGroundsForProductionGroup("not-a-production-group").Count==0,"unknowncompetitioncannotaddunrelatedstadiumchoices");
+Check(StadiumCatalog.GetGroundsForProductionGroup("LaLiga (Spain)").Count==20,"Spanishgroupcovers20actualclubswithoutaddingteams");
+Check(StadiumCatalog.Find("LaCartuja")!.TeamNames.Contains("Real Betis Balompié"),"BetisusescurrentLaCartujaentrynotstaleVillamarinFAQ");
+Check(StadiumCatalog.Find("Vallecas")!.TeamNames.Contains("Rayo Vallecano"),"RayogroundusescurrentleaguefixtureevidencenottemporaryButarquelead");
 Check(StadiumCatalog.Find("MadeUpStadium")==null,"unknown stadium key is not invented from a name");
 indexedStadium.ActiveStadiumKey="SanSiro";
 Check(indexedStadium.ActiveStadiumName==sanSiro.DisplayName,"stadium announcer uses sourced shared-ground name rather than calling SanSiro unknown");
