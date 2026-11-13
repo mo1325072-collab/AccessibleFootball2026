@@ -3,7 +3,7 @@ using AccessibleFootball2026.Core.Models;
 
 namespace AccessibleFootball2026.Audio.Anthems;
 
-/// <summary>Exact-file anthem playback. Match ceremonies wait for playback, never a four-second excerpt.</summary>
+/// <summary>Approved Champions League intro playback. National anthem feature is canceled.</summary>
 public class AnthemEngine
 {
     private readonly IScreenReader _screenReader;
@@ -13,14 +13,6 @@ public class AnthemEngine
     public bool WasSkipped { get; private set; }
     public bool IsAnthemPlaying { get; private set; }
 
-    // Names are the exact country names in players_database.json. Legacy NAT_ IDs use the same file codes.
-    private static readonly Dictionary<string,string> NationalCodes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Egypt"]="EGY", ["Morocco"]="MAR", ["Algeria"]="ALG", ["Tunisia"]="TUN",
-        ["Saudi Arabia"]="KSA", ["France"]="FRA", ["England"]="ENG", ["Spain"]="ESP",
-        ["Argentina"]="ARG", ["Brazil"]="BRA"
-    };
-
     public AnthemEngine(IScreenReader screenReader, string? assetsDir = null)
     {
         _screenReader = screenReader;
@@ -28,29 +20,14 @@ public class AnthemEngine
         Directory.CreateDirectory(_assetsBaseDir);
     }
 
-    public static string? ResolveNationalAnthemCode(Team team)
-    {
-        if (!team.IsNationalTeam) return null;
-        if (NationalCodes.TryGetValue(team.Name, out var code)) return code;
-        string id = team.Id.StartsWith("NAT_", StringComparison.OrdinalIgnoreCase) ? team.Id[4..] : team.Id;
-        return NationalCodes.Values.Contains(id, StringComparer.OrdinalIgnoreCase) ? id.ToUpperInvariant() : null;
-    }
+    // National anthem feature canceled by the user. Legacy entrypoints stay inert for callers.
+    public static string? ResolveNationalAnthemCode(Team team) => null;
 
-    private string? FindAnthem(string id, bool national = false)
+    private string? FindAnthem(string id)
     {
-        // Never let an unknown ID become a path or substitute a different country's file.
-        if (id.Length == 0 || id.Any(c => !char.IsAsciiLetterOrDigit(c))) return null;
-        string stem = Path.Combine(national ? Path.Combine(_assetsBaseDir,"National") : _assetsBaseDir,id);
-        string? path = File.Exists(stem+".mp3") ? stem+".mp3" : File.Exists(stem+".wav") ? stem+".wav" : null;
-        // User listened to this exact supplied EGY recording and identified a chant, not an anthem.
-        // Preserve the file, but never present it as Egypt's national anthem. A future replacement
-        // is not rejected solely because it uses the same country code.
-        if (national && id.Equals("EGY",StringComparison.OrdinalIgnoreCase) && path != null)
-        {
-            string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
-            if (hash.Equals("B76A2253A9F3ECB365C0C708551BBC9CDF99B8F511B82C5380A6258F812B3D94",StringComparison.Ordinal)) return null;
-        }
-        return path;
+        if (id != "ChampionsLeague") return null;
+        string stem = Path.Combine(_assetsBaseDir,id);
+        return File.Exists(stem+".mp3") ? stem+".mp3" : File.Exists(stem+".wav") ? stem+".wav" : null;
     }
 
     private bool StartAnthem(string? path, string id)
@@ -75,8 +52,8 @@ public class AnthemEngine
     }
 
     public bool PlayChampionsLeagueSample() => StartAnthem(FindAnthem("ChampionsLeague"),"ChampionsLeague");
-    public bool TryPlayNationalAnthemSample(string teamId) => StartAnthem(FindAnthem(teamId,true),teamId);
-    public void PlayNationalAnthemSample(string? teamId="EGY") => TryPlayNationalAnthemSample(teamId ?? "EGY");
+    public bool TryPlayNationalAnthemSample(string teamId) => false;
+    public void PlayNationalAnthemSample(string? teamId=null) { }
 
     private bool PlaybackHasCompleted()
     {
@@ -102,24 +79,8 @@ public class AnthemEngine
         StopAllSounds();
     }
 
-    public async Task PlayMatchNationalAnthemsAsync(Team home, Team away, Func<bool>? skipChecker=null)
-    {
-        WasSkipped=false;
-        foreach (var team in new[]{home,away})
-        {
-            if (skipChecker?.Invoke()==true) { WasSkipped=true; break; }
-            string? code=ResolveNationalAnthemCode(team);
-            if (code == null || !TryPlayNationalAnthemSample(code)) continue;
-            await WaitForCompletionAsync(skipChecker).ConfigureAwait(false);
-            if (WasSkipped || skipChecker?.Invoke()==true) break;
-        }
-    }
-
-    // Compatibility for non-UI callers. WinForms uses the awaited method above so keyboard events keep running.
-    public void PlayMatchNationalAnthems(Team home, Team away, bool isAutomatedTest=false, Func<bool>? skipChecker=null)
-    {
-        if (!isAutomatedTest) PlayMatchNationalAnthemsAsync(home,away,skipChecker).GetAwaiter().GetResult();
-    }
+    public Task PlayMatchNationalAnthemsAsync(Team home, Team away, Func<bool>? skipChecker=null) => Task.CompletedTask;
+    public void PlayMatchNationalAnthems(Team home, Team away, bool isAutomatedTest=false, Func<bool>? skipChecker=null) { }
 
     public void PlayChampionsLeagueIntro(bool isAutomatedTest=false, Func<bool>? skipChecker=null)
     {
