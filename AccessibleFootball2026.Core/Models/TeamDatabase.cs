@@ -140,17 +140,19 @@ public static class TeamDatabase
 /// <summary>A sourced ground may belong to several production teams, and a team may use several grounds.
 /// Only chant-backed grounds are offered. Never create stadiums to fill a roster count.</summary>
 public sealed record StadiumDefinition(string Key, string ArabicName, string EnglishName,
-    bool NationalTeams, string[] TeamNames, string SourceUrl)
+    bool NationalTeams, string[] TeamNames, string SourceUrl,
+    string[]? NationalTeamNames=null, string? NationalSourceUrl=null)
 {
     public string DisplayName => LocalizationService.Text(ArabicName, EnglishName);
-    public bool IsGroundFor(Team team) => team.IsNationalTeam == NationalTeams &&
-        TeamNames.Contains(team.Name, StringComparer.OrdinalIgnoreCase);
+    public bool IsGroundFor(Team team) => team.IsNationalTeam
+        ? (NationalTeams ? TeamNames : NationalTeamNames ?? Array.Empty<string>()).Contains(team.Name, StringComparer.OrdinalIgnoreCase)
+        : !NationalTeams && TeamNames.Contains(team.Name, StringComparer.OrdinalIgnoreCase);
 }
 
 public static class StadiumCatalog
 {
-    // Only grounds whose participating club has a corroborated, recovered chant pool.
-    // Each offered club has a concrete historical dt01 range and supplied label/file pool.
+    // Only grounds whose participating team has a corroborated, recovered chant pool.
+    // Club and national ownership stay separately typed, including shared venues.
     private static readonly StadiumDefinition[] Verified =
     {
         new("SantiagoBernabeu","سانتياجو برنابيو","Santiago Bernabeu",false,new[] {"Real Madrid"},"https://bernabeu.realmadrid.com/"),
@@ -160,16 +162,16 @@ public static class StadiumCatalog
         new("Mestalla","ميستايا","Camp de Mestalla",false,new[] {"Valencia CF"},"https://www.laliga.com/en-GB/clubs/valencia-cf"),
         new("ParcPrinces","حديقة الأمراء","Parc des Princes",false,new[] {"Paris Saint-Germain"},"https://www.gsph24.com/ligue-1-2026-2027-la-liste-des-18-stades-de-la-saison"),
         new("Velodrome","سيباك فيلودروم","CEPAC Vélodrome",false,new[] {"Olympique Marseille"},"https://www.federation.caisse-epargne.fr/actualites/le-stade-velodrome-devient-le-cepac-velodrome-une-alliance-historique-qui-illustre-lengagement-territorial-des-caisses-depargne/"),
-        new("BayernAllianz","أليانز أرينا","Allianz Arena",false,new[] {"FC Bayern Munich"},"https://www.bundesliga.com/en/bundesliga/clubs"),
+        new("BayernAllianz","أليانز أرينا","Allianz Arena",false,new[] {"FC Bayern Munich"},"https://www.bundesliga.com/en/bundesliga/clubs",new[] {"Germany"},"https://www.dfb.de/news/home-nations-league-games-in-augsburg-munich-and-berlin"),
         new("Metropolitano","رياض إير ميتروبوليتانو","Riyadh Air Metropolitano",false,new[] {"Atlético de Madrid"},"https://www.laliga.com/en-GB/clubs/atletico-de-madrid"),
-        new("OlimpicoRome","الأولمبيكو في روما","Stadio Olimpico",false,new[] {"SS Lazio","AS Roma"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("OlimpicoRome","الأولمبيكو في روما","Stadio Olimpico",false,new[] {"SS Lazio","AS Roma"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf",new[] {"Italy"},"https://www.figc.it/en/national-teams/news/nations-league-journey-to-begin-in-rome-italy-vs-belgium-at-the-olimpico-on-25-september-italy-vs-turkey-at-bolognas-dallara-on-5-october-imxew56p"),
         new("Tardini","إنيو تارديني","Ennio Tardini",false,new[] {"Parma Calcio 1913"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
         new("Franchi","أرتيميو فرانكي","Artemio Franchi",false,new[] {"ACF Fiorentina"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
         new("Maradona","دييجو أرماندو مارادونا","Diego Armando Maradona",false,new[] {"SSC Napoli"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
         new("Bluenergy","فريولي (بلوينرجي)","Friuli / Bluenergy Stadium",false,new[] {"Udinese Calcio"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
         new("Ferraris","لويجي فيراريس","Luigi Ferraris",false,new[] {"Genoa CFC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
         new("Riazor","أبانكا ريازور","Estadio ABANCA-RIAZOR",false,new[] {"Deportivo A Coruña"},"https://www.laliga.com/en-GB/clubs/rc-deportivo"),
-        new("LaCartuja","لا كارتوخا","Estadio La Cartuja",false,new[] {"Real Betis Balompié"},"https://www.laliga.com/en-GB/clubs/real-betis"),
+        new("LaCartuja","لا كارتوخا","Estadio La Cartuja",false,new[] {"Real Betis Balompié"},"https://www.laliga.com/en-GB/clubs/real-betis",new[] {"Spain"},"https://rfef.es/en/noticias/spain-to-play-turkiye-at-la-cartuja-in-seville"),
         new("Anoeta","أنويتا (ريالي أرينا)","Anoeta (Reale Arena)",false,new[] {"Real Sociedad"},"https://www.laliga.com/en-GB/clubs/real-sociedad"),
         new("SanMames","سان ماميس","Estadio San Mamés",false,new[] {"Athletic Bilbao"},"https://www.laliga.com/en-GB/clubs/athletic-club"),
         new("RCDE","آر سي دي إي","RCDE Stadium",false,new[] {"RCD Espanyol Barcelona"},"https://www.laliga.com/en-GB/clubs/rcd-espanyol"),
@@ -179,7 +181,7 @@ public static class StadiumCatalog
         new("Coliseum","كوليسيوم","Coliseum",false,new[] {"Getafe CF"},"https://www.laliga.com/en-GB/clubs/getafe-cf"),
         new("CiutatValencia","سيوتات دي فالنسيا","Estadio Ciutat de València",false,new[] {"Levante UD"},"https://www.laliga.com/en-GB/clubs/levante-ud"),
         new("Vallecas","فاييكاس","Estadio de Vallecas",false,new[] {"Rayo Vallecano"},"https://www.laliga.com/en-GB/clubs/rayo-vallecano/next-matches"),
-        new("JohanCruijff","يوهان كرويف أرينا","Johan Cruijff ArenA",false,new[] {"Ajax Amsterdam"},"https://english.ajax.nl/club/stadium"),
+        new("JohanCruijff","يوهان كرويف أرينا","Johan Cruijff ArenA",false,new[] {"Ajax Amsterdam"},"https://english.ajax.nl/club/stadium",new[] {"Netherlands"},"https://www.johancruijffarena.nl/tickets-bezoek/oranje/"),
         new("Philips","فيليبس","Philips Stadion",false,new[] {"PSV Eindhoven"},"https://www.psv.nl/ticketinfo/stadionplattegrond"),
         new("CelticPark","سيلتيك بارك","Celtic Park",false,new[] {"Celtic FC"},"https://www.celticfc.com/visit-celtic-park/getting-to-celtic-park/celtic-park-maps/"),
         new("Dragao","دراجاو","Estádio do Dragão",false,new[] {"FC Porto"},"https://www.fcporto.pt/pt/clube/estadio-do-dragao"),
@@ -202,6 +204,22 @@ public static class StadiumCatalog
         new("HampdenPark","هامبدن بارك (باركليز هامبدن)","Hampden Park (Barclays Hampden)",true,new[] {"Scotland"},"https://www.scottishfa.co.uk/en/barclays-hampden"),
         new("CardiffCity","كارديف سيتي","Cardiff City Stadium",true,new[] {"Wales"},"https://faw.cymru/news/venues-confirmed-for-nations-league-fixtures/"),
         new("Parken","باركن","Parken Stadium",true,new[] {"Denmark"},"https://faw.cymru/news/venues-confirmed-for-nations-league-fixtures/"),
+        new("StadeFrance","ستاد دو فرانس","Stade de France",true,new[] {"France"},"https://www.stadefrance.com/en/stadium/french-squads-matches-stade-de-france"),
+        new("Maksimir","ماكسيمير","Maksimir",true,new[] {"Croatia"},"https://hns.team/vijesti/29430/hrvatska-domacin-crnoj-gori-na-stadionu-maksimir-u-zagrebu/"),
+        new("VasilLevski","فاسيل ليفسكي","Vasil Levski National Stadium",true,new[] {"Bulgaria"},"https://www.bfunion.bg/news/50921/0"),
+        new("Luzhniki","لوجنيكي","Luzhniki",true,new[] {"Russia"},"https://www.rfs.ru/stadium/22"),
+        new("MercedesBenzAtlanta","مرسيدس بنز في أتلانتا","Mercedes-Benz Stadium (Atlanta)",true,new[] {"United States"},"https://www.ussoccer.com/matchday/usmnt-belgium-know-before-you-go-match-guide-atlanta-georgia-march"),
+        new("AztecaBanorte","أزتيكا (بانورتي)","Estadio Azteca (Banorte)",true,new[] {"Mexico"},"https://miseleccion.mx/noticias/6233/M%C3%A9xico-tendr%C3%A1-doble-prueba-de-%C3%A9lite-rumbo-al-Mundial-2026"),
+        new("Maracana","ماراكانا","Maracanã",true,new[] {"Brazil"},"https://www.cbf.com.br/selecao-brasileira/noticias/selecao-masculina/a/brasil-enfrentara-o-panama-no-maracana-antes-da-copa"),
+        new("Centenario","سينتيناريو","Estadio Centenario",true,new[] {"Uruguay"},"https://auf.org.uy/venta-de-entradas-para-uruguay-vs-venezuela-por-eliminatorias/"),
+        new("Monumental","مونومنتال","Estadio Monumental",true,new[] {"Argentina"},"https://www.afa.com.ar/es/posts/la-seleccion-argentina-volvio-al-monumental-y-se-reencontro-con-uno-de-los-escenarios-mas-importantes-de-su-historia"),
+        new("Saitama2002","سايتاما 2002","Saitama Stadium 2002",true,new[] {"Japan"},"https://www.jfa.jp/samuraiblue/worldcup_2026/final_q_2026/news/00034080/"),
+        new("SeoulWorldCup","سيول كأس العالم","Seoul World Cup Stadium",true,new[] {"South Korea"},"https://en.yna.co.kr/view/AEN20260818005800315"),
+        new("HangzhouOlympic","هانجتشو الأولمبي","Hangzhou Olympic Sports Centre Stadium",true,new[] {"China"},"https://www.thecfa.cn/qttz/20250212/35599.html"),
+        new("KingAbdullahJeddah","مدينة الملك عبد الله الرياضية في جدة","King Abdullah Sports City Stadium (Jeddah)",true,new[] {"Saudi Arabia"},"https://www.saff.com.sa/en/news.php?id=3919"),
+        new("AFAS","أفاس","AFAS Stadion",false,new[] {"AZ Alkmaar"},"https://www.az.nl/club/afas-stadion"),
+        new("Aviva","أفيفا","Aviva Stadium",true,new[] {"Republic of Ireland"},"https://www.avivastadium.ie/whats-on/uefa-nations-league-republic-of-ireland-v-kosovo"),
+        new("EpetLetna","إيبيت أرينا (ليتنا)","epet ARENA (Letná)",true,new[] {"Czechia"},"https://www.fotbal.cz/repre/potvrzena-mista-zapasu-podzimni-ligy-narodu/a24373"),
     };
 
     public static IReadOnlyList<StadiumDefinition> GetAvailableStadiums()
@@ -282,6 +300,26 @@ public static class TeamChantCatalog
         new("Scotland","SP_R0003_",449,450,MapSource,true),
         new("Wales","SP_R0004_",451,452,MapSource,true),
         new("Denmark","SP_R0015_",481,484,MapSource,true),
+        new("Spain","SP_R0007_",457,463,MapSource,true),
+        new("France","SP_R0008_",464,468,MapSource,true),
+        new("Netherlands","SP_R0010_",469,472,MapSource,true),
+        new("Italy","SP_R0012_",473,473,MapSource,true),
+        new("Germany","SP_R0014_",476,480,MapSource,true),
+        new("Croatia","SP_R0024_",485,489,MapSource,true),
+        new("Bulgaria","SP_R0027_",490,491,MapSource,true),
+        new("Russia","SP_R0031_",492,492,MapSource,true),
+        new("United States","SP_R0039_",493,497,MapSource,true),
+        new("Mexico","SP_R0040_",498,499,MapSource,true),
+        new("Brazil","SP_R0045_",500,503,MapSource,true),
+        new("Uruguay","SP_R0049_",504,504,MapSource,true),
+        new("Argentina","SP_R0050_",505,508,MapSource,true),
+        new("Japan","SP_R0052_",509,516,MapSource,true),
+        new("South Korea","SP_R0053_",517,521,MapSource,true),
+        new("China","SP_R0054_",522,524,MapSource,true),
+        new("Saudi Arabia","SP_R0056_",530,534,MapSource,true),
+        new("AZ Alkmaar","SP_R0242_",702,705,MapSource,false),
+        new("Republic of Ireland","SP_R0001_",448,448,MapSource,true),
+        new("Czechia","SP_R0013_",474,475,MapSource,true),
     };
     public static TeamChantPool? Find(Team team) =>
         Pools.FirstOrDefault(p=>p.NationalTeams==team.IsNationalTeam && p.TeamName.Equals(team.Name,StringComparison.OrdinalIgnoreCase));
