@@ -15,6 +15,7 @@ public sealed class PriorityScreenReader : IScreenReader, IDisposable
     private int _speaking;
     private CancellationTokenSource? _currentSpeech;
     public bool IsAvailable => _inner.IsAvailable;
+    public event Action<bool>? SpeechActivityChanged;
     public bool IsSpeaking => Volatile.Read(ref _speaking) != 0;
     public bool HasPendingSpeech { get { lock (_sync) return _pending != null || IsSpeaking; } }
     public PriorityScreenReader(IScreenReader inner, Func<bool> commentaryBusy, object? speechGate = null)
@@ -55,11 +56,16 @@ public sealed class PriorityScreenReader : IScreenReader, IDisposable
             }
             try
             {
+                SpeechActivityChanged?.Invoke(true);
                 await _inner.SpeakUntilFinishedAsync(next.Value.Text, true).WaitAsync(_currentSpeech!.Token);
                 next.Value.Done.TrySetResult(true);
             }
             catch { next.Value.Done.TrySetResult(false); }
-            finally { lock (_sync) { _currentSpeech?.Dispose(); _currentSpeech = null; Volatile.Write(ref _speaking, 0); } }
+            finally
+            {
+                lock (_sync) { _currentSpeech?.Dispose(); _currentSpeech = null; Volatile.Write(ref _speaking, 0); }
+                SpeechActivityChanged?.Invoke(false);
+            }
         }
     }
     // A goal or penalty may preempt a reader as well as the recorded commentary.
