@@ -40,6 +40,7 @@ public class AccessibleFootballWindow : Form
     private readonly Stack<AccessibleMenu> _menuHistory = new();
     private AccessibleMenu? _currentMenu = null;
     private bool _isInStartupIntro = true;
+    private readonly AccessibleFootball2026.Core.Input.MatchLineupInput _matchLineup = new();
     private System.Windows.Forms.Timer? _startupIntroTimer;
     private GameUpdateResult? _startupUpdate;
 
@@ -937,9 +938,12 @@ public class AccessibleFootballWindow : Form
         _stadiumSoundEngine.SetMatchTeams(homeTeam, awayTeam);
         _callnameManager.PreWarmSquads(homeTeam, awayTeam);
 
-        // تشغيل صوت المدرجات الحقيقي المستمر وصافرة الحكم
+        // Background candidates are not verified crowd. Chants/reactions still run during play.
         SoundEffectsPlayer.StartCrowdAmbiance();
-        SoundEffectsPlayer.PlayWhistle();
+        _commentaryEngine.ResumePlayback();
+        _screenReader.CancelSpeech();
+        _matchLineup.Begin();
+        SoundEffectsPlayer.PlayMatchLineupMusic();
 
         var match = new MatchEngine(homeTeam, awayTeam, _eventBus, _inputHandler) { Mode = cupFinal ? MatchMode.CupFinal : MatchMode.Friendly, RivalryScenario = rivalry };
         match.VideoAnnouncementPending = () => _coordinator.HasPendingVideoAnnouncement;
@@ -962,19 +966,10 @@ public class AccessibleFootballWindow : Form
             SoundEffectsPlayer.SetCrowdVolume(vol);
         };
 
-        if(_commentaryEngine.ActiveCommentator.Id==CommentatorId.FaresAwad)match.RequestCoachWideInstruction(match.HomeTeam);
-        bool introPlayed = _commentaryEngine.TryPlayMatchIntro(match.GetCommentarySnapshot().With(("crowd.active",SoundEffectsPlayer.IsCrowdActive)));
-        if (!introPlayed)
-        {
-            string introSpeech = T($"{homeTeam.Name} ضد {awayTeam.Name}. الكرة مع {match.ActiveUserPlayer.Name}.",
-                $"{homeTeam.Name} versus {awayTeam.Name}. {match.ActiveUserPlayer.Name} has the ball.");
-            _screenReader.Speak(introSpeech);
-        }
-        else
-        {
-            _commentaryEngine.RunAfterRecordedCommentary(() =>
-                _screenReader.Speak(T($"{homeTeam.Name} ضد {awayTeam.Name}. الكرة معك الآن مع {match.ActiveUserPlayer.Name}.", $"{homeTeam.Name} versus {awayTeam.Name}. {match.ActiveUserPlayer.Name} has the ball."), interrupt: false));
-        }
+        // Only the existing, context-qualified recorded opening is queued during the lineup.
+        _commentaryEngine.TryPlayMatchIntro(match.GetCommentarySnapshot().With(("crowd.active",SoundEffectsPlayer.IsCrowdActive)));
+        _hintLabel.Text=T("اصطفاف اللاعبين. Enter أو Space لبدء المباراة", "Player lineup. Enter or Space starts the match");
+        _displayListBox.Enabled=false;
 
         _titleLabel.Text = T($"{homeTeam.Name} ضد {awayTeam.Name}", $"{homeTeam.Name} versus {awayTeam.Name}");
         _statusLabel.Text = T($"النتيجة: {homeTeam.Score} - {awayTeam.Score} | المعلق: {_commentaryEngine.ActiveCommentator.DisplayName}", $"Score: {homeTeam.Score} - {awayTeam.Score} | Commentator: {_commentaryEngine.ActiveCommentator.DisplayName}");
@@ -987,6 +982,13 @@ public class AccessibleFootballWindow : Form
         _gameLoopTimer.Tick += (s, ev) =>
         {
             if (_activeMatch == null) return;
+            if (_matchLineup.IsActive)
+            {
+                // No simulation, clock, coach events or gameplay audio may run during lineup.
+                if (!SoundEffectsPlayer.IsMatchLineupMusicPlaying && _commentaryEngine.IsIdle)
+                    CompleteMatchLineup();
+                return;
+            }
 
             DateTime now = DateTime.UtcNow;
             float dt = (float)(now - _lastFrameTime).TotalSeconds;
@@ -1093,6 +1095,26 @@ public class AccessibleFootballWindow : Form
             }
         };
         _gameLoopTimer.Start();
+    }
+
+    private void CompleteMatchLineup()
+    {
+        if (!_matchLineup.IsActive || _activeMatch == null) return;
+        _matchLineup.Complete();
+        SoundEffectsPlayer.StopMatchLineupMusic();
+        _commentaryEngine.EndPlaybackScope(); // Also cancels any opening still queued on a skip.
+        _commentaryEngine.ResumePlayback();
+        _screenReader.CancelSpeech();
+        _inputHandler.Reset();
+        _displayListBox.Enabled=true;
+        _hintLabel.Text=T("Space أو C للرادار. Escape للإيقاف", "Space or C radar. Escape pauses");
+        _lastFrameTime=DateTime.UtcNow;
+        SoundEffectsPlayer.PlayWhistle();
+        if (_commentaryEngine.ActiveCommentator.Id==CommentatorId.FaresAwad)
+            _activeMatch.RequestCoachWideInstruction(_activeMatch.HomeTeam);
+        var match=_activeMatch;
+        _screenReader.Speak(T($"{match.HomeTeam.Name} ضد {match.AwayTeam.Name}. الكرة مع {match.ActiveUserPlayer.Name}.",
+            $"{match.HomeTeam.Name} versus {match.AwayTeam.Name}. {match.ActiveUserPlayer.Name} has the ball."));
     }
 
     private void StartInteractivePenaltyShootout(MatchEngine match)
@@ -1362,6 +1384,12 @@ public class AccessibleFootballWindow : Form
             if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) CompleteStartupIntro();
             return;
         }
+        if (_matchLineup.KeyDown((int)e.KeyCode,out bool skipLineup))
+        {
+            e.Handled=true; e.SuppressKeyPress=true;
+            if (skipLineup) CompleteMatchLineup();
+            return;
+        }
         // 1. أولوية القوائم: إذا كنا داخل أي قائمة (الرئيسية، التشكيلة، الإعدادات، أو الإيقاف المؤقت داخل الماتش)
         if (_currentMenu != null)
         {
@@ -1556,6 +1584,7 @@ public class AccessibleFootballWindow : Form
 
     private void OnWindowKeyUp(object? sender, KeyEventArgs e)
     {
+        if (_matchLineup.KeyUp((int)e.KeyCode)) { e.Handled=true; return; }
         _shootoutHeld.Remove(e.KeyCode);
         _shootoutInput?.KeyUp((int)e.KeyCode);
         if (_activeMatch != null && IsMatchKey(e.KeyCode))
