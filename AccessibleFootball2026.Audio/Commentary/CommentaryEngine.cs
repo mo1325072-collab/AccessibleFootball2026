@@ -398,13 +398,8 @@ public class CommentaryEngine : IDisposable
     public bool TryCommentOnEvent(MatchEvent matchEvent, bool force = false)
     {
         if (!CommentaryAudible || matchEvent.Type == MatchEventType.MatchAbandoned) return false;
-        // Only a real goal or awarded penalty may cut a sentence. All other events queue or drop.
-        if (matchEvent.Type is MatchEventType.GoalScored or MatchEventType.PenaltyAwarded)
-        {
-            ClearPendingLines();
-            SoundEffectsPlayer.StopCommentaryAudio();
-            OnUrgentInterruption?.Invoke();
-        }
+        // Even goals and penalties wait for the currently spoken phrase. New events never cut a recording.
+        // Admission/throttling below drops routine stale events rather than overlapping sentences.
         bool isFinalAnalysis = matchEvent.Type == MatchEventType.MatchAnalysis && matchEvent.Context.TryGet("match.finished",out var finished) && finished=="true";
         bool isCritical = isFinalAnalysis || matchEvent.Type is MatchEventType.GoalScored or MatchEventType.DramaticComeback or MatchEventType.HatTrickAchieved or MatchEventType.WoodworkHit or MatchEventType.RedCard or MatchEventType.FullTime or MatchEventType.HalfTime or MatchEventType.ExtraTimeHalfTime or MatchEventType.PenaltyAwarded or MatchEventType.FreeKickAwarded;
 
