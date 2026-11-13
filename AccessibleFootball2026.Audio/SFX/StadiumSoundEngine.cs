@@ -23,8 +23,6 @@ public class StadiumSoundEngine
 {
     private readonly string _chantsDir;
     private readonly string _acousticsDir;
-    private DateTime _lastChantPlayTime = DateTime.MinValue;
-    private readonly TimeSpan _minChantInterval = TimeSpan.FromSeconds(25);
 
     public event Action<Team>? OnDiscontentWhistlePlayed;
     public Team? ActiveHomeTeam { get; private set; }
@@ -33,11 +31,22 @@ public class StadiumSoundEngine
     public string ActiveStadiumName => StadiumCatalog.Find(ActiveStadiumKey)?.DisplayName ??
         LocalizationService.Text("ملعب محايد", "Neutral stadium");
 
+    // Shared grounds: designated match home wins only when both participants own it.
+    // A sole away-slot owner still wins at its own ground, per the general user rule.
+    public Team? ResolveGroundCrowdTeam()
+    {
+        var ground = StadiumCatalog.Find(ActiveStadiumKey);
+        if (ground == null) return null;
+        if (ActiveHomeTeam != null && ground.IsGroundFor(ActiveHomeTeam)) return ActiveHomeTeam;
+        if (ActiveAwayTeam != null && ground.IsGroundFor(ActiveAwayTeam)) return ActiveAwayTeam;
+        return null;
+    }
+
     public bool ShouldPlayChantForTeam(Team team)
     {
         // Both user conditions: participates in this match + owns the selected ground.
         // Home/Away is the player's team slot, not proof of the stadium's crowd identity.
-        if (team.IsNationalTeam || (ActiveHomeTeam != team && ActiveAwayTeam != team))
+        if (team.IsNationalTeam || ResolveGroundCrowdTeam() != team)
             return false;
 
         bool isRealMadrid = team.Id == "ESP_RMA" || team.Id == "173" || 
@@ -68,7 +77,6 @@ public class StadiumSoundEngine
 
     public void SetMatchTeams(Team home, Team away)
     {
-        _lastChantPlayTime = DateTime.MinValue;
         ActiveHomeTeam = home;
         ActiveAwayTeam = away;
         ApplyStadiumAcousticsForTeam(home);
@@ -105,64 +113,19 @@ public class StadiumSoundEngine
         var crowdTeam = ActiveHomeTeam != null && ShouldPlayChantForTeam(ActiveHomeTeam) ? ActiveHomeTeam :
                         ActiveAwayTeam != null && ShouldPlayChantForTeam(ActiveAwayTeam) ? ActiveAwayTeam : null;
         if (crowdTeam == null) return;
-        bool crowdIsHome = crowdTeam == ActiveHomeTeam;
-        var opponent = crowdIsHome ? ActiveAwayTeam : ActiveHomeTeam;
-        int crowdScore = crowdIsHome ? homeScore : awayScore;
-        int opponentScore = crowdIsHome ? awayScore : homeScore;
-
-        // 1. احتفال بهدف الفريق صاحب الأرض
-        if (matchEvent.Type == MatchEventType.GoalScored && matchEvent.GoalData != null)
-        {
-            if (matchEvent.GoalData.ScoringTeam == crowdTeam)
-            {
-                // أحداث حقيقية حاسمة تتجاوز كبح التكرار: احتفال الهدف يقطع أي هتاف جارٍ
-                PlayTeamChant(crowdTeam, ChantSlot.GoalCelebration, force: true);
-            }
-            else
-            {
-                // هدف للخصم -> صافرات استهجان من جماهير الأرض
-                PlayTeamChant(crowdTeam, ChantSlot.DiscontentWhistle, force: true);
-            }
-            return;
-        }
-
-        // 2. خطأ ارتكبه الخصم ضد صاحب الأرض
-        if (matchEvent.Type == MatchEventType.FoulCommitted)
-        {
-            // SubjectPlayer is the tackler. The ground owner's opponent may be either slot.
-            // Missing actor evidence must not invent an opponent foul.
-            if (matchEvent.SubjectPlayer != null && opponent != null &&
-                opponent.Players.Contains(matchEvent.SubjectPlayer))
-                PlayTeamChant(crowdTeam, ChantSlot.DiscontentWhistle, force: true);
-            return;
-        }
-
-        // 3. تأخر صاحب الأرض بهدف في الدقائق الحاسمة (دقيقة 75+)
-        if (matchMinute >= 75.0f && crowdScore < opponentScore)
-        {
-            PlayTeamChant(crowdTeam, ChantSlot.ComebackDefiance);
-            return;
-        }
-
-        // 4. هجمة واعدة ودخول الثلث الهجومي
-        if (matchEvent.Type == MatchEventType.BallZoneChanged && matchEvent.CurrentZone == PitchZone.AttackingThird)
-        {
-            PlayTeamChant(crowdTeam, ChantSlot.AttackingMomentum);
-            return;
-        }
-
-        // 5. هتافات دورية عامة
-        if (DateTime.UtcNow - _lastChantPlayTime > _minChantInterval)
-        {
-            PlayTeamChant(crowdTeam, ChantSlot.GeneralRhythm);
-        }
+        // Goals and missed chances have their own crowd reaction in SmartAudioCoordinator.
+        // Never replace those reactions with a team chant, or cut a playing chant for an event.
+        if (matchEvent.Type == MatchEventType.GoalScored || matchEvent.Type == MatchEventType.MissedChance ||
+            matchEvent.Type == MatchEventType.FoulCommitted) return;
+        PlayTeamChant(crowdTeam, ChantSlot.GeneralRhythm);
     }
 
     public void PlayTeamChant(Team team, ChantSlot slot, bool force = false)
     {
-        // كبح التكرار: الحلقة الرئيسية تستدعي فحص السياق كل إطار (50 مرة/ثانية)،
-        // وبدون هذا الكبح يعاد فتح قناة الهتاف كل إطار فيسمع المستخدم تقطيعاً متصلاً
-        if (!force && DateTime.UtcNow - _lastChantPlayTime < _minChantInterval) return;
+        // Full clips, random with replacement, no fixed gap or event preemption.
+        // force is retained for API compatibility, not permission to cut a clip.
+        if (slot == ChantSlot.GoalCelebration || slot == ChantSlot.DiscontentWhistle ||
+            SoundEffectsPlayer.IsTeamChantActive) return;
 
         if (!Directory.Exists(_chantsDir)) return;
 
@@ -179,7 +142,6 @@ public class StadiumSoundEngine
         if (slot == ChantSlot.DiscontentWhistle) return;
         string? chantPath = ResolveTeamChantPath(isRealMadrid ? "0109" : "0108");
         if (chantPath == null) return;
-        _lastChantPlayTime = DateTime.UtcNow;
         SoundEffectsPlayer.PlayOneShotChant(chantPath);
     }
 
