@@ -274,9 +274,9 @@ anthemCommands.Clear();effectsCoordinator.HandleMatchEvent(chantGoalEvent);
 Check(anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("CrowdGoal.wav"))&&anthemCommands.Contains("play crowd_goal from 0"),"actualgoaleventusesexistingCrowdGoalassetandcrowdgoalchannel");
 Check(Directory.GetFiles(Path.Combine(root,"SFX","Crowd"),"CrowdMiss.wav").Length==1,"suppliedCrowdMissfileexistsforgasp_routewithoutsyntheticcreation");
 var grounds=StadiumCatalog.GetAvailableStadiums();
-Check(grounds.Count==4&&grounds.Select(g=>g.Key).Order().SequenceEqual(new[]{"CampNou","OldTrafford","SanSiro","SantiagoBernabeu"}),"fourgroundscoverfivewiredchantteamswithoutpadding");
+Check(grounds.Count==9&&grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"ninegroundscovertenwiredchantteamswithoutpadding");
 Check(grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"nogroundwithoutcorroboratedteamchantpoolisoffered");
-Check(StadiumCatalog.Find("Wembley")==null&&StadiumCatalog.Find("Velodrome")==null,"priorpaddinggroundsremovednotmerelyhiddenbygroup");
+Check(StadiumCatalog.Find("Wembley")==null&&StadiumCatalog.Find("Emirates")==null,"priorpaddinggroundsremovednotmerelyhiddenbygroup");
 Check(StadiumCatalog.GetGroundsForProductionGroup("Premier League (England)").Count==1,"unsupportedteamsdonotcreateotherstadiumchoices");
 indexedStadium.ActiveStadiumKey="UnknownGround";indexedStadium.SetMatchTeams(madrid,barcelona);
 Check(indexedStadium.ResolveGroundCrowdTeam()==null,"unknownkeyhasnoteamchant");
@@ -286,7 +286,7 @@ Check(SoundAcademyDatabase.GetCategories().Count==0,"academyhasnocategorynavigat
 Check(SoundAcademyDatabase.GetItemsByCategory("earcons").Count==9,"academyhasexactlyninesemanticcues");
 Check(SoundAcademyDatabase.GetAllItems().Count==18&&SoundAcademyDatabase.GetAllItems().All(i=>i.CategoryId is "earcons" or "beacon"),"academyonlyninesemanticandninebeacondemonstrations");
 Check(new[]{"BeaconCenter","BeaconLeft","BeaconRight","BeaconNear","BeaconFar","BeaconOutOfRange","BeaconNoPossession","BeaconSecondHalfLeft","BeaconSecondHalfRight"}.All(id=>SoundAcademyDatabase.GetAllItems().Any(i=>i.Id==id)),"beaconcoverageincludesdirectiondistancehalfandintentional_silence");
-foreach(var (name,key,first,count) in new[]{("Manchester United","OldTrafford",535,6),("Inter Milan","SanSiro",592,6),("AC Milan","SanSiro",604,7)})
+foreach(var (name,key,first,count) in new[]{("Manchester United","OldTrafford",535,6),("Inter Milan","SanSiro",592,6),("AC Milan","SanSiro",604,7),("Valencia CF","Mestalla",558,6),("Paris Saint-Germain","ParcPrinces",572,4),("Olympique Marseille","Velodrome",566,6),("FC Bayern Munich","BayernAllianz",624,3),("Atlético de Madrid","Metropolitano",642,5)})
 {
  var owner=JsonDatabaseProvider.GetTeamByName(name)!;
  Check(owner!=null&&TeamChantCatalog.Find(owner)!=null,"newpoolresolvesactualproductionname: "+name);
