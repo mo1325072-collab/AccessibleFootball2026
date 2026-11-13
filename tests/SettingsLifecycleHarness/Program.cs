@@ -209,6 +209,30 @@ using(var ending=new CommentaryEngine(CommentatorId.FaresAwad,Path.Combine(root,
  Check(Path.GetFileName(SoundEffectsPlayer.LastPlayedFilePath)=="end.wav","shootout completion plays the existing conditioned FullTime recording");
 }
 SoundEffectsPlayer.StopAll();
+// The real Space/radar route ducks every crowd alias only during actual reader output.
+Fixture("SFX/Crowd/CrowdGoal.wav");Fixture("SFX/Crowd/CrowdCheer.wav");
+SoundEffectsPlayer.StopAll();Defaults();s.MasterVolumePercent=50;s.CrowdVolumePercent=40;s.ScreenReaderSpokenEventsEnabled=false;s.ApplyLive();
+SoundEffectsPlayer.SetStadiumAcoustics(Path.Combine(root,"stadium.wav"));SoundEffectsPlayer.PlayOneShotChant(Path.Combine(root,"chant.wav"));SoundEffectsPlayer.PlayCrowdGoal();
+var heldReader=new ControlledReader();bool recordedBusy=true;
+using(var orderedReader=new PriorityScreenReader(heldReader,()=>recordedBusy))
+{
+ orderedReader.SpeechActivityChanged += speaking=>SoundEffectsPlayer.SetCrowdDucking(speaking?.2f:1f);
+ var radarCoordinator=new SmartAudioCoordinator(orderedReader);
+ commands.Clear();
+ radarCoordinator.HandleMatchEvent(new MatchEvent(MatchEventType.TacticalRadarInfo,"Space radar request"));
+ Thread.Sleep(100);
+ Check(!heldReader.Started.Task.IsCompleted&&!commands.Contains("setaudio chant_ch volume to 40"),"waiting for the commentator does not duck crowd early");
+ recordedBusy=false;SpinWait.SpinUntil(()=>heldReader.Started.Task.IsCompleted,1500);
+ Check(commands.Contains("setaudio crowd volume to 32")&&commands.Contains("setaudio chant_ch volume to 40")&&commands.Contains("setaudio crowd_goal volume to 40"),"actual Space reader speech ducks ambience, full chant and crowd reaction together");
+ Check(s.CrowdVolumePercent==40&&SoundEffectsPlayer.CrowdVolumeSetting==40,"temporary speech attenuation never changes the saved crowd slider");
+ commands.Clear();SoundEffectsPlayer.TryPlayAudibleChant(Path.Combine(root,"chant.wav"));SoundEffectsPlayer.PlayCrowdCheer();
+ Check(commands.Contains("setaudio chant_ch volume to 40")&&commands.Contains("setaudio crowd_cheer volume to 40"),"new chants and reactions started during Space speech inherit attenuation");
+ s.CrowdVolumePercent=60;s.ApplyLive();
+ Check(commands.Contains("setaudio chant_ch volume to 60"),"live user volume edit during speech keeps attenuation without squaring category volume");
+ commands.Clear();heldReader.Finish.TrySetResult(true);SpinWait.SpinUntil(()=>commands.Contains("setaudio chant_ch volume to 300"),1500);
+ Check(commands.Contains("setaudio crowd volume to 240")&&commands.Contains("setaudio chant_ch volume to 300")&&commands.Contains("setaudio crowd_cheer volume to 300"),"reader completion restores every crowd channel to the latest saved volume");
+}
+SoundEffectsPlayer.StopAll();SoundEffectsPlayer.SetCrowdDucking(1);Defaults();
 var updateRelease = new { draft=false,prerelease=false,tag_name="game-v2026.11.15",html_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/tag/game-v2026.11.15",assets=new[]{new{name="AccessibleFootball2026-Full-Setup.exe",size=1234,state="uploaded",browser_download_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/download/game-v2026.11.15/AccessibleFootball2026-Full-Setup.exe"}}};
 var updateJson=JsonSerializer.Serialize(new[]{updateRelease});
 Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(updateJson).State==AccessibleFootball2026.App.GameUpdateState.Available,"update checker accepts a stable newer game release with uploaded installer");
@@ -218,3 +242,12 @@ Check(AccessibleFootball2026.App.GameUpdateChecker.Parse("{}").State==Accessible
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
 sealed class Input:IInputHandler{public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>new();public bool IsActionTriggered(GameAction action,bool possession)=>false;}
+
+sealed class ControlledReader:IScreenReader
+{
+ public bool IsAvailable=>true;
+ public TaskCompletionSource<bool> Started=new(TaskCreationOptions.RunContinuationsAsynchronously),Finish=new(TaskCreationOptions.RunContinuationsAsynchronously);
+ public void Speak(string text,bool interrupt=true){}
+ public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Started.TrySetResult(true);return Finish.Task;}
+ public void CancelSpeech()=>Finish.TrySetResult(true);
+}
