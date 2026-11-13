@@ -174,6 +174,13 @@ public partial class MatchEngine
         bool success = team.MakeSubstitution(playerOut, playerIn, isHalfTime: State == MatchState.HalfTime, isMatchActive: true);
         if (success)
         {
+            if (_runUpPlayer == playerOut) { _runUpPlayer = null; _runUpRemaining = 0; }
+            // A replacement takes the outgoing player's live receiving slot, not the
+            // historical identity of the player who already kicked the ball.
+            if (ActivePassTransit is { } pass && pass.IntendedReceiver == playerOut)
+                pass.IntendedReceiver = playerIn;
+            if (_commentaryPass is { } pendingPass && pendingPass.Target == playerOut)
+                _commentaryPass = pendingPass with { Target = playerIn };
             if (Ball.Owner == playerOut)
             {
                 Ball.CatchOrTackle(playerIn);
@@ -318,6 +325,8 @@ public partial class MatchEngine
             _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
             return; // No clock, ball, CPU actions or optional auto-substitution before the user's choice.
         }
+        StopIfTooFewPlayers();
+        if (State == MatchState.GameOver) return;
         RunNativeAutomation();
         if (AwaitingStoppageConfirmation)
         {
@@ -476,6 +485,7 @@ public partial class MatchEngine
         if(!runUp) ProcessUserInput(deltaTime);
         if (State != MatchState.InPlay || Restart != null) return;
         UpdatePlayersAI(deltaTime);
+        if (State == MatchState.GameOver) return;
         foreach(var player in positionsBefore.Keys)
             player.Velocity=deltaTime>0?(player.Position2D-positionsBefore[player])/deltaTime:Vector2.Zero;
         if (Restart != null || ReviewPendingOffside()) return;
@@ -514,7 +524,7 @@ public partial class MatchEngine
         Vector2 moveDir = Vector2.Zero;
         if (_slideDurationTimer <= 0.0f)
         {
-            float moveSpeed = (ActiveUserPlayer.Speed / 7.5f);
+            float moveSpeed = (ActiveUserPlayer.Speed / 7.5f) * FatigueMovementMultiplier(ActiveUserPlayer);
             if (actions.Contains(GameAction.Sprint))
             {
                 moveSpeed *= 1.6f;
@@ -660,7 +670,7 @@ public partial class MatchEngine
             if (dist < 3.0f || dist > 45.0f) continue;
 
             float dot = Vector2.Dot(Vector2.Normalize(toTeammate), passDir);
-            float score = dot * 100.0f - (dist * 0.5f);
+            float score = dot * 100.0f - (dist * 0.5f) + TacticalPassScore(HomeTeam, ActiveUserPlayer, teammate) * .25f;
 
             bool isAdvancing = UserAttackingRight 
                 ? (teammate.Position2D.X > ActiveUserPlayer.Position2D.X)
@@ -716,7 +726,7 @@ public partial class MatchEngine
             kickDirection = defaultForward;
         }
 
-        float passSpeed = isThroughBall ? 22.0f : 18.0f;
+        float passSpeed = (isThroughBall ? 22.0f : 18.0f) * (.90f + HomeTeam.Tactics.Tempo * .002f);
 
         if (CheckOffsideTrap(HomeTeam, AwayTeam, bestTarget, targetPos))
         {
@@ -780,7 +790,8 @@ public partial class MatchEngine
         Vector2 crossDir = boxCenter - ActiveUserPlayer.Position2D;
         if (style is CrossStyle.FarPost or CrossStyle.GroundFarPost)
             boxCenter.Y = ActiveUserPlayer.Position2D.Y < Pitch.Width / 2 ? Pitch.GoalYMax - .5f : Pitch.GoalYMin + .5f;
-        crossDir = Vector2.Normalize(boxCenter - ActiveUserPlayer.Position2D);
+        crossDir = boxCenter - ActiveUserPlayer.Position2D;
+        crossDir = crossDir.LengthSquared() > .000001f ? Vector2.Normalize(crossDir) : new Vector2(UserAttackingRight ? 1 : -1, 0);
         bool ground = style is CrossStyle.Ground or CrossStyle.GroundFarPost;
         Ball.Kick(crossDir, horizontalSpeed: ground ? 23 : 19, verticalSpeed: ground ? .1f : 6.5f, ActiveUserPlayer);
         BeginCommentaryPass(ActiveUserPlayer, null, boxCenter, "cross", ground ? "ground" : "high", true);
@@ -931,7 +942,15 @@ public partial class MatchEngine
             // المعادلة الحتمية العادلة لاستخلاص الكرة: مقارنة القرب من الكرة والقرب من جسم الخصم
             if (distToBall < distToOpponent)
             {
-                // استخلاص ناجح واستعادة الكرة بنسبة 100%
+                // The later tactical specification requires attributes on the human path too.
+                // Ball-first geometry avoids an automatic foul; it does not guarantee beating a stronger carrier.
+                var duel = EvaluateTackleDuel(ActiveUserPlayer, carrier, effectiveBall2D, HomeTeam, AwayTeam, DifficultyLevel.Normal, counterTransitionActive:IsCounterTransition(AwayTeam));
+                if (!duel.TacklerWon)
+                {
+                    Publish(new MatchEvent(MatchEventType.TackleAttempted, isSlideTackle ? "انزلاق دون افتكاك الكرة" : "محاولة استخلاص دون افتكاك الكرة", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer),
+                        ("tackle.sliding", isSlideTackle), ("tackle.won", false));
+                    return;
+                }
                 Ball.CatchOrTackle(ActiveUserPlayer);
                 RecordBallTouch(ActiveUserPlayer);
                 GrantPossessionGrace(1.4f);
@@ -996,7 +1015,11 @@ public partial class MatchEngine
         float CarrierSkill,
         float TacticalModifier,
         string TacticalReason
-    );
+    )
+    {
+        public bool FromBehind { get; init; }
+        public bool SlidingCommitment { get; init; }
+    }
 
     /// <summary>
     /// نموذج صراع استخلاص الكرة التكتيكي والبدني (Dynamic Tactical & Attribute Duel Model)
@@ -1011,7 +1034,8 @@ public partial class MatchEngine
         Team carrierTeam,
         DifficultyLevel diff,
         int? forcedRandomRoll = null,
-        int? forcedFoulRoll = null)
+        int? forcedFoulRoll = null,
+        bool counterTransitionActive = false)
     {
         // 1. حساب الكفاءة والقدرة التقديرية للمدافع (Tackler Skill Score):
         // الدفاع (50%) + القوة البدنية (30%) + السرعة (20%) + معامل الإرهاق
@@ -1082,6 +1106,8 @@ public partial class MatchEngine
             reasons.Add("زاوية تدخل مائلة");
         }
 
+        // The ball is stored at the owner's centre. Use the same feet projection on CPU and human duels.
+        if(Vector2.Distance(ballPos2D,carrier.Position2D)<.05f)ballPos2D=carrier.Position2D+carrierFacing*.35f;
         // ب) القرب من الكرة (Proximity to Ball):
         float distToBall = Vector2.Distance(tackler.Position2D, ballPos2D);
         if (distToBall < 0.65f)
@@ -1165,7 +1191,9 @@ public partial class MatchEngine
 
         // و) تأثير شريط الضغط العالي ومصيدة التحضير القصير:
         // إذا كان فريق المدافع يضغط عالي جداً (75+) وحامل الكرة يبني من الخلف (شريط التمرير < 35):
-        if (tacklerTeam.Tactics.PressingIntensity > 75 && carrierTeam.Tactics.PassingDirectness < 35)
+        bool carrierRight=carrierTeam.MatchAttackingRight??carrierTeam.Side==TeamSide.Home;
+        float carrierLocalX=carrierRight?carrier.Position2D.X:Pitch.Length-carrier.Position2D.X;
+        if (tacklerTeam.Tactics.PressingIntensity > 75 && carrierTeam.Tactics.PassingDirectness < 35 && carrierLocalX<=18)
         {
             tacticalModifier += 14.0f;
             reasons.Add("مصيدة الضغط العالي على بناء الهجمة القصير");
@@ -1193,13 +1221,15 @@ public partial class MatchEngine
             // في دفاع المنطقة، التكتل وتغطية المساحات يعوضان فوارق المهارة الفردية للفرق الأقل قوة
             if (deltaSkill < -8.0f)
             {
-                tacticalModifier += 6.0f;
+                // Taper the compensation instead of removing six points at an arbitrary
+                // skill threshold, which made a better defender suddenly worse.
+                tacticalModifier += Math.Clamp((-deltaSkill - 8) * .25f, 0, 6);
                 reasons.Add("تغطية دفاع المنطقة تعوض فارق المهارة الفردية");
             }
         }
 
         // ح) تأثير أسلوب الهجمات المرتدة والون تاتش في التحولات:
-        if (carrierTeam.Tactics.Focus == AttackingFocus.CounterAttack && carrierTeam.Tactics.Tempo >= 65)
+        if (counterTransitionActive && carrierTeam.Tactics.Focus == AttackingFocus.CounterAttack && carrierTeam.Tactics.Tempo >= 65)
         {
             tacticalModifier -= 14.0f;
             reasons.Add("سرعة التحول الهجومي والون تاتش");
@@ -1227,9 +1257,10 @@ public partial class MatchEngine
         bool bodyFirst = distToCarrier < distToBall;
         bool isFoul = forcedFoulRoll.HasValue
             ? (!tacklerWon && forcedFoulRoll.Value < foulDanger) || (isReckless && forcedFoulRoll.Value < 20)
-            : bodyFirst && (isReckless || (!tacklerWon && foulDanger >= 35));
+            : bodyFirst && (isReckless || foulDanger >= 35);
+        if(!forcedFoulRoll.HasValue && tacklerTeam.Tactics.Tackling==TacklingAggression.Cautious) isFoul=false;
         bool severeInjuryRisk = isFoul && isReckless && isFromBehind;
-        if (isFoul) tacklerWon = false;
+        if (isFoul || (!forcedRandomRoll.HasValue && bodyFirst)) tacklerWon = false;
 
         string reasonStr = reasons.Count > 0 ? string.Join("، ", reasons) : "صراع متكافئ";
 
@@ -1242,54 +1273,25 @@ public partial class MatchEngine
             carrierSkill,
             tacticalModifier,
             reasonStr
-        );
+        ) { FromBehind=isFromBehind, SlidingCommitment=tacklerTeam.Tactics.Tackling is TacklingAggression.Aggressive or TacklingAggression.Reckless };
     }
 
     /// <summary>
     /// تحديث استنزاف اللياقة البدنية للاعبين وفق منحنى الأعمار وشرايط الضغط التكتيكية
     /// - تحت 19 سنة: رئة لا تتعب (استنزاف 1.0x حتى عند الضغط الخانق 100%)
     /// - 19 إلى 24 سنة: طاقة شبابية (ينهج في آخر 10 دقائق فقط)
-    /// - 24 إلى 29 سنة: قمة النضج (ينفد وقوده عند الدقيقة 60 عند الضغط العالي)
+    /// - 25 إلى 29 سنة: قمة النضج (ينفد وقوده عند الدقيقة 60 عند الضغط العالي)
     /// - فوق 29 سنة (30+): خبرة (يجيب جاز بنهاية الشوط الأول عند الضغط العالي)
     /// </summary>
     public void UpdateStaminaDecay(float simulatedMinutesPassed)
     {
         if (simulatedMinutesPassed <= 0.0f) return;
 
-        // معدل الاستنزاف الأساسي في الدقيقة الميدانية القياسية
-        float baseDecayPerSimMinute = 28.0f / 90.0f; // يستهلك ~28 نقطة عبر 90 دقيقة في الظروف الطبيعية
-
+        if (!float.IsFinite(simulatedMinutesPassed)) return;
         void DecayTeam(Team team)
         {
-            // معامل الجهد البدني التكتيكي الإضافي عند الضغط العالي
-            float pressingWorkload = team.Tactics.PressingIntensity > 50
-                ? 1.0f + ((team.Tactics.PressingIntensity - 50) / 45.0f) * 1.15f
-                : 1.0f;
-
-            foreach (var player in team.Players)
-            {
-                if (player.IsSentOff || player.IsOffPitch) continue;
-
-                // حراس المرمى استهلاكهم البدني طفيف جداً
-                if (player.Role == PlayerRole.Goalkeeper)
-                {
-                    player.CurrentStamina = Math.Max(0.0f, player.CurrentStamina - (simulatedMinutesPassed * baseDecayPerSimMinute * 0.15f));
-                    continue;
-                }
-
-                // حساب معامل الاستنزاف وفق منحنى الأعمار وشريط الضغط
-                float ageMultiplier = team.Tactics.GetStaminaDecayMultiplier(player);
-
-                // اللاعبين الشباب تحت 19 سنة لديهم قدرة تعافي لحظية واستنزاف غير مجهد
-                float playerWorkload = player.Age < 19 ? 1.0f : pressingWorkload;
-
-                // إجهاد إضافي في حالة السبرنت أو الجري السريع
-                float movementSpeed = player.Velocity.Length();
-                float sprintCostMultiplier = movementSpeed > 4.5f ? 1.35f : (movementSpeed > 2.0f ? 1.10f : 1.00f);
-
-                float decay = simulatedMinutesPassed * baseDecayPerSimMinute * ageMultiplier * playerWorkload * sprintCostMultiplier;
-                player.CurrentStamina = Math.Max(0.0f, player.CurrentStamina - decay);
-            }
+            foreach (var player in team.Players.Where(p=>p.IsActiveOnPitch))
+                player.CurrentStamina=Math.Max(0,player.CurrentStamina-simulatedMinutesPassed*TacticalStaminaRate(team.Tactics,player));
         }
 
         DecayTeam(HomeTeam);
@@ -1319,7 +1321,7 @@ public partial class MatchEngine
     /// وجهة تسديدة الكمبيوتر: مقص قريب أو بعيد (بتفضيل البعيد) مع انتشار مهاري،
     /// بدلاً من التصويب الدائم إلى قلب المرمى حيث يقف الحارس فيلتقط كل شيء.
     /// </summary>
-    public static Vector2 ComputeCpuShotTarget(Vector2 shooterPos, bool attackingRight, double postChoiceRoll, double spreadRoll)
+    public static Vector2 ComputeCpuShotTarget(Vector2 shooterPos, bool attackingRight, double postChoiceRoll, double spreadRoll, int shooting = 75, float stamina = 100)
     {
         float goalX = attackingRight ? Pitch.Length : 0.0f;
         float goalCenterY = (Pitch.GoalYMin + Pitch.GoalYMax) / 2.0f;
@@ -1327,8 +1329,10 @@ public partial class MatchEngine
         bool aimFarPost = postChoiceRoll < 0.65;
         bool aimHighSide = aimFarPost ? !shooterAboveCenter : shooterAboveCenter;
         float targetY = aimHighSide ? Pitch.GoalYMin + 1.3f : Pitch.GoalYMax - 1.3f;
-        float spread = (float)(spreadRoll * 2.0 - 1.0) * 2.2f;
-        targetY = Math.Clamp(targetY + spread, Pitch.GoalYMin - 1.0f, Pitch.GoalYMax + 1.0f);
+        float distance=Vector2.Distance(shooterPos,new Vector2(goalX,goalCenterY));
+        float spreadWidth=2.2f+Math.Max(0,100-shooting)*.03f+Math.Max(0,distance-18)*.07f+Math.Max(0,40-stamina)*.03f;
+        float spread = (float)(spreadRoll * 2.0 - 1.0) * spreadWidth;
+        targetY = Math.Clamp(targetY + spread, Pitch.GoalYMin - 2.5f, Pitch.GoalYMax + 2.5f);
         return new Vector2(goalX, targetY);
     }
 
@@ -1337,7 +1341,7 @@ public partial class MatchEngine
     /// </summary>
     private Player? GetDefendingGoalkeeperForShot()
     {
-        Team defendingTeam = (_shotShooter != null && AwayTeam.Players.Contains(_shotShooter)) ? HomeTeam : AwayTeam;
+        Team defendingTeam = TeamOf(_shotShooter) == AwayTeam ? HomeTeam : AwayTeam;
         return defendingTeam.Players.FirstOrDefault(p => p.Role == PlayerRole.Goalkeeper && !p.IsSentOff && !p.IsOffPitch)
             ?? defendingTeam.Players.FirstOrDefault();
     }
@@ -1379,6 +1383,7 @@ public partial class MatchEngine
 
     public void HandleFoulSanction(Player tackler, Player carrier, bool isSlideTackle, bool isFromBehind)
     {
+        if (State == MatchState.GameOver) return;
         bool isDogso = CheckDogso(tackler, carrier);
         _foulVictim=carrier;
         if(isSlideTackle) Count("stats.severeFouls");
@@ -1397,6 +1402,7 @@ public partial class MatchEngine
             IssueCard(tackler, isDirectRed: false, reason: "تدخل متهور");
         }
 
+        if (State == MatchState.GameOver) { _foulVictim = null; return; }
         // Capture the restart before a seriously injured victim is substituted or leaves the pitch.
         var incidentSpot = carrier.Position2D;
         bool severeInjury = isSlideTackle && isFromBehind && TeamOf(tackler)?.Tactics.Tackling == TacklingAggression.Reckless;
@@ -1440,6 +1446,7 @@ public partial class MatchEngine
                 Publish(new MatchEvent(MatchEventType.YellowCard, desc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: player), ("card.kind", "yellow"));
             }
         }
+        StopIfTooFewPlayers();
     }
 
     private void DismissPlayer(Player player, Team playerTeam) => RemovePlayerFromPlay(player, playerTeam, sentOff: true);
@@ -1491,10 +1498,13 @@ public partial class MatchEngine
                     ?? playerTeam.Players[0];
             }
         }
+        if (Restart is { } pendingRestart && pendingRestart.Taker == player)
+            ReassignUnavailableRestartTaker(pendingRestart);
     }
 
     public void ApplyInjury(Player player, PlayerInjuryStatus status)
     {
+        if (State == MatchState.GameOver) return;
         if ((!HomeTeam.Players.Contains(player) && !AwayTeam.Players.Contains(player)) || !player.IsActiveOnPitch ||
             status == PlayerInjuryStatus.None || player.InjuryStatus == status) return;
         player.InjuryStatus = status;
@@ -1647,7 +1657,7 @@ public partial class MatchEngine
         {
             // اعتراض ذكي استباقي: التنبؤ بنقطة الالتقاء بالكرة
             float ballSpeed = ballVel2D.Length();
-            float receiverSprintSpeed = (receiver.Speed / 6.5f) * 1.45f;
+            float receiverSprintSpeed = (receiver.Speed / 6.5f) * 1.45f * FatigueMovementMultiplier(receiver);
             float estTime = distToBall / (receiverSprintSpeed + ballSpeed);
             estTime = Math.Clamp(estTime, 0.08f, 1.2f);
 
@@ -1662,7 +1672,7 @@ public partial class MatchEngine
         if (toTarget.Length() > 0.08f)
         {
             Vector2 runDir = Vector2.Normalize(toTarget);
-            float sprintSpeed = (receiver.Speed / 6.5f) * 1.45f;
+            float sprintSpeed = (receiver.Speed / 6.5f) * 1.45f * FatigueMovementMultiplier(receiver);
             receiver.Position2D += runDir * sprintSpeed * deltaTime;
             receiver.Position2D = new Vector2(
                 Math.Clamp(receiver.Position2D.X, 1.0f, Pitch.Length - 1.0f),
@@ -1670,14 +1680,16 @@ public partial class MatchEngine
             );
         }
 
-        if (distToBall > 0.1f)
+        var facingBall = ball2D - receiver.Position2D;
+        if (facingBall.LengthSquared() > .000001f)
         {
-            receiver.FacingDirection = Vector2.Normalize(ball2D - receiver.Position2D);
+            receiver.FacingDirection = Vector2.Normalize(facingBall);
         }
     }
 
     private void UpdatePlayersAI(float deltaTime)
     {
+        ObserveTacticalPossession();
         Vector2 ball2D = new(Ball.Position.X, Ball.Position.Y);
 
         // تحديث التمريرة النشطة واعتراض المستلم أولاً قبل أي شيء
@@ -1746,44 +1758,7 @@ public partial class MatchEngine
 
             if (Ball.Owner == opponent)
             {
-                Vector2 attackTarget = UserAttackingRight ? Pitch.LeftGoalCenter : Pitch.RightGoalCenter;
-                Vector2 attackDir = Vector2.Normalize(attackTarget - opponent.Position2D);
-                opponent.FacingDirection = attackDir;
-                opponent.Position2D += attackDir * (opponent.Speed * 0.065f) * deltaTime;
-                Ball.CatchOrTackle(opponent);
-
-                float distToUserGoal = Vector2.Distance(opponent.Position2D, attackTarget);
-                if (distToUserGoal < 24.0f)
-                {
-                    // تصويب الكمبيوتر نحو مقص المرمى مع انتشار مهاري، بدلاً من قلب المرمى
-                    // دائماً حيث يقف الحارس فيلتقط كل التسديدات ولا يسجل الكمبيوتر أبداً
-                    Vector2 shotTarget = ComputeCpuShotTarget(opponent.Position2D, !UserAttackingRight, Random.Shared.NextDouble(), Random.Shared.NextDouble());
-                    Vector2 cpuShotDir = Vector2.Normalize(shotTarget - opponent.Position2D);
-                    float cpuShotPower = 24.0f + (opponent.Shooting * 0.08f);
-                    SnapshotOffsideAtKick(opponent);
-                    Ball.Kick(cpuShotDir, cpuShotPower, 1.6f, opponent);
-                    _isShotInProgress = true;
-                    _shotTargetGoalX = shotTarget.X;
-                    _shotGkResolved = false;
-                    _shotShooter = opponent;
-                    _currentShotTechnique = ShotTechnique.Driven;
-                    _lastShotTargetY = shotTarget.Y;
-                    Publish(new MatchEvent(MatchEventType.ShotTaken, $"تسديدة خطيرة من {opponent.Name} لاعب الخصم!", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: opponent));
-                }
-                else if (!ActiveUserPlayer.IsSentOff && !ActiveUserPlayer.IsOffPitch && Vector2.Distance(ActiveUserPlayer.Position2D, opponent.Position2D) < 2.5f && Random.Shared.Next(100) < 5)
-                {
-                    var openTeammate = AwayTeam.Players.FirstOrDefault(p => p != opponent && p.Role != PlayerRole.Goalkeeper && 
-                        (UserAttackingRight ? p.Position2D.X < opponent.Position2D.X : p.Position2D.X > opponent.Position2D.X));
-                    if (openTeammate != null)
-                    {
-                        Vector2 passDir = Vector2.Normalize(openTeammate.Position2D - opponent.Position2D);
-                        RecordBallTouch(opponent);
-                        SnapshotOffsideAtKick(opponent);
-                        Ball.Kick(passDir, 18.0f, 0.2f, opponent);
-                        BeginCommentaryPass(opponent, openTeammate, openTeammate.Position2D, "short", "ground");
-                        Publish(new MatchEvent(MatchEventType.BallKicked, $"تمريرة من {opponent.Name} إلى {openTeammate.Name}", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: opponent));
-                    }
-                }
+                UpdateCpuCarrier(opponent, deltaTime);
                 continue;
             }
 
@@ -1813,10 +1788,11 @@ public partial class MatchEngine
                 pressRange = Math.Min(pressRange, 8.0f);
             }
 
-            if (distToBall < pressRange)
+            if (ShouldTacticalPress(AwayTeam,opponent,pressRange))
             {
-                Vector2 pressDir = Vector2.Normalize(ball2D - opponent.Position2D);
-                opponent.Position2D += pressDir * (opponent.Speed * speedMult * DefensiveReactionMultiplier(opponent)) * deltaTime;
+                var toBall = ball2D - opponent.Position2D;
+                Vector2 pressDir = toBall.LengthSquared() > .000001f ? Vector2.Normalize(toBall) : Vector2.Zero;
+                opponent.Position2D += pressDir * (opponent.Speed * speedMult * DefensiveReactionMultiplier(opponent) * FatigueMovementMultiplier(opponent)) * deltaTime;
                 opponent.FacingDirection = pressDir;
 
                 if (distToBall < 1.3f && Ball.Owner != opponent && (Ball.Owner == null || !AwayTeam.Players.Contains(Ball.Owner)))
@@ -1852,7 +1828,8 @@ public partial class MatchEngine
                                 ballPos2D: ball2D,
                                 tacklerTeam: AwayTeam,
                                 carrierTeam: HomeTeam,
-                                diff: diff
+                                diff: diff,
+                                counterTransitionActive:IsCounterTransition(HomeTeam)
                             );
 
                             _aiTackleCooldownTimer = 1.5f;
@@ -1878,7 +1855,7 @@ public partial class MatchEngine
                                 Ball.Velocity = Vector3.Zero;
                                 string foulDesc = $"خطأ لصالح {carrier.Name} بعد عرقلة من {opponent.Name}!";
                                 Publish(new MatchEvent(MatchEventType.FoulCommitted, foulDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: opponent), ("foul.intentional", false));
-                                HandleFoulSanction(opponent, carrier, isSlideTackle: duel.IsSevereInjuryRisk, isFromBehind: true);
+                                HandleFoulSanction(opponent, carrier, isSlideTackle: duel.SlidingCommitment, isFromBehind: duel.FromBehind);
 
                             }
                             else
@@ -1895,7 +1872,7 @@ public partial class MatchEngine
             }
             else
             {
-                opponent.Position2D = Vector2.Lerp(opponent.Position2D, ApplyWideDiscipline(opponent, AwayTeam, opponent.HomePosition), deltaTime * 0.8f);
+                opponent.Position2D = Vector2.Lerp(opponent.Position2D, GetFormationSupportTarget(AwayTeam, opponent), Math.Clamp(deltaTime * .8f * FatigueMovementMultiplier(opponent) * (.7f+AwayTeam.Tactics.Tempo*.006f),0,1));
             }
         }
 
@@ -1957,8 +1934,8 @@ public partial class MatchEngine
                 continue;
             }
 
-            Vector2 shiftedHome = ApplyWideDiscipline(teammate, HomeTeam, teammate.HomePosition + new Vector2((ball2D.X - 52.5f) * 0.4f, 0));
-            teammate.Position2D = Vector2.Lerp(teammate.Position2D, shiftedHome, deltaTime * DefensiveReactionMultiplier(teammate));
+            Vector2 shiftedHome = ShouldTacticalPress(HomeTeam,teammate,13.5f) ? ball2D : GetFormationSupportTarget(HomeTeam, teammate);
+            teammate.Position2D = Vector2.Lerp(teammate.Position2D, shiftedHome, Math.Clamp(deltaTime * DefensiveReactionMultiplier(teammate) * FatigueMovementMultiplier(teammate) * (.7f+HomeTeam.Tactics.Tempo*.006f),0,1));
 
             if (Ball.State == BallState.Free && Ball.Position.Z <= 1.5f && !IsPassInTransit && Vector2.Distance(teammate.Position2D, ball2D) < 1.8f)
             {
@@ -2018,7 +1995,7 @@ public partial class MatchEngine
                 if (toBall.Length() > 0.1f)
                 {
                     Vector2 chaseDir = Vector2.Normalize(toBall);
-                    closestPlayer.Position2D += chaseDir * (closestPlayer.Speed * 0.09f) * deltaTime;
+                    closestPlayer.Position2D += chaseDir * (closestPlayer.Speed * 0.09f * FatigueMovementMultiplier(closestPlayer)) * deltaTime;
                 }
 
                 if (closestDist < 1.6f && Ball.Position.Z <= 1.5f)
@@ -2164,12 +2141,11 @@ public partial class MatchEngine
             Player scorer = LastKicker ?? (forHomeTeam ? HomeTeam : AwayTeam).Players.First(p => p.IsActiveOnPitch);
             bool deflectedOnTarget=_onTargetDeflectedShooter is {} originalShooter && TeamOf(originalShooter)==scoringTeam && _elapsedSeconds-_deflectionRecordedAt<=10;
             if(deflectedOnTarget)scorer=_onTargetDeflectedShooter!;
-            bool isOwnGoal = (forHomeTeam && AwayTeam.Players.Contains(scorer)) ||
-                             (!forHomeTeam && HomeTeam.Players.Contains(scorer));
+            bool isOwnGoal = TeamOf(scorer) is { } scorerTeam && scorerTeam != scoringTeam;
 
             Player? assistCandidate=deflectedOnTarget?_onTargetDeflectedAssister:PreviousKicker;
             Player? assister = !isOwnGoal && assistCandidate != null && assistCandidate != scorer &&
-                                scoringTeam.Players.Contains(assistCandidate) ? assistCandidate : null;
+                                TeamOf(assistCandidate) == scoringTeam ? assistCandidate : null;
 
             if (!isOwnGoal) scorer.MatchGoalsCount++;
 
@@ -2266,7 +2242,7 @@ public partial class MatchEngine
                 }
 
                 bool crossedNearHomeGoal = UserAttackingRight ? (Ball.Position.X <= 0) : (Ball.Position.X >= Pitch.Length);
-                bool lastTouchHome = (LastKicker != null && HomeTeam.Players.Contains(LastKicker));
+                bool lastTouchHome = TeamOf(LastKicker) == HomeTeam;
 
                 if (crossedNearHomeGoal)
                 {
@@ -2294,7 +2270,7 @@ public partial class MatchEngine
             else if (isTouchline)
             {
                 _isShotInProgress = false;
-                bool lastTouchHome = (LastKicker != null && HomeTeam.Players.Contains(LastKicker));
+                bool lastTouchHome = TeamOf(LastKicker) == HomeTeam;
                 AwardThrowIn(forHomeTeam: !lastTouchHome);
             }
         }
