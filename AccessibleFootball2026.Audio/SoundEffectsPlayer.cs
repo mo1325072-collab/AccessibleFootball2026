@@ -47,6 +47,9 @@ public static class SoundEffectsPlayer
     private static string? _stadiumAcousticPath;
     private static int _crowdIntensity = 350;
     private static float _crowdDucking = 1f;
+    private static float _recordedCommentaryDucking = 1f;
+    private static System.Threading.Timer? _commentaryActivityTimer;
+    private static int _commentaryPlaybackGeneration;
     private static bool _commentaryEnabled = true;
     private static readonly Dictionary<string, float> _activeOneShots = new();
     private static readonly Dictionary<string, float> _activeOneShotPans = new();
@@ -347,7 +350,7 @@ public static class SoundEffectsPlayer
         if (path == null) return;
         SendMci("close crowd");
         if (MciPlayback.SendString($"open \"{path}\" type mpegvideo alias crowd", null, 0, IntPtr.Zero) != 0) return;
-        int volume = Math.Clamp((int)(_crowdIntensity * _crowdDucking * GetEffectiveCrowdVolume()), 0, 1000);
+        int volume = Math.Clamp((int)(_crowdIntensity * Math.Min(_crowdDucking, _recordedCommentaryDucking) * GetEffectiveCrowdVolume()), 0, 1000);
         if (MciPlayback.SendString($"setaudio crowd volume to {volume}", null, 0, IntPtr.Zero) != 0) { SendMci("close crowd"); return; }
         if (MciPlayback.SendString("play crowd repeat", null, 0, IntPtr.Zero) != 0) { SendMci("close crowd"); return; }
         _crowdPlaying = true;
@@ -434,7 +437,7 @@ public static class SoundEffectsPlayer
         if (!_crowdRequested || _crowdPaused) return; // Saving in a menu must not start a match ambience.
         StartRequestedCrowd();
         if (!_crowdPlaying) return;
-        int volume = Math.Clamp((int)(_crowdIntensity * _crowdDucking * GetEffectiveCrowdVolume()), 0, 1000);
+        int volume = Math.Clamp((int)(_crowdIntensity * Math.Min(_crowdDucking, _recordedCommentaryDucking) * GetEffectiveCrowdVolume()), 0, 1000);
         var now = DateTime.UtcNow;
         if (!force && Math.Abs(volume - _lastReportedCrowdVol) < 30 && (now - _lastCrowdVolChange).TotalMilliseconds < 250) return;
         _lastReportedCrowdVol = volume; _lastCrowdVolChange = now;
@@ -674,6 +677,10 @@ public static class SoundEffectsPlayer
         lock (_lock)
         {
             _commentaryBusyUntil = DateTime.MinValue;
+            _commentaryPlaybackGeneration++;
+            _commentaryActivityTimer?.Dispose(); _commentaryActivityTimer = null;
+            _recordedCommentaryDucking = 1f;
+            UpdateCrowdChannel(force: true);
             SendMci("stop comm_voice");
             SendMci("close comm_voice");
         }
@@ -714,13 +721,30 @@ public static class SoundEffectsPlayer
     public static bool PlayCommentaryAudio(string filePath)
     {
         if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f || string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
-        // نافذة الانشغال تساوي المدة الحقيقية للمقطع (نداءات الأسماء القصيرة لا تحجب التعليق 3 ثوانٍ كاملة)
-        double seconds = filePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? GetWavDurationSeconds(filePath) : 0;
-        if (seconds <= 0.05) seconds = 3.2;
-        _commentaryBusyUntil = DateTime.UtcNow.AddSeconds(Math.Clamp(seconds, 0.3, 30.0));
-        bool played = PlayOneShot(filePath, "comm_voice");
-        if (!played) _commentaryBusyUntil = DateTime.MinValue;
-        return played;
+        lock (_lock)
+        {
+            StopCommentaryAudio();
+            double seconds = filePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? GetWavDurationSeconds(filePath) : 0;
+            if (seconds <= 0.05) seconds = 3.2;
+            _commentaryBusyUntil = DateTime.UtcNow.AddSeconds(Math.Clamp(seconds, 0.3, 30.0));
+            bool played = PlayOneShot(filePath, "comm_voice");
+            if (!played) { _commentaryBusyUntil = DateTime.MinValue; return false; }
+            _recordedCommentaryDucking = .2f;
+            UpdateCrowdChannel(force: true);
+            int generation = _commentaryPlaybackGeneration;
+            // Local playback status only. Release the claim at actual completion even during a held stoppage.
+            _commentaryActivityTimer = new System.Threading.Timer(_ =>
+            {
+                lock (_lock)
+                {
+                    if (generation != _commentaryPlaybackGeneration || IsCommentaryPlaying()) return;
+                    _commentaryActivityTimer?.Dispose(); _commentaryActivityTimer = null;
+                    _recordedCommentaryDucking = 1f;
+                    UpdateCrowdChannel(force: true);
+                }
+            }, null, 100, 100);
+            return true;
+        }
     }
 
     // =========================================================================
@@ -1104,7 +1128,7 @@ public static class SoundEffectsPlayer
 
     public static void StopAll()
     {
-        _commentaryBusyUntil = DateTime.MinValue;
+        StopCommentaryAudio();
         StopMenuMusic();
         StopCrowdAmbiance();
         SendMci("close all");
