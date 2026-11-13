@@ -295,7 +295,7 @@ public static class Milestone4MenuAcademySettingsTests
         var anthemItems = SoundAcademyDatabase.GetItemsByCategory("anthems");
         var anthemIds = anthemItems.Select(a => a.Id).ToList();
         Assert(anthemIds.Contains("ChampionsLeagueAnthem"), "Anthems must contain ChampionsLeagueAnthem");
-        Assert(anthemIds.Contains("NationalAnthem"), "Anthems must contain NationalAnthem");
+        Assert(!anthemIds.Contains("NationalAnthem"), "Canceled national anthem feature must not have an academy entry");
 
         // 6. Audio trigger wiring & non-throwing execution
         int triggeredAudioCount = 0;
