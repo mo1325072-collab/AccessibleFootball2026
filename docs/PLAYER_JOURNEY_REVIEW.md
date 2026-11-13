@@ -38,7 +38,37 @@ These are production playback-command tests using an injected transport. They do
 
 Returning from a nested pause menu no longer requests main-menu music and stops match crowd. A native window test exercises Escape into pause, Back from a child and resume. It cross-builds but has not run on Windows here.
 
-Reachable academy previews replace previous playback and close on Back. Existing academy category visibility is preserved while its history is checked. Detailed mode explanations remain reachable in the guide. Stadium/statistics titles no longer contain test prose or keyboard tutorials.
+Reachable academy previews replace previous playback and close on Back. All five documented categories are restored after recovering the original academy scope and checking for later exclusions. Previews explain the selected sound. Missing recordings, mute and playback failures are reported instead of silently substituting a different effect. Match-impact previews do not use generated impact fallbacks; the intentional earcons and goal beacon still demonstrate their actual gameplay signals. The goalkeeper-save preview no longer plays a shot kick. Commentary clips and exclusions are unchanged. Detailed mode explanations remain reachable in the guide. Stadium/statistics titles no longer contain test prose or keyboard tutorials.
+
+### Full-match finite-state failure
+
+Mixed-input whole-match tests exposed a zero-vector normalization in CPU pressing: a defender already at the cached ball position acquired NaN coordinates. Later physics could pass the corruption to the ball. A direct colocated-player fixture reproduces it without relying on random play.
+
+Pressing, exact receiver arrival, a cross from its own center target and a CPU carrier at goal center now use safe zero-distance handling. The added deterministic boundary tests are separate from the complete-match runs.
+
+Sixty full matches now reach full time, with checks after every tick for finite player/ball coordinates, a legal active ball owner and consistent possession flags. Runs cover 0.02, 0.1 and 0.25 second frame durations and all four difficulty settings. Inputs are seeded; internal match randomness is not claimed deterministic. These are engine journeys, not a Windows UI/audio test.
+
+### Replacement and dismissal while an action is pending
+
+Pausing between a pass and arrival, replacing a restart taker, or replacing a shooter while the ball is still moving previously left stale player references. Reproduced failures included bench players receiving the ball, a dismissed restart taker staying assigned, wrong-team boundary/goalkeeper decisions, lost own-goal/assist attribution and a pending run-up restoring possession to a substituted player.
+
+Live receiving duties move to the incoming player. Historical touches keep the original player's team identity. Removed restart takers are reassigned to legal active teammates, and a substituted player's pending run-up is cancelled. Coach praise uses the same historical scoring/assist identities. The journey harness checks each transition directly, in addition to the full-match runs.
+
+### Terminal handoff and standalone plan semantics
+
+Game-over key routing now rejects field/pause commands during final commentary, like the existing shootout-resolution guard. The native regression sends Escape, Enter and a field key and checks that no pause menu or timer restart appears. This regression compiles but has not been executed on Windows. Two older native cleanup calls also now supply the actual end-match boolean parameter instead of throwing a reflection parameter-count exception before their lifecycle assertions can finish.
+
+The standalone game-plan flow no longer announces a match start followed by a fictional disk save. Its primary item applies the existing in-memory team choices for the current session. Real pre-match menus still say Start match. Both languages are exercised through the actual menu callback. No durable saved-plan format is invented.
+
+### Abandonment and shootout eligibility
+
+A reproduced five-dismissal sequence left a six-player team playing normally. Law 3's minimum now stops match play with a reason and score at stoppage. It never creates an administrative score, winner, trophy, final-match analysis or winning-goal replay. A pending legal injury replacement remains the user's choice; a sixth-player continuation instead stops the match. Seven still permits play. Post-match shootouts do not use the seven-player cutoff. A severe foul that causes abandonment cannot reopen a pending injury choice or restart later in the same call.
+
+Shootouts snapshot eligible active players separately from the on-pitch squad. The larger side reduces to the opponent's eligible count. The human team selects named exclusions in a menu, keeping its goalkeeper; the CPU chooses its exclusions. Exclusion does not count as a substitution, and all eligible players take one kick before anyone repeats. Menu callback, stale-selection, equal-count, sent-off-player and full-cycle tests exercise the actual shared production code. Full native shootout navigation is still not executed.
+
+Rules checked against IFAB Law 3 and Law 10 on 2026-11-13:
+- https://www.theifab.com/laws/latest/the-players/
+- https://theifab.com/laws/latest/determining-the-outcome-of-a-match/
 
 ## Validation commands
 
@@ -54,10 +84,10 @@ dotnet run --project tests/ContextualCommentaryHarness -c Release
 
 The regression has 178 assertions without `--database`; the supplied production database enables 15 additional checks, for 193. This is not removal of previous coverage. Injury-choice, held-restart, statistics, period, substitution, input and settings checks remain present.
 
-Current local results: regression 193, settings lifecycle 66, journey 81, contextual mechanics 146, contextual commentary 65 passed. Native tests are cross-build evidence only. Final checkpoint readback must be tested again before these results are attributed to a published revision.
+Current local results: regression 193, settings lifecycle 66, journey 313, contextual mechanics 146, contextual commentary 65 passed. Native tests are cross-build evidence only. Final checkpoint readback must be tested again before these results are attributed to a published revision.
 
 ## Remaining review and verification
 
-The review is still open for match-end/new-match async callbacks, complete shootout navigation, standalone saved-game-plan behavior, and further menu-to-consumer paths. Existing source-roster gaps, missing original PES effects, model choice and target-framework/support decisions are not solved by these repairs. No players, recordings or runtime models were invented or downloaded.
+The review is still open for match-end/new-match async callbacks, complete shootout navigation, durable saved-game-plan requirements, and further menu-to-consumer paths. Existing source-roster gaps, missing original PES effects, model choice and target-framework/support decisions are not solved by these repairs. No players, recordings or runtime models were invented or downloaded.
 
 Windows Forms focus, NVDA interaction, real audio playback and visual layout remain unexecuted in this environment. There is no public release, upload of a game build, desktop deployment or claim that the whole game is ready.

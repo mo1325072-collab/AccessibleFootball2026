@@ -55,6 +55,28 @@ public partial class MatchEngine
         if (!penalty) Publish(new MatchEvent(MatchEventType.FreeKickReady, "الاستعداد للركلة الحرة", CurrentZone, subjectPlayer: taker), ("restart.phase", "ready"), ("foul.distanceToGoal", distance));
     }
 
+    private void ReassignUnavailableRestartTaker(PendingRestart restart)
+    {
+        var team = restart.Team;
+        Player? designated = restart.Kind switch
+        {
+            RestartKind.Penalty => team.PenaltyTaker,
+            RestartKind.FreeKick or RestartKind.IndirectFreeKick => team.FreeKickTaker,
+            RestartKind.Corner => team.CornerTaker,
+            RestartKind.GoalKick => team.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role == PlayerRole.Goalkeeper),
+            _ => null
+        };
+        var taker = designated != null && team.Players.Contains(designated) && designated.IsActiveOnPitch ? designated :
+            team.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper) ??
+            team.Players.FirstOrDefault(p => p.IsActiveOnPitch);
+        if (taker == null) { Restart = null; return; }
+        Restart = restart with { Taker = taker };
+        taker.Position2D = restart.Spot;
+        Ball.CatchOrTackle(taker);
+        RecordBallTouch(taker);
+        if (team == HomeTeam) ActiveUserPlayer = taker;
+    }
+
     private bool UpdateRestart(float dt)
     {
         if (Restart is not { } restart) return false;

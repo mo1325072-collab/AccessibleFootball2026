@@ -63,10 +63,9 @@ public static class SoundAcademyMenuBuilder
             {
                 // A new preview replaces the old one; loops never leak across categories.
                 StopPreview(anthemEngine);
-                item.PlayAudioAction?.Invoke();
-
-                // نطق التفسير التكتيكي فورياً لقارئ الشاشة
-                screenReader.Speak($"{itemName}. {itemDesc}", interrupt: true);
+                bool played = TryPlayPreview(item.Id, anthemEngine);
+                string status = played ? "" : LocalizationService.Text(" العينة غير متاحة أو تعذر تشغيلها بالمستوى الصوتي الحالي.", " Sample unavailable or could not play at the current volume.");
+                screenReader.Speak($"{itemName}. {itemDesc}{status}", interrupt: true);
             }, description: itemDesc, suppressSelectionSound: true);
         }
 
@@ -83,31 +82,15 @@ public static class SoundAcademyMenuBuilder
         SoundEffectsPlayer.StopAll();
     }
 
-    public static Action GetAudioAction(string soundId, AnthemEngine anthemEngine) => soundId switch
+    public static bool TryPlayPreview(string soundId, AnthemEngine anthemEngine) => soundId switch
     {
-        "TackleWon" => () => SoundEffectsPlayer.PlayTackleWon(),
-        "TackleMissed" => () => SoundEffectsPlayer.PlayTackleMissed(),
-        "BallLost" => () => SoundEffectsPlayer.PlayBallLost(),
-        "Foul" => () => SoundEffectsPlayer.PlayFoul(),
-        "Penalty" => () => SoundEffectsPlayer.PlayPenalty(),
-        "Corner" => () => SoundEffectsPlayer.PlayCorner(),
-        "GoalKick" => () => SoundEffectsPlayer.PlayGoalKick(),
-        "ThrowIn" => () => SoundEffectsPlayer.PlayThrowIn(),
-        "PlayerSwitch" => () => SoundEffectsPlayer.PlayPlayerSwitch(),
-        "BallKick" => () => SoundEffectsPlayer.PlayPassKick(0.0f),
-        "PowerfulShot" => () => SoundEffectsPlayer.PlayShotKick(0.0f),
-        "GoalNet" => () => SoundEffectsPlayer.PlayGoalNet(),
-        "WoodworkHit" => () => SoundEffectsPlayer.PlayPostHit(),
-        "RefereeWhistle" => () => SoundEffectsPlayer.PlayWhistle(),
-        "GoalkeeperSave" => () => SoundEffectsPlayer.PlayShotKick(0.4f),
-        "CrowdAmbiance" => () => SoundEffectsPlayer.StartCrowdAmbiance(),
-        "GoalRoar" => () => SoundEffectsPlayer.PlayCrowdGoal(),
-        "MissGasp" => () => SoundEffectsPlayer.PlayCrowdMiss(),
-        "BeaconCenter" => () => GoalBeaconPlayer.PlayBeaconPulse(0.85f, 0.0f),
-        "BeaconLeft" => () => GoalBeaconPlayer.PlayBeaconPulse(0.85f, -0.85f),
-        "BeaconRight" => () => GoalBeaconPlayer.PlayBeaconPulse(0.85f, 0.85f),
-        "ChampionsLeagueAnthem" => () => anthemEngine.PlayChampionsLeagueSample(),
-        "NationalAnthem" => () => anthemEngine.PlayNationalAnthemSample("EGY"),
-        _ => () => SoundEffectsPlayer.PlayMenuSelect()
+        "BeaconCenter" => GoalBeaconPlayer.PlayBeaconPulse(.85f, 0),
+        "BeaconLeft" => GoalBeaconPlayer.PlayBeaconPulse(.85f, -.85f),
+        "BeaconRight" => GoalBeaconPlayer.PlayBeaconPulse(.85f, .85f),
+        "ChampionsLeagueAnthem" => anthemEngine.PlayChampionsLeagueSample(),
+        "NationalAnthem" => anthemEngine.TryPlayNationalAnthemSample("EGY"),
+        _ => SoundEffectsPlayer.TryPlayAcademySample(soundId)
     };
+
+    public static Action GetAudioAction(string soundId, AnthemEngine anthemEngine) => () => TryPlayPreview(soundId, anthemEngine);
 }

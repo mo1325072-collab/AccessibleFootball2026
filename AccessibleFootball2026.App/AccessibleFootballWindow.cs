@@ -764,9 +764,8 @@ public class AccessibleFootballWindow : Form
         {
             var planMenu = GamePlanMenuBuilder.CreatePreMatchMenu(team, _screenReader, PushMenu, PopMenu, onStartMatch: () =>
             {
-                _screenReader.Speak(T("تم حفظ الخطة التكتيكية بنجاح!", "Game plan saved"));
                 PopMenu();
-            });
+            }, startMatch: false);
             PushMenu(planMenu);
         });
         PushMenu(menu);
@@ -1020,6 +1019,10 @@ public class AccessibleFootballWindow : Form
         int userKicksTaken = 0;
         int cpuKicksTaken = 0;
         bool suddenDeathAnnounced = false;
+        var homeEligible = new ShootoutRoster(match.HomeTeam);
+        var awayEligible = new ShootoutRoster(match.AwayTeam);
+        int eligibleCount = Math.Min(homeEligible.Players.Count, awayEligible.Players.Count);
+        awayEligible.ReduceCpuTo(eligibleCount);
         var readyContext = AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty;
 
         void AfterCommentary(Action action)
@@ -1088,8 +1091,8 @@ public class AccessibleFootballWindow : Form
             _inputHandler.Reset();
             if(slow)await Task.Delay(1200);
             if(_activeMatch!=match)return;
-            var takers=match.HomeTeam.Players.Where(p=>p.IsActiveOnPitch).ToArray();
-            var taker=takers[userKicksTaken%takers.Length];
+            var taker=homeEligible.Taker(userKicksTaken);
+            if(taker==null)return;
             var keeper=match.AwayTeam.Players.FirstOrDefault(p=>p.IsActiveOnPitch&&p.Role==PlayerRole.Goalkeeper);
             var result=ShootoutKick.Resolve(angle,Random.Shared.Next(3),taker.Shooting,keeper?.Defending??50,slow,Random.Shared.NextDouble());
             SoundEffectsPlayer.PlayKick(angle==0?.8f:angle==2?-.8f:0);
@@ -1126,8 +1129,8 @@ public class AccessibleFootballWindow : Form
             bool slow=Random.Shared.Next(4)==0;
             if(slow)await Task.Delay(1200);
             if(_activeMatch!=match)return;
-            var takers=match.AwayTeam.Players.Where(p=>p.IsActiveOnPitch).ToArray();
-            var taker=takers[cpuKicksTaken%takers.Length];
+            var taker=awayEligible.Taker(cpuKicksTaken);
+            if(taker==null)return;
             var keeper=match.HomeTeam.Players.FirstOrDefault(p=>p.IsActiveOnPitch&&p.Role==PlayerRole.Goalkeeper);
             int angle=Random.Shared.Next(3);
             var result=ShootoutKick.Resolve(angle,userDive,taker.Shooting,keeper?.Defending??50,slow,Random.Shared.NextDouble());
@@ -1163,10 +1166,20 @@ public class AccessibleFootballWindow : Form
             });
         }
 
+        void PrepareEligiblePlayers()
+        {
+            if(homeEligible.Players.Count <= eligibleCount) { PlayUserTurn(); return; }
+            var menu = GamePlanMenuBuilder.CreateShootoutEligibilityMenu(homeEligible, eligibleCount, _screenReader, () =>
+            {
+                _currentMenu=null;_menuHistory.Clear();PrepareEligiblePlayers();
+            });
+            PushMenu(menu);
+        }
+
         _commentaryEngine.RunAfterRecordedCommentaryAsync(async () =>
         {
             await _screenReader.SpeakUntilFinishedAsync(T("انطلاق ركلات الترجيح الحاسمة! 5 ركلات لكل فريق.", "Penalty shootout. Five kicks each."));
-            if (!IsDisposed && IsHandleCreated) BeginInvoke(() => { if (_activeMatch == match) PlayUserTurn(); });
+            if (!IsDisposed && IsHandleCreated) BeginInvoke(() => { if (_activeMatch == match) PrepareEligiblePlayers(); });
         });
     }
 
@@ -1195,7 +1208,7 @@ public class AccessibleFootballWindow : Form
         {
             SoundEffectsPlayer.StopCrowdAmbiance();
             SoundEffectsPlayer.PlayWhistle();
-            string finalSpeech = T($"نهاية المباراة! النتيجة النهائية: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، مقابل {_activeMatch.AwayTeam.Score} لـ {_activeMatch.AwayTeam.Name}. العودة للقائمة الرئيسية.", $"Full time: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}, {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.");
+            string finalSpeech = _activeMatch.AbandonmentReason is { } reason ? T($"{reason} النتيجة عند التوقف: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.", $"{reason} Score at stoppage: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}, {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.") : T($"نهاية المباراة! النتيجة النهائية: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}، مقابل {_activeMatch.AwayTeam.Score} لـ {_activeMatch.AwayTeam.Name}. العودة للقائمة الرئيسية.", $"Full time: {_activeMatch.HomeTeam.Name} {_activeMatch.HomeTeam.Score}, {_activeMatch.AwayTeam.Name} {_activeMatch.AwayTeam.Score}.");
             _activeMatch = null;
             _currentMenu = null;
             _menuHistory.Clear();
@@ -1337,8 +1350,8 @@ public class AccessibleFootballWindow : Form
             return;
         }
 
-        // No field controls or pause/main-menu routing while a shootout kick is resolving.
-        if (_activeMatch?.State == MatchState.PenaltyShootout)
+        // No field/pause routing during shootout resolution or the final commentary handoff.
+        if (_activeMatch?.State is MatchState.PenaltyShootout or MatchState.GameOver)
         {
             e.Handled = true;
             e.SuppressKeyPress = true;

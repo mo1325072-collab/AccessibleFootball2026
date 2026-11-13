@@ -23,7 +23,7 @@ public partial class MatchEngine
     private bool UpdateRunUp(float dt)
     {
         if(_runUpPlayer is not {} player)return false;
-        if((Ball.Owner!=null && Ball.Owner!=player) || Vector2.Distance(Ball.Position2D,_runUpBallSpot)>1 || !player.IsActiveOnPitch){_runUpPlayer=null;return false;}
+        if((Ball.Owner!=null && Ball.Owner!=player) || Vector2.Distance(Ball.Position2D,_runUpBallSpot)>1 || !player.IsActiveOnPitch || !HomeTeam.Players.Contains(player)){_runUpPlayer=null;return false;}
         // The player takes real short steps toward a stationary loose ball. Opponents remain live in open play.
         var delta=_runUpBallSpot-player.Position2D;
         float step=Math.Min(delta.Length(),dt*(.8f/1.2f));

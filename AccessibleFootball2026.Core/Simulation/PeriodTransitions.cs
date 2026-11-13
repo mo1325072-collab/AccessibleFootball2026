@@ -24,6 +24,8 @@ public partial class MatchEngine
 
     private void ResetPeriodPlayState()
     {
+        _tacticalDecisionWait.Clear();
+        _transitionTeamId=null;_transitionUntil=0;_tacticalLastOwnerTeamId=null;
         AwaitingStoppageConfirmation = false;
         CompleteAnalysisReplay();
         ActivePassTransit = null;

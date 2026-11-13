@@ -55,7 +55,7 @@ public enum MatchEventType
     FreeKickAwarded, FreeKickReady, FreeKickTaken,
     DribbleSuccessful, Clearance, ShotBlocked, ControlLost,
     SubstitutionPlanned, RefereeProtest, GoalDisallowed, MissAnalysis, OffsideAnalysis,
-    Advantage, BallOut, LineupRequested, TrophyWon, CoachInstruction, CoachPraise, CoachWideInstruction
+    Advantage, BallOut, LineupRequested, TrophyWon, CoachInstruction, CoachPraise, CoachWideInstruction, MatchAbandoned
 }
 
 /// <summary>
@@ -144,3 +144,4 @@ public class MatchEventBus
         OnMatchEvent?.Invoke(matchEvent);
     }
 }
+

@@ -14,6 +14,10 @@ public enum FormationType
     Formation343_AllOut = 7,    // 3-4-3 هجوم كاسح وضغط متقدم
     Formation541_Bus = 8,       // 5-4-1 ركن الأتوبيس والدفاع التام
 
+    Formation4141 = 9,
+    Formation3421 = 10,
+    Formation4222 = 11,
+
     // تسميات شائعة ومطابقة دقيقة لطلب المستخدم:
     Formation433_A = Formation433_Attack,
     Formation433_B = Formation433_Defend,
@@ -53,34 +57,43 @@ public static class FormationManager
         FormationType.Formation352_Wings,
         FormationType.Formation532_Counter,
         FormationType.Formation343_AllOut,
-        FormationType.Formation541_Bus
+        FormationType.Formation541_Bus,
+        FormationType.Formation4141,
+        FormationType.Formation3421,
+        FormationType.Formation4222
     };
 
     public static string ToArabicName(this FormationType type) => type switch
     {
-        FormationType.Formation433_Attack => "4-3-3 A (هجومية صريحة بصانع ألعاب AMF)",
-        FormationType.Formation433_Defend => "4-3-3 B (دفاعية بمحور ارتكاز صريح DMF)",
-        FormationType.Formation4231_Wide => "4-2-3-1 (المتوازنة بالارتكاز المزدوج والأجنحة)",
-        FormationType.Formation442_Flat => "4-4-2 A (الكلاسيكية بخطي دفاع ووسط متوازيين)",
-        FormationType.Formation41212_Diamond => "4-4-2 B (الماسية بصانع ألعاب صريح)",
-        FormationType.Formation352_Wings => "3-5-2 (ثلاثي دفاعي مع أجنحة طايرة)",
-        FormationType.Formation532_Counter => "5-3-2 (دفاع حديدي محكم للمرتدات)",
-        FormationType.Formation343_AllOut => "3-4-3 (هجوم كاسح وضغط متقدم)",
-        FormationType.Formation541_Bus => "5-4-1 (ركن الأتوبيس والتكتل الدفاعي المطلق)",
+        FormationType.Formation433_Attack => "4-3-3 (وسط متدرج وصانع ألعاب)",
+        FormationType.Formation433_Defend => "4-3-3 (ارتكاز واثنان وسط)",
+        FormationType.Formation4231_Wide => "4-2-3-1 (ارتكاز مزدوج)",
+        FormationType.Formation442_Flat => "4-4-2 (وسط مسطح)",
+        FormationType.Formation41212_Diamond => "4-1-2-1-2 (وسط ماسي)",
+        FormationType.Formation352_Wings => "3-5-2 (ظهيرا جناح)",
+        FormationType.Formation532_Counter => "5-3-2 (كتلة منخفضة)",
+        FormationType.Formation343_AllOut => "3-4-3 (جناحان وظهيرا جناح)",
+        FormationType.Formation541_Bus => "5-4-1 (كتلة منخفضة)",
+        FormationType.Formation4141 => "4-1-4-1 (ارتكاز ووسط عريض)",
+        FormationType.Formation3421 => "3-4-2-1 (صانعا ألعاب)",
+        FormationType.Formation4222 => "4-2-2-2 (صانعا ألعاب ومهاجمان)",
         _ => "4-3-3"
     };
 
     public static string ToEnglishName(this FormationType type) => type switch
     {
-        FormationType.Formation433_Attack => "4-3-3 A (Attack / AMF)",
-        FormationType.Formation433_Defend => "4-3-3 B (Holding / DMF)",
+        FormationType.Formation433_Attack => "4-3-3 Staggered midfield",
+        FormationType.Formation433_Defend => "4-3-3 Holding / two eights",
         FormationType.Formation4231_Wide => "4-2-3-1 Wide",
-        FormationType.Formation442_Flat => "4-4-2 A Flat",
-        FormationType.Formation41212_Diamond => "4-4-2 B Diamond",
-        FormationType.Formation352_Wings => "3-5-2 Wings",
-        FormationType.Formation532_Counter => "5-3-2 Counter",
-        FormationType.Formation343_AllOut => "3-4-3 All Out",
-        FormationType.Formation541_Bus => "5-4-1 Park the Bus",
+        FormationType.Formation442_Flat => "4-4-2 Flat",
+        FormationType.Formation41212_Diamond => "4-1-2-1-2 Diamond",
+        FormationType.Formation352_Wings => "3-5-2 Wing-backs",
+        FormationType.Formation532_Counter => "5-3-2 Low block",
+        FormationType.Formation343_AllOut => "3-4-3 Wide forwards",
+        FormationType.Formation541_Bus => "5-4-1 Low block",
+        FormationType.Formation4141 => "4-1-4-1 Wide midfield",
+        FormationType.Formation3421 => "3-4-2-1 Two tens",
+        FormationType.Formation4222 => "4-2-2-2 Two tens / two strikers",
         _ => "4-3-3"
     };
 
@@ -88,26 +101,29 @@ public static class FormationManager
     {
         FormationType.Formation433_Attack => new(
             FormationType.Formation433_Attack,
-            "4-3-3 A (هجومية صريحة)",
-            "4-3-3 A Attack",
+            "4-3-3 (وسط متدرج)",
+            "4-3-3 Staggered midfield",
             "صانع ألعاب هجومي (AMF)",
-            "تتطلب صانع ألعاب متقدم مهاري (AMF) لصناعة اللعب، وتناسب الضغط العالي.",
+            "ارتكاز يحمي الدفاع ولاعب وسط يربط اللعب وصانع ألعاب متقدم، وجناحان يدعمان مهاجماً واحداً. يحتاج تقدم الظهيرين إلى تغطية.",
             false,
             95
         ),
         FormationType.Formation433_Defend => new(
             FormationType.Formation433_Defend,
-            "4-3-3 B (دفاعية/ارتكاز)",
-            "4-3-3 B Holding",
+            "4-3-3 (ارتكاز واثنان وسط)",
+            "4-3-3 Holding / two eights",
             "محور ارتكاز دفاعي (DMF)",
             "تتطلب لاعب وسط دفاعي قوي بدنياً ومدافعاً صريحاً (DMF) لحماية ظهر الدفاع.",
             false,
             75
         ),
+        FormationType.Formation4231_Wide => new(
+            FormationType.Formation4231_Wide, "4-2-3-1", "4-2-3-1",
+            "ارتكاز مزدوج وصانع ألعاب وجناحان", "تحتاج ثنائي وسط يغطي الدفاع، وصانع ألعاب بين الخطوط وجناحين يدعمان المهاجم الوحيد.", false, 85),
         FormationType.Formation442_Flat => new(
             FormationType.Formation442_Flat,
-            "4-4-2 A (كلاسيكية)",
-            "4-4-2 A Flat",
+            "4-4-2 (وسط مسطح)",
+            "4-4-2 Flat",
             "أجنحة كلاسيكية متوازنة",
             "تعتمد على الانتشار العريض والعرضيات والتناغم بين ثنائي الهجوم.",
             false,
@@ -115,8 +131,8 @@ public static class FormationManager
         ),
         FormationType.Formation41212_Diamond => new(
             FormationType.Formation41212_Diamond,
-            "4-4-2 B (ماسية)",
-            "4-4-2 B Diamond",
+            "4-1-2-1-2 (وسط ماسي)",
+            "4-1-2-1-2 Diamond",
             "صانع ألعاب في القمة وارتكاز في القاعدة",
             "تتطلب صانع ألعاب حر (AMF) وأظهرة سريعة لتعويض غياب الأجنحة الصريحة.",
             false,
@@ -124,26 +140,26 @@ public static class FormationManager
         ),
         FormationType.Formation532_Counter => new(
             FormationType.Formation532_Counter,
-            "5-3-2 (دفاعية محكمة)",
-            "5-3-2 Counter",
+            "5-3-2 (كتلة منخفضة)",
+            "5-3-2 Low block",
             "3 قلوب دفاع + ظهيري جناح",
-            "خطة دفاعية صريحة للتكتل تحت الكرة (ضغط 0-40) والمرتدات، يمنع الضغط العالي معها.",
+            "إعداد كتلة منخفضة بثلاثة قلوب دفاع وظهيري جناح وثلاثي وسط ومهاجمين للمرتدات. الضغط العالي يعاقب التناغم في هذا الإعداد داخل اللعبة.",
             true,
             45
         ),
         FormationType.Formation541_Bus => new(
             FormationType.Formation541_Bus,
-            "5-4-1 (ركن الأتوبيس)",
-            "5-4-1 Bus",
+            "5-4-1 (كتلة منخفضة)",
+            "5-4-1 Low block",
             "5 مدافعين + 4 وسط ومهاجم وحيد",
-            "تكتل دفاعي صارم لغلق كافة المنافذ أمام الفرق الكبرى، تتطلب ريتم بطيء وضغط متراجع تماماً.",
+            "إعداد كتلة منخفضة بخماسي دفاع ورباعي وسط. يحتاج المهاجم الوحيد دعماً عند استعادة الكرة؛ الضغط العالي يعاقب التناغم في هذا الإعداد داخل اللعبة.",
             true,
             35
         ),
         FormationType.Formation352_Wings => new(
             FormationType.Formation352_Wings,
-            "3-5-2 (أجنحة طايرة)",
-            "3-5-2 Wings",
+            "3-5-2 (ظهيرا جناح)",
+            "3-5-2 Wing-backs",
             "ظهيري جناح برئة حديدية",
             "تتطلب أجنحة دفاعية بلياقة عالية لتغطية كامل طرفي الملعب.",
             false,
@@ -151,13 +167,16 @@ public static class FormationManager
         ),
         FormationType.Formation343_AllOut => new(
             FormationType.Formation343_AllOut,
-            "3-4-3 (هجوم كاسح)",
-            "3-4-3 All Out",
+            "3-4-3 (جناحان وظهيرا جناح)",
+            "3-4-3 Wide forwards",
             "ثلاثي هجومي وأربعة وسط",
-            "تتطلب ضغطاً متقدماً وهجوماً شاملاً للمخاطرة وقلب النتائج.",
+            "تحتاج ظهيري جناح لتوفير العرض والعودة، وثنائي وسط يحمي ثلاثة مدافعين خلف ثلاثي الهجوم.",
             false,
             100
         ),
+        FormationType.Formation4141 => new(FormationType.Formation4141,"4-1-4-1","4-1-4-1","ارتكاز وأربعة وسط ومهاجم واحد","ارتكاز يحمي بين الخطوط، ولاعبا طرف يعودان مع الظهيرين، ووسط يدعم المهاجم المعزول.",false,80),
+        FormationType.Formation3421 => new(FormationType.Formation3421,"3-4-2-1","3-4-2-1","ظهيرا جناح وصانعا ألعاب","ظهيرا جناح يغطيان الطرفين، وثنائي وسط يحمي الدفاع، وصانعا ألعاب خلف مهاجم واحد.",false,90),
+        FormationType.Formation4222 => new(FormationType.Formation4222,"4-2-2-2","4-2-2-2","ارتكاز مزدوج وصانعا ألعاب ومهاجمان","الظهيران يوفران العرض، وثنائي الارتكاز يغطي خلفهما، وصانعا الألعاب يربطان اللعب بالمهاجمين.",false,90),
         _ => new(
             FormationType.Formation433_Attack,
             "4-3-3",
@@ -214,8 +233,11 @@ public static class FormationManager
         FormationType.Formation41212_Diamond => new[] { SpecificPosition.LB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RB, SpecificPosition.CDM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.CAM, SpecificPosition.ST, SpecificPosition.ST },
         FormationType.Formation352_Wings => new[] { SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.LWB, SpecificPosition.CM, SpecificPosition.CAM, SpecificPosition.CM, SpecificPosition.RWB, SpecificPosition.ST, SpecificPosition.ST },
         FormationType.Formation532_Counter => new[] { SpecificPosition.LWB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RWB, SpecificPosition.CM, SpecificPosition.CDM, SpecificPosition.CM, SpecificPosition.ST, SpecificPosition.ST },
-        FormationType.Formation343_AllOut => new[] { SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.LM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.RM, SpecificPosition.LW, SpecificPosition.ST, SpecificPosition.RW },
+        FormationType.Formation343_AllOut => new[] { SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.LWB, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.RWB, SpecificPosition.LW, SpecificPosition.ST, SpecificPosition.RW },
         FormationType.Formation541_Bus => new[] { SpecificPosition.LWB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RWB, SpecificPosition.LM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.RM, SpecificPosition.ST },
+        FormationType.Formation4141 => new[] { SpecificPosition.LB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RB, SpecificPosition.CDM, SpecificPosition.LM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.RM, SpecificPosition.ST },
+        FormationType.Formation3421 => new[] { SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.LWB, SpecificPosition.CDM, SpecificPosition.CDM, SpecificPosition.RWB, SpecificPosition.CAM, SpecificPosition.CAM, SpecificPosition.ST },
+        FormationType.Formation4222 => new[] { SpecificPosition.LB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RB, SpecificPosition.CDM, SpecificPosition.CDM, SpecificPosition.CAM, SpecificPosition.CAM, SpecificPosition.ST, SpecificPosition.ST },
         _ => new[] { SpecificPosition.LB, SpecificPosition.CB, SpecificPosition.CB, SpecificPosition.RB, SpecificPosition.CDM, SpecificPosition.CM, SpecificPosition.CM, SpecificPosition.LW, SpecificPosition.ST, SpecificPosition.RW }
     };
 
@@ -308,6 +330,18 @@ public static class FormationManager
             new(36.0f, 42.0f), // CM
             new(38.0f, 56.0f), // RM
             new(70.0f, 34.0f)  // ST
+        },
+        FormationType.Formation4141 => new()
+        {
+            new(22,12),new(18,26),new(18,42),new(22,56),new(35,34),new(49,12),new(48,26),new(48,42),new(49,56),new(74,34)
+        },
+        FormationType.Formation3421 => new()
+        {
+            new(19,20),new(17,34),new(19,48),new(43,9),new(39,27),new(39,41),new(43,59),new(60,25),new(60,43),new(76,34)
+        },
+        FormationType.Formation4222 => new()
+        {
+            new(22,12),new(18,26),new(18,42),new(22,56),new(37,27),new(37,41),new(57,24),new(57,44),new(75,28),new(75,40)
         },
         _ => new()
         {

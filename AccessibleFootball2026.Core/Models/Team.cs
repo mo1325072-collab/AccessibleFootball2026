@@ -106,7 +106,7 @@ public class Team
     public void SetupFormation433()
     {
         CurrentFormation = FormationType.Formation433_Attack;
-        FormationManager.ApplyFormation(this, FormationType.Formation433_Attack);
+        FormationManager.ApplyFormation(this, FormationType.Formation433_Attack, assignPositions: true);
         AssignDefaultRoles();
     }
 

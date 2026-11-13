@@ -22,7 +22,11 @@ public static class SoundAcademyDatabase
 {
     public static List<SoundAcademyCategory> GetCategories() => new()
     {
-        new("earcons", "نغمات التنبيه الدلالية", "Tactical Earcons")
+        new("earcons", "نغمات التنبيه الدلالية", "Tactical Earcons"),
+        new("sfx", "مؤثرات المباراة", "Match sounds"),
+        new("atmosphere", "أجواء المدرجات", "Stadium crowd"),
+        new("beacon", "منارة المرمى", "Goal beacon"),
+        new("anthems", "الأناشيد", "Anthems")
     };
 
     public static List<SoundAcademyItem> GetItemsByCategory(string categoryId, Func<string, Action>? audioResolver = null) => categoryId switch
@@ -215,7 +219,7 @@ public static class SoundAcademyDatabase
             "تنهيدة وحسرة الفرصة الضائعة (Miss Murmur & Gasp)",
             "Miss Murmur & Collective Gasp",
             "تفاعل وحسرة الجماهير عند مرور تسديدة خطيرة بجوار القائم أو ضياع فرصة مؤكدة.",
-            "Collective collective gasp and murmur of disappointment as a close shot misses.",
+            "Collective gasp and murmur of disappointment as a close shot misses.",
             resolver?.Invoke("MissGasp")
         )
     };

@@ -136,6 +136,20 @@ public class AnthemEngine
         }
     }
 
+    public bool TryPlayNationalAnthemSample(string teamId)
+    {
+        if (SoundEffectsPlayer.GetEffectiveMusicVolume() <= .001f) return false;
+        var stem = Path.Combine(_assetsBaseDir, "National", teamId);
+        var path = File.Exists(stem + ".mp3") ? stem + ".mp3" : File.Exists(stem + ".wav") ? stem + ".wav" : null;
+        if (path == null) return false;
+        try
+        {
+            if (!StartAnthem(path, fromStart: true)) return false;
+            LastPlayedAnthem = teamId; IsAnthemPlaying = true; return true;
+        }
+        catch { return false; }
+    }
+
     public void PlayNationalAnthemSample(string? teamId = "EGY")
     {
         if (SoundEffectsPlayer.GetEffectiveMusicVolume() <= .001f) return;

@@ -88,18 +88,19 @@ public static class GoalBeaconPlayer
     }
 
     private static float _pulseStrength, _pulsePan;
-    public static void PlayBeaconPulse(float volume, float pan)
+    public static bool PlayBeaconPulse(float volume, float pan)
     {
         lock (_lock)
         {
             _pulseStrength = Math.Clamp(volume, 0, 1); _pulsePan = Math.Clamp(pan, -1, 1);
             float effective = _pulseStrength * SoundEffectsPlayer.GetEffectiveBeaconVolume();
-            if (effective <= .001f) { Stop(); return; }
+            if (effective <= .001f) { Stop(); return false; }
             if (!_initialized) Initialize();
             MciPlayback.SendString("close beacon_ch", null, 0, IntPtr.Zero);
-            if (MciPlayback.SendString($"open \"{_beaconWavPath}\" type mpegvideo alias beacon_ch", null, 0, IntPtr.Zero) != 0) return;
-            if (!ApplyLiveVolume()) { Stop(); return; }
-            MciPlayback.SendString("play beacon_ch from 0", null, 0, IntPtr.Zero);
+            if (MciPlayback.SendString($"open \"{_beaconWavPath}\" type mpegvideo alias beacon_ch", null, 0, IntPtr.Zero) != 0) return false;
+            if (!ApplyLiveVolume()) { Stop(); return false; }
+            if (MciPlayback.SendString("play beacon_ch from 0", null, 0, IntPtr.Zero) != 0) { Stop(); return false; }
+            return true;
         }
     }
 

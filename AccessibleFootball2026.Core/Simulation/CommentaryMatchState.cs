@@ -200,7 +200,7 @@ public partial class MatchEngine
         var g=replay.Goal;
         if(g.IsOwnGoal || g.Assister==null || g.Assister==g.Scorer ||
            (g.ScoringTeam!=HomeTeam && g.ScoringTeam!=AwayTeam) ||
-           !g.ScoringTeam.Players.Contains(g.Scorer) || !g.ScoringTeam.Players.Contains(g.Assister)) return false;
+           TeamOf(g.Scorer) != g.ScoringTeam || TeamOf(g.Assister) != g.ScoringTeam) return false;
         _praisedTeamGoal=replay;
         Publish(new MatchEvent(MatchEventType.CoachPraise,"إشادة المدرب بالعمل الجماعي بعد هدف بصناعة زميل",goalData:g),
             ("coach.response","teamGoalPraise"),("coach.response.teamId",g.ScoringTeam.Id));
