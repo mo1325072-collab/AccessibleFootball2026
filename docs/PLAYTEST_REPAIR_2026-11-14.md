@@ -64,3 +64,8 @@ Penalty input no longer offers shot/dive choice menus. Up/down continuously chan
 ## Cairo International Stadium
 
 Added Cairo International Stadium to the selectable sourced stadium catalog for the actual Egypt national team. It appears directly when Egypt participates and through the production national-team stadium group. CAF identifies the stadium as Egypt's national-team home: https://www.cafonline.com/caf-u-20-africa-cup-of-nations/news/cairo-ismailia-and-alexandria-ready-to-host-u20-afcon-egypt/ . This does not invent a dedicated recording, chant, capacity-driven model or club ownership grant. Existing general crowd acoustics are used; chant eligibility still requires an independently mapped recorded pool.
+
+
+## Reader ducking across all crowd channels
+
+The prior Space/radar speech path lowered only the continuous crowd alias, leaving chant and crowd-reaction aliases at full volume. Temporary reader attenuation now reaches every active crowd-family alias and every new chant/reaction start. Live saved-volume changes retain the temporary factor, and reader completion restores the latest saved volume without editing the slider. The production priority reader emits actual speech start/end activity; merely waiting for the recorded commentator does not duck crowd, and the commentator itself is not ducked. Tests exercise the explicit Space/radar request even when automatic spoken events are disabled, a blocked reader, a busy commentator, overlapping crowd/chant/reaction channels, new starts and a live volume edit. Four new assertions fail against the prior player and pass after repair. This is command/lifecycle verification; actual Windows/NVDA listening remains required.
