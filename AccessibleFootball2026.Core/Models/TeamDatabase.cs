@@ -220,6 +220,7 @@ public static class StadiumCatalog
         new("AFAS","أفاس","AFAS Stadion",false,new[] {"AZ Alkmaar"},"https://www.az.nl/club/afas-stadion"),
         new("Aviva","أفيفا","Aviva Stadium",true,new[] {"Republic of Ireland"},"https://www.avivastadium.ie/whats-on/uefa-nations-league-republic-of-ireland-v-kosovo"),
         new("EpetLetna","إيبيت أرينا (ليتنا)","epet ARENA (Letná)",true,new[] {"Czechia"},"https://www.fotbal.cz/repre/potvrzena-mista-zapasu-podzimni-ligy-narodu/a24373"),
+        new("IranAzadi","آزادي","Azadi Stadium (Tehran)",true,new[] {"Iran"},"https://www.the-afc.com/en/national/asian_qualifiers.html/news/group-a-ir-iran-2-2-uzbekistan"),
     };
 
     public static IReadOnlyList<StadiumDefinition> GetAvailableStadiums()
@@ -320,6 +321,7 @@ public static class TeamChantCatalog
         new("AZ Alkmaar","SP_R0242_",702,705,MapSource,false),
         new("Republic of Ireland","SP_R0001_",448,448,MapSource,true),
         new("Czechia","SP_R0013_",474,475,MapSource,true),
+        new("Iran","SP_R0055_",525,529,MapSource,true),
     };
     public static TeamChantPool? Find(Team team) =>
         Pools.FirstOrDefault(p=>p.NationalTeams==team.IsNationalTeam && p.TeamName.Equals(team.Name,StringComparison.OrdinalIgnoreCase));
