@@ -92,7 +92,7 @@ sparseStadium.SetMatchTeams(madrid,barcelona);
 anthemCommands.Clear();sparseStadium.ActiveStadiumKey="";sparseStadium.SetMatchTeams(madrid,barcelona);
 Check(!anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("Acoustic_3.wav")),"missing neutral acoustic never substitutes the available Bernabeu file");
 var acousticField=typeof(SoundEffectsPlayer).GetField("_stadiumAcousticPath",BindingFlags.Static|BindingFlags.NonPublic)!;
-Check(acousticField.GetValue(null)==null,"missing selected acoustic clears stale previous stadium configuration");
+Check(string.IsNullOrEmpty((string?)acousticField.GetValue(null)),"missing selected acoustic clears stale previous stadium configuration");
 
 // Event routing follows typed facts, not the language used by event prose.
 SoundEffectsPlayer.Initialize(root);
@@ -203,6 +203,8 @@ Check(!anthemCommands.Any(c=>c=="play beacon_ch from 0"),"gameplay beacon cannot
 GoalBeaconPlayer.Stop();Check(beaconBytes.SequenceEqual(File.ReadAllBytes(Path.Combine(root,"SFX","Beacon","GoalBeacon.wav"))),"beacon initialization preserves supplied source recording bytes");
 MatchSettings.Current.MasterVolumePercent=100;MatchSettings.Current.GoalBeaconVolumePercent=100;MatchSettings.Current.ApplyLive();
 
+// Transport mixing tests need a harmless test fixture now that the real default is rejected music.
+SoundEffectsPlayer.SetStadiumAcoustics(Path.Combine(root,"SFX","Crowd","CrowdApplause.wav"));
 // User preference: recorded commentator never ducks crowd; reader speech still does.
 anthemCommands.Clear();
 transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{anthemCommands.Add(command);buffer?.Append("stopped");return 0;}));
@@ -216,6 +218,58 @@ Check(anthemCommands.Last(c=>c.StartsWith("setaudio crowd volume to "))=="setaud
 SoundEffectsPlayer.SetCrowdDucking(.2f);anthemCommands.Clear();SoundEffectsPlayer.StopCommentaryAudio();SoundEffectsPlayer.SetCrowdVolume(1000,true);
 Check(anthemCommands.Last(c=>c.StartsWith("setaudio crowd volume to "))=="setaudio crowd volume to "+(int)(baseCrowd*.2f),"commentary stop preserves reader-only crowd reduction");
 SoundEffectsPlayer.SetCrowdDucking(1);
+
+// Production background suppression is exact-file scoped and does not mute working crowd channels.
+SoundEffectsPlayer.StopCrowdAmbiance();anthemCommands.Clear();
+SoundEffectsPlayer.SetStadiumAcoustics(Path.Combine(root,"SFX","StadiumAcoustics","Acoustic_3.wav"));
+SoundEffectsPlayer.StartCrowdAmbiance();SoundEffectsPlayer.SetCrowdDucking(.2f);SoundEffectsPlayer.SetCrowdDucking(1);
+Check(!anthemCommands.Any(c=>c=="play crowd repeat"),"confirmed Bernabeu musical bed cannot start or resume");
+SoundEffectsPlayer.StopCrowdAmbiance();anthemCommands.Clear();SoundEffectsPlayer.StartCrowdAmbiance();
+Check(!anthemCommands.Any(c=>c=="play crowd repeat"),"default CrowdAmbiance duplicate of rejected Acoustic10 never substitutes musical bed");
+SoundEffectsPlayer.PlayOneShotChant(Path.Combine(root,"SFX","Chants","SP_R","Chant_550.wav"));SoundEffectsPlayer.PlayCrowdGoal();
+Check(anthemCommands.Contains("play chant_ch from 0")&&anthemCommands.Contains("play crowd_goal from 0"),"bed removal preserves team chant and crowd reaction playback");
+
+// Every selectable ground uses the same no-unverified-bed policy, not just Bernabeu.
+foreach(var ground in StadiumCatalog.GetAvailableStadiums())
+{
+    SoundEffectsPlayer.StopCrowdAmbiance();anthemCommands.Clear();
+    var allGroundsEngine=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(root){ActiveStadiumKey=ground.Key};
+    allGroundsEngine.SetMatchTeams(madrid,barcelona);SoundEffectsPlayer.StartCrowdAmbiance();
+    SoundEffectsPlayer.PauseCrowdAmbiance();SoundEffectsPlayer.ResumeCrowdAmbiance();
+    Check(!anthemCommands.Any(c=>c=="play crowd repeat"),"no unverified continuous music or fallback at ground "+ground.Key);
+}
+anthemCommands.Clear();MatchSettings.Current.MusicVolumePercent=40;MatchSettings.Current.MasterVolumePercent=50;MatchSettings.Current.ApplyLive();
+Check(SoundEffectsPlayer.PlayMatchLineupMusic(),"exact identified Acoustic3 may play intentionally as one-shot lineup music");
+Check(anthemCommands.Contains("play lineup_music from 0")&&!anthemCommands.Contains("play lineup_music repeat")&&anthemCommands.Contains("setaudio lineup_music volume to 200"),"lineup uses Music times Master before one-shot play, not Crowd/SFX or loop");
+SoundEffectsPlayer.StopMatchLineupMusic();
+Check(anthemCommands.Contains("stop lineup_music")&&anthemCommands.Contains("close lineup_music")&&!SoundEffectsPlayer.IsMatchLineupMusicPlaying,"lineup stop closes channel before kickoff");
+anthemCommands.Clear();MatchSettings.Current.MusicVolumePercent=0;MatchSettings.Current.ApplyLive();
+Check(!SoundEffectsPlayer.PlayMatchLineupMusic()&&!anthemCommands.Contains("play lineup_music from 0"),"Music zero suppresses intentional lineup track without a silent wait");
+MatchSettings.Current.MusicVolumePercent=100;MatchSettings.Current.MasterVolumePercent=100;MatchSettings.Current.ApplyLive();
+
+// Exact recording accepted by the user by ear. Historical Juventus slot map is not identity authority.
+var egyptStadium=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(root){ActiveStadiumKey="CairoInternational"};
+egyptStadium.SetMatchTeams(egypt,madrid);anthemCommands.Clear();
+egyptStadium.PlayTeamChant(egypt,AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm,force:true);
+Check(anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("Chant_600.wav")),"Cairo Egypt plays exact user-identified retained chant600");
+Check(TeamChantCatalog.Find(egypt)?.ConfirmedRecordingSha256=="b76a2253a9f3ecb365c0c708551bbc9cdf99b8f511b82c5380a6258f812b3d94","Egypt user override binds exact recording bytes, not entire Juventus prefix");
+egyptStadium.SetMatchTeams(madrid,barcelona);anthemCommands.Clear();
+egyptStadium.PlayTeamChant(egypt,AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm,force:true);
+Check(!anthemCommands.Any(c=>c.StartsWith("open ")),"Cairo never chants Egypt when Egypt does not participate");
+egyptStadium.ActiveStadiumKey="CampNou";egyptStadium.SetMatchTeams(egypt,barcelona);anthemCommands.Clear();
+egyptStadium.PlayTeamChant(egypt,AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm,force:true);
+Check(!anthemCommands.Any(c=>c.StartsWith("open ")),"Egypt recording does not escape owner-and-participation stadium gate");
+
+var exactOverrideRoot=Path.Combine(Path.GetTempPath(),"egypt-exact-"+Guid.NewGuid());
+Directory.CreateDirectory(Path.Combine(exactOverrideRoot,"SFX","Chants"));
+File.Copy(Path.Combine(root,"SFX","Chants","SP_R","Chant_600.wav"),Path.Combine(exactOverrideRoot,"SFX","Chants","Chant_600.wav"));
+File.WriteAllText(Path.Combine(exactOverrideRoot,"SFX","Chants","chants_index.json"),"[{\"Index\":600,\"Label\":\"SP_R0120_03\"}]");
+var exactEngine=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(exactOverrideRoot);
+var resolveOverride=exactEngine.GetType().GetMethod("ResolveTeamChantPath",BindingFlags.Instance|BindingFlags.NonPublic)!;
+Check(resolveOverride.Invoke(exactEngine,new object[]{TeamChantCatalog.Pools.Single(p=>p.TeamName=="Juventus FC")})==null,"confirmed Egypt slot600 is excluded from Juventus despite historical prefix");
+File.WriteAllBytes(Path.Combine(exactOverrideRoot,"SFX","Chants","Chant_600.wav"),new byte[200]);
+Check(resolveOverride.Invoke(exactEngine,new object[]{TeamChantCatalog.Find(egypt)!})==null,"filename600 alone cannot substitute different bytes for confirmed Egypt recording");
+Directory.Delete(exactOverrideRoot,true);
 
 // New user-supplied index + contemporaneous PES2013 map: identity, not suffix semantics.
 var indexedStadium=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(root){ActiveStadiumKey="SantiagoBernabeu"};
@@ -297,7 +351,7 @@ anthemCommands.Clear();effectsCoordinator.HandleMatchEvent(chantGoalEvent);
 Check(anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("CrowdGoal.wav"))&&anthemCommands.Contains("play crowd_goal from 0"),"actualgoaleventusesexistingCrowdGoalassetandcrowdgoalchannel");
 Check(Directory.GetFiles(Path.Combine(root,"SFX","Crowd"),"CrowdMiss.wav").Length==1,"suppliedCrowdMissfileexistsforgasp_routewithoutsyntheticcreation");
 var grounds=StadiumCatalog.GetAvailableStadiums();
-Check(grounds.Count==66&&grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"sixtysixgroundscover72wiredchantteamswithoutpadding");
+Check(grounds.Count==67&&grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"sixtysevengroundscover73wiredchantteamsincludingconfirmedEgypt");
 Check(grounds.All(g=>g.TeamNames.All(n=>TeamChantCatalog.Pools.Any(p=>p.TeamName==n))),"nogroundwithoutcorroboratedteamchantpoolisoffered");
 Check(StadiumCatalog.Find("Anfield")==null&&StadiumCatalog.Find("Emirates")==null,"priorpaddinggroundsremovednotmerelyhiddenbygroup");
 Check(StadiumCatalog.GetGroundsForProductionGroup("Premier League (England)").Count==1,"unsupportedteamsdonotcreateotherstadiumchoices");
