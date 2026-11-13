@@ -115,6 +115,7 @@ public class MatchSettings
     public bool AutoSubstitutionsEnabled { get; set; } = false;
     public bool AutoTacticalAdjustmentsEnabled { get; set; } = false; // التعديل التكتيكي التلقائي الذكي حسب مجريات وسير اللعب
     public bool AiVarEnabled { get; set; } = true;
+    public bool CheckForUpdatesOnStartup { get; set; } = false;
 
     // حسابات مستويات الصوت الفعالة (0.0f - 1.0f)
     public float GetEffectiveMasterVolume() => Math.Clamp(MasterVolumePercent / 100f, 0f, 1f);
@@ -146,6 +147,7 @@ public class MatchSettings
         AutoSubstitutionsEnabled = false;
         AutoTacticalAdjustmentsEnabled = false;
         AiVarEnabled = true;
+        CheckForUpdatesOnStartup = false;
     }
 
     public static event Action<MatchSettings>? OnSettingsChanged;
@@ -235,6 +237,7 @@ public class MatchSettings
                     AutoSubstitutionsEnabled = source.AutoSubstitutionsEnabled;
                     AutoTacticalAdjustmentsEnabled = source.AutoTacticalAdjustmentsEnabled;
                     AiVarEnabled = source.AiVarEnabled;
+                    CheckForUpdatesOnStartup = source.CheckForUpdatesOnStartup;
                     SettingsVersion = source.SettingsVersion;
     }
 
