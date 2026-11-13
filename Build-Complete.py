@@ -19,8 +19,20 @@ def get(url,target):
  with urllib.request.urlopen(req,timeout=120) as r,tmp.open('wb') as w:shutil.copyfileobj(r,w,1024*1024)
  tmp.replace(target)
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--prepare-only',action='store_true');p.add_argument('--iscc');p.add_argument('--dotnet',default='dotnet');p.add_argument('--input-zip',type=Path,help='Optional predownloaded verified input ZIP; normally automatic GitHub download')
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--prepare-only',action='store_true');p.add_argument('--code-only',action='store_true',help='Build a code-only patch ZIP without reading or downloading audio');p.add_argument('--iscc');p.add_argument('--dotnet',default='dotnet');p.add_argument('--input-zip',type=Path,help='Optional predownloaded verified input ZIP; normally automatic GitHub download')
  a=p.parse_args();work=ROOT/'build-complete';work.mkdir(exist_ok=True);parts=work/'download';parts.mkdir(exist_ok=True)
+ if a.code_only:
+  code=work/'code-only';code.mkdir(exist_ok=True)
+  subprocess.run([a.dotnet,'publish',str(ROOT/'AccessibleFootball2026.App'),'--configuration','Release','--runtime','win-x64','--self-contained','true','-p:EnableWindowsTargeting=true','--output',str(code)],check=True,cwd=ROOT)
+  exe=code/'AccessibleFootball2026.exe'
+  if not exe.is_file():raise SystemExit('No rebuilt executable produced')
+  patch=work/'AccessibleFootball2026-CodePatch.zip'
+  with zipfile.ZipFile(patch,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:z.write(exe,exe.name)
+  record={'artifact':patch.name,'bytes':patch.stat().st_size,'sha256':digest(patch),'exe_bytes':exe.stat().st_size,'exe_sha256':digest(exe),'assets_changed':False,'native_windows_acceptance':False}
+  patch.with_suffix('.json').write_text(json.dumps(record,indent=2))
+  print(json.dumps(record,indent=2));print('Close the existing game, back up its EXE, and replace only AccessibleFootball2026.exe in the installed game folder. Keep Assets, database, DLLs and settings. This is not an automatic updater or completed native acceptance test.')
+  return
+
  m={'archive_bytes': 38970719, 'archive_sha256': '689d01ed08e3328171e11947371354e92553702374e065b586191a1e911371aa', 'parts': [{'name': 'AF2026-ExtraAudio.part001.bin', 'bytes': 8388608, 'sha256': 'd1c973b764e6a12739bb5c392a440f8ec6a26ca4c6ffb8ab93d6b8b6ff2e7a29'}, {'name': 'AF2026-ExtraAudio.part002.bin', 'bytes': 8388608, 'sha256': '684dc1c9491bcf6e7fa7d6dfb968d7ce35e0457e6d7b17fef976b8edaa6a511d'}, {'name': 'AF2026-ExtraAudio.part003.bin', 'bytes': 8388608, 'sha256': '926647d2a71500d1eadd4d2b1941f89e43f7dfcee1598ef9697749fa9689afa6'}, {'name': 'AF2026-ExtraAudio.part004.bin', 'bytes': 8388608, 'sha256': '0ca9c16dcc3ed8e23f8f34a44091d369561e56f14cd75b9aa02a719d91fc4d3e'}, {'name': 'AF2026-ExtraAudio.part005.bin', 'bytes': 5416287, 'sha256': 'a290e8b0c8a92591979afe3a2510af6627a0c2f5bc17fbb3419de6b95e07b67e'}]}
  archive=a.input_zip.resolve() if a.input_zip else work/'additional-content.zip'
  if not archive.exists() or archive.stat().st_size!=SIZE or digest(archive)!=SHA:
@@ -75,8 +87,9 @@ def main():
  if not iscc:
   candidates=[Path(os.environ.get(x,''))/'Inno Setup 6'/'ISCC.exe' for x in ('ProgramFiles(x86)','ProgramFiles')]
   iscc=next((str(p) for p in candidates if p.is_file()),None)
- if not iscc:raise SystemExit('Game rebuilt with all assets. Install official Inno Setup or supply --iscc ISCC.exe.')
- iss=work/'complete.iss';iss.write_text('[Setup]\nAppId=AccessibleFootball2026-Full\nAppName=Accessible Football 2026\nAppVersion=2026.11.13\nDefaultDirName={localappdata}\\AccessibleFootball2026\nDefaultGroupName=Accessible Football 2026\nPrivilegesRequired=lowest\nOutputDir=output\nOutputBaseFilename=AccessibleFootball2026-Full-Setup\nCompression=lzma2/fast\nSolidCompression=no\nDiskSpanning=no\nDisableDirPage=yes\nDisableProgramGroupPage=yes\n[Files]\nSource: "'+str(game)+'\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs\n[Icons]\nName: "{group}\\Accessible Football 2026"; Filename: "{app}\\AccessibleFootball2026.exe"; WorkingDir: "{app}"\n',encoding='utf-8')
+ if not iscc:raise SystemExit('Game rebuilt with all assets. Install official Inno Setup6.5.0+ or supply --iscc ISCC.exe.')
+ if not (Path(iscc).resolve().parent/'Languages'/'Arabic.isl').is_file():raise SystemExit('Arabic installer messages missing. Install official Inno Setup6.5.0 or newer, then retry.')
+ iss=work/'complete.iss';iss.write_text('[Setup]\nAppId=AccessibleFootball2026-Full\nAppName=Accessible Football 2026\nAppVersion=2026.11.14\nDefaultDirName={localappdata}\\AccessibleFootball2026\nDefaultGroupName=Accessible Football 2026\nPrivilegesRequired=lowest\nOutputDir=output\nOutputBaseFilename=AccessibleFootball2026-Full-Setup\nCompression=lzma2/fast\nSolidCompression=no\nDiskSpanning=no\nDisableDirPage=no\nDisableProgramGroupPage=no\nDisableWelcomePage=no\nShowLanguageDialog=yes\nUsePreviousLanguage=no\n[Languages]\nName: "ar"; MessagesFile: "compiler:Languages\\Arabic.isl"\nName: "en"; MessagesFile: "compiler:Default.isl"\n[Files]\nSource: "'+str(game)+'\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs\n[Icons]\nName: "{group}\\Accessible Football 2026"; Filename: "{app}\\AccessibleFootball2026.exe"; WorkingDir: "{app}"\n',encoding='utf-8')
  subprocess.run([iscc,str(iss)],check=True)
  exe=work/'output'/'AccessibleFootball2026-Full-Setup.exe'
  if not exe.is_file() or list(exe.parent.glob('*.bin')):raise SystemExit('Not a complete one-file installer')
