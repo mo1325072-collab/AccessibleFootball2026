@@ -179,7 +179,7 @@ public class TeamTactics
     /// </summary>
     public float GetStaminaDecayMultiplier(Player player)
     {
-        int age = player.Age > 0 ? player.Age : 25;
+        int age = player.SimulationAge; // Explicit neutral simulation band when source age is unknown.
 
         // النطاق 1: ضغط متراجع (0 - 25) -> استهلاك منخفض جداً لجميع الأعمار
         if (_pressingIntensity <= 25)
