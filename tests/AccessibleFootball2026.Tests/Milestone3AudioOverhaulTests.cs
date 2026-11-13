@@ -598,8 +598,8 @@ public static class Milestone3AudioOverhaulTests
         var argentina = TeamDatabase.CreateArgentina();
 
         engine.PlayMatchNationalAnthems(france, argentina, isAutomatedTest: false, skipChecker: () => true);
-        Assert(engine.LastPlayedAnthem != null, "National anthems must play for national teams");
-        Assert(engine.WasSkipped, "National anthem playback must be skippable on Enter");
+        Assert(engine.LastPlayedAnthem == "ChampionsLeague", "Canceled national feature must not replace approved UCL state");
+        Assert(!engine.TryPlayNationalAnthemSample("FRA"), "Canceled national preview must be inert");
     }
 
     public static void TestSyntheticSoundElimination_AndTackleMissedEarcon()
