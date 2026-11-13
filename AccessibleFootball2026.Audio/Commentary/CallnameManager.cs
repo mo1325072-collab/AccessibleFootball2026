@@ -120,7 +120,7 @@ public class CallnameManager
         if (player == null) return false;
 
         // أولوية صوت المعلق: نداء الاسم لا يقطع تعليقاً جارياً ولا يحجب قناته عن الأحداث المهمة
-        if (!force && SoundEffectsPlayer.IsCommentaryPlaying())
+        if (SoundEffectsPlayer.IsCommentaryPlaying())
         {
             return false;
         }
@@ -162,9 +162,9 @@ public class CallnameManager
 
         if (audioPath != null)
         {
-            _lastCallnameSpoken = DateTime.UtcNow;
-            SoundEffectsPlayer.PlayCommentaryAudio(audioPath);
-            return true;
+            bool started = SoundEffectsPlayer.PlayCommentaryAudio(audioPath);
+            if (started) _lastCallnameSpoken = DateTime.UtcNow;
+            return started;
         }
 
         return false;
