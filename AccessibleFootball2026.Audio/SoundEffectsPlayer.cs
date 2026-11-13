@@ -17,9 +17,7 @@ namespace AccessibleFootball2026.Audio;
 public static class SoundEffectsPlayer
 {
 
-    private static string _baseAudioDir = Directory.Exists(@"D:\AccessibleFootball2026\Assets\Audio")
-        ? @"D:\AccessibleFootball2026\Assets\Audio"
-        : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio");
+    private static string _baseAudioDir = Path.Combine(AppContext.BaseDirectory,"Assets","Audio");
     private static readonly object _lock = new();
 
     private static bool _menuMusicPlaying = false;
