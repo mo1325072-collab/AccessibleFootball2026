@@ -100,6 +100,8 @@ public class KeyboardInputHandler : IInputHandler
                 // منع التكرار التلقائي: إذا كان المفتاح مضغوطاً بالفعل، يتم تجاهل الحدث
                 if (IsDiscreteKeyHeld(keyCode))
                 {
+                    // Track both physical Control keys even when their shared action is debounced.
+                    if(keyCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL)_heldDiscreteKeys.Add(keyCode);
                     return;
                 }
 
@@ -121,16 +123,7 @@ public class KeyboardInputHandler : IInputHandler
     {
         lock (_stateLock)
         {
-            if (keyCode is VK_SHIFT or VK_LSHIFT or VK_RSHIFT)
-            {
-                _heldContinuousKeys.Remove(VK_SHIFT);
-                _heldContinuousKeys.Remove(VK_LSHIFT);
-                _heldContinuousKeys.Remove(VK_RSHIFT);
-            }
-            else
-            {
-                _heldContinuousKeys.Remove(keyCode);
-            }
+            _heldContinuousKeys.Remove(keyCode);
 
             MarkDiscreteKeyHeld(keyCode, false);
         }
@@ -326,26 +319,8 @@ public class KeyboardInputHandler : IInputHandler
 
     private void MarkDiscreteKeyHeld(int keyCode, bool held)
     {
-        if (held)
-        {
-            _heldDiscreteKeys.Add(keyCode);
-            if (keyCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL)
-            {
-                _heldDiscreteKeys.Add(VK_CONTROL);
-                _heldDiscreteKeys.Add(VK_LCONTROL);
-                _heldDiscreteKeys.Add(VK_RCONTROL);
-            }
-        }
-        else
-        {
-            _heldDiscreteKeys.Remove(keyCode);
-            if (keyCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL)
-            {
-                _heldDiscreteKeys.Remove(VK_CONTROL);
-                _heldDiscreteKeys.Remove(VK_LCONTROL);
-                _heldDiscreteKeys.Remove(VK_RCONTROL);
-            }
-        }
+        if(held)_heldDiscreteKeys.Add(keyCode);
+        else _heldDiscreteKeys.Remove(keyCode);
     }
 
     private static GameAction ResolveDiscreteAction(int keyCode, bool isPossession)
