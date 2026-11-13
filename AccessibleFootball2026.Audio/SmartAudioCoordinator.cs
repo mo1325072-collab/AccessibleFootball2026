@@ -317,28 +317,71 @@ public class SmartAudioCoordinator
     }
 
     private int _goalSequenceGeneration;
+    private readonly object _goalSpeechLock = new();
+    private CancellationTokenSource? _goalCancellation;
+    private bool _goalReaderActive;
     public bool HasPendingGoalAnnouncement { get; private set; }
 
-    public void CancelPendingGoalSequence() { Interlocked.Increment(ref _goalSequenceGeneration); HasPendingGoalAnnouncement = false; }
+    public void CancelPendingGoalSequence()
+    {
+        lock (_goalSpeechLock)
+        {
+            Interlocked.Increment(ref _goalSequenceGeneration);
+            HasPendingGoalAnnouncement = false;
+            bool cancelReader = _goalReaderActive;
+            _goalCancellation?.Cancel();
+            if (cancelReader) _screenReader.CancelSpeech();
+            _goalReaderActive = false;
+        }
+    }
 
     private async void HandleGoalCelebrationSequence(GoalDetails goalData, bool handledByCommentary)
     {
-        HasPendingGoalAnnouncement = true;
-        int generation = Volatile.Read(ref _goalSequenceGeneration);
-        await Task.Delay(handledByCommentary ? 600 : 500);
-        // No fixed timeout that would speak over a longer sequence of recorded clips.
-        while (generation == Volatile.Read(ref _goalSequenceGeneration))
+        CancelPendingGoalSequence();
+        var cancellation = new CancellationTokenSource();
+        int generation;
+        lock (_goalSpeechLock)
         {
-            bool idle = _isCommentaryIdle?.Invoke() ?? !SoundEffectsPlayer.IsCommentaryPlaying();
-            if (idle) break;
-            await Task.Delay(250);
+            generation = _goalSequenceGeneration;
+            _goalCancellation = cancellation;
+            HasPendingGoalAnnouncement = true;
         }
-        if (generation != Volatile.Read(ref _goalSequenceGeneration)) return;
-        BeginReaderDucking();
-        try { if (AccessibleFootball2026.Core.Models.MatchSettings.Current.ScreenReaderSpokenEventsEnabled) await _screenReader.SpeakUntilFinishedAsync(goalData.ToOfficialAnnouncement() + ". اضغط إنتر لإنهاء الإعادة واستئناف المباراة."); }
-        finally { EndReaderDucking(); }
-        if (generation == Volatile.Read(ref _goalSequenceGeneration))
-        { HasPendingGoalAnnouncement = false; OnGoalSequenceCompleted?.Invoke(); }
+        bool ducking = false;
+        try
+        {
+            await Task.Delay(handledByCommentary ? 600 : 500, cancellation.Token);
+            while (!(_isCommentaryIdle?.Invoke() ?? !SoundEffectsPlayer.IsCommentaryPlaying()))
+                await Task.Delay(50, cancellation.Token);
+            Task? speech = null;
+            lock (_goalSpeechLock)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                if (AccessibleFootball2026.Core.Models.MatchSettings.Current.ScreenReaderSpokenEventsEnabled)
+                {
+                    BeginReaderDucking(); ducking = true;
+                    _goalReaderActive = true;
+                    speech = _screenReader.SpeakUntilFinishedAsync(goalData.ToOfficialAnnouncement() + ". اضغط إنتر لإنهاء الإعادة واستئناف المباراة.");
+                }
+            }
+            if (speech != null) await speech.WaitAsync(cancellation.Token);
+            lock (_goalSpeechLock)
+            {
+                if (generation == _goalSequenceGeneration && !cancellation.IsCancellationRequested)
+                { HasPendingGoalAnnouncement = false; OnGoalSequenceCompleted?.Invoke(); }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { /* Reader failure must not leave a held announcement flagged forever. */ }
+        finally
+        {
+            if (ducking) EndReaderDucking();
+            lock (_goalSpeechLock)
+            {
+                if (ReferenceEquals(_goalCancellation,cancellation))
+                { _goalCancellation = null; _goalReaderActive = false; HasPendingGoalAnnouncement = false; }
+            }
+            cancellation.Dispose();
+        }
     }
 
     private readonly object _duckingLock = new();
