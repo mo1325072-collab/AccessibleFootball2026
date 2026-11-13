@@ -245,12 +245,15 @@ public static class StadiumCatalog
 
 /// <summary>Historical original-slot attribution, checked against supplied labels and recovered files.
 /// This is metadata corroboration, not an independent listening certification.</summary>
-public sealed record TeamChantPool(string TeamName,string LabelPrefix,int FirstIndex,int LastIndex,string SourceUrl,bool NationalTeams=false);
+public sealed record TeamChantPool(string TeamName,string LabelPrefix,int FirstIndex,int LastIndex,string SourceUrl,bool NationalTeams=false, string? ConfirmedRecordingSha256=null);
 public static class TeamChantCatalog
 {
     private const string MapSource="https://www.pesgaming.com/forums/threads/chant-map.92044/";
     public static readonly IReadOnlyList<TeamChantPool> Pools = new TeamChantPool[]
     {
+        // User identified this exact retained recording by listening, 2026-11-14. Historical slot map conflicts.
+        new("Egypt","SP_R0120_",600,600,"User listening identification, 2026-11-14",true,
+            "b76a2253a9f3ecb365c0c708551bbc9cdf99b8f511b82c5380a6258f812b3d94"),
         new("Real Madrid","SP_R0109_",550,557,MapSource),
         new("FC Barcelona","SP_R0108_",541,549,MapSource),
         new("Manchester United","SP_R0100_",535,540,MapSource),
