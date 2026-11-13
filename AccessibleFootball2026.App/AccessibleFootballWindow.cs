@@ -966,6 +966,12 @@ public class AccessibleFootballWindow : Form
             SoundEffectsPlayer.SetCrowdVolume(vol);
         };
 
+        // Start only the participating ground owner's already-approved full chant, when available.
+        // Its actual playback, not the lineup music, may support crowd-qualified opening lines.
+        if (_stadiumSoundEngine.ShouldPlayChantForTeam(homeTeam))
+            _stadiumSoundEngine.PlayTeamChant(homeTeam, AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm);
+        else if (_stadiumSoundEngine.ShouldPlayChantForTeam(awayTeam))
+            _stadiumSoundEngine.PlayTeamChant(awayTeam, AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm);
         // Only the existing, context-qualified recorded opening is queued during the lineup.
         _commentaryEngine.TryPlayMatchIntro(match.GetCommentarySnapshot().With(("crowd.active",SoundEffectsPlayer.IsCrowdActive)));
         _hintLabel.Text=T("اصطفاف اللاعبين. Enter أو Space لبدء المباراة", "Player lineup. Enter or Space starts the match");
