@@ -97,8 +97,10 @@ if (args.Length>0)
  Check(coachPraise.Event=="CoachPraise"&&coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",true),("goal.own",false))))&&!coachPraise.All.All(r=>r.Matches(empty.With(("coach.response","teamGoalPraise"),("goal.assisted",false),("goal.own",false)))),"Direct coach praise requires actual assisted team-goal response, not a generic goal or inferred mood");
  var wideCoach=document.Clips.Single(c=>c.Id=="01032");
  Check(wideCoach.Event=="CoachWideInstruction"&&wideCoach.All.All(r=>r.Matches(empty.With(("coach.instruction","wideHoldThenRecover"),("tactics.focus","Wings"),("wide.discipline.active",true))))&&!wideCoach.All.All(r=>r.Matches(empty.With(("coach.instruction","wideHoldThenRecover"),("tactics.focus","Central"),("wide.discipline.active",true))))&&!wideCoach.All.All(r=>r.Matches(empty.With(("analysis.coachInstructionSpoken",true)))),"Wide touchline recording requires the real wide instruction, Wings focus and active mechanic");
- var reviewHolds=new[]{"00520","01201","02009","04397","04431","04446","04665","04721"};
- Check(!document.Clips.Any(c=>reviewHolds.Contains(c.Id.Split('-')[0])),"Independent-review unknown words, names and historical cause cannot leak into automatic matches");
+ // User replies on12November supersede the earlier independent-review holds.
+ // Exact audio-reply provenance recovered before changing this expected state.
+ var laterReviewed=new[]{("00520","Save"),("01201","Goal"),("02009","BallTrapped"),("04397","BallKicked"),("04431","Shot"),("04446","PossessionPlay"),("04665","PassIntercepted"),("04721","Tackle")};
+ Check(laterReviewed.All(r=>document.Clips.Any(c=>c.Id==r.Item1&&c.Event==r.Item2&&c.Review=="verified")&&library.Recordings.Single(c=>c.Slot==r.Item1).ReviewStatus=="reviewed"),"Later exact user replies release eight earlier holds without reverting approved audio");
  var ballContinues=document.Clips.Single(c=>c.Id=="04472");
  Check(ballContinues.Review=="verified"&&ballContinues.Transcript.Contains("مستمرة"),"User-confirmed exact words preserved for continuing-ball line");
  Check(ballContinues.Event=="PossessionPlay"&&ballContinues.All.All(r=>r.Matches(empty.With(("attack.continues","true"),("analysis.hasPossession","true"),("possession.seconds","7")))),"User-verified continuing-ball line plays during actual sustained live possession");
@@ -133,8 +135,8 @@ var ronaldoTake=document.Clips.Single(c=>c.Id=="01616");
  var excluded=new[]{"01007","01029","01030","01060","04667","04690","04698"};
  Check(excluded.All(id=>library.Recordings.Single(r=>r.Slot==id).ReviewStatus=="user_excluded"&&!document.Clips.Any(c=>c.Id.Split('-')[0]==id)),"Seven user-excluded coach shouts are preserved in the library, never automatic");
  Check(excluded.All(id=>library.Resolve(library.Recordings.Single(r=>r.Slot==id).File)!=null),"Excluded originals remain present and playable from the library");
- Check(library.Recordings.Count(r=>r.ReviewStatus=="reviewed")==878&&library.Recordings.Count(r=>r.ReviewStatus=="speech_review_pending"||r.ReviewStatus=="identity_pending"||r.ReviewStatus=="non_speech_pending")==45&&library.Recordings.Count(r=>r.ReviewStatus=="non_game_promo")==3,"Accounting: 878 reviewed, 45 relevant remaining (28+11+6), 3 promos, 7 excluded");
- Check(document.Clips.Length==911,"911 automatic mappings");
+ Check(library.Recordings.Count(r=>r.ReviewStatus=="reviewed")==902&&library.Recordings.Count(r=>r.ReviewStatus=="identity_pending")==1&&library.Recordings.Count(r=>r.ReviewStatus=="user_excluded")==27&&library.Recordings.Count(r=>r.ReviewStatus=="non_game_promo")==3,"Current accounting:902reviewed,1identitypending,27userexcluded,3promos; fragments/silence checked separately");
+ Check(document.Clips.Length==935,"935later-approved automatic mappings");
  var ovation=document.Clips.Where(c=>c.Id is "01643" or "01644" or "01647").ToArray();
  Check(ovation.Length==3,"Three genuine ovation variants preserved for high-rated substitution exits");
  foreach(var ov in ovation)
