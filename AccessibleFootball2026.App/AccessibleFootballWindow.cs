@@ -453,7 +453,7 @@ public class AccessibleFootballWindow : Form
             _screenReader.Speak(T("تم اختيار ملعب ", "Selected stadium: ") + selected.DisplayName);
             StartInteractiveMatch(home, away, cupFinal, rivalry, stadiumSelected: true);
         }
-        // Relevant grounds are one action away. Other grounds remain available as neutral venues,
+        // Relevant chant-backed grounds are one action away. Other eligible grounds are
         // grouped by the actual database's competitions instead of one very long spoken list.
         foreach (var stadium in StadiumCatalog.GetAvailableStadiums().Where(s => s.IsGroundFor(home) || s.IsGroundFor(away)))
         {
@@ -480,12 +480,6 @@ public class AccessibleFootballWindow : Form
                 PushMenu(groupMenu);
             });
         }
-        otherMenu.AddItem(T("ملعب محايد", "Neutral stadium"), () =>
-        {
-            _stadiumSoundEngine.ActiveStadiumKey = "NeutralStadium";
-            _screenReader.Speak(T("تم اختيار ملعب محايد. صوت الجماهير محايد.", "Neutral stadium selected. Neutral crowd."));
-            StartInteractiveMatch(home, away, cupFinal, rivalry, stadiumSelected: true);
-        });
             otherMenu.AddItem(T("رجوع", "Back"), () => PopMenu());
             PushMenu(otherMenu);
         });
