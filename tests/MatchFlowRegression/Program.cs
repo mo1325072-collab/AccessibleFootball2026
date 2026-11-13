@@ -110,7 +110,7 @@ urgentEngine.TryCommentOnEvent(new MatchEvent(MatchEventType.RedCard, "red"));
 Check(interruptions == 0, "halftime and cards cannot preempt commentary");
 urgentEngine.TryCommentOnEvent(new MatchEvent(MatchEventType.GoalScored, "goal"));
 urgentEngine.TryCommentOnEvent(new MatchEvent(MatchEventType.PenaltyAwarded, "penalty"));
-Check(interruptions == 2, "only goal and penalty signal urgent preemption");
+Check(interruptions == 0, "goals and penalties now also wait instead of preempting commentary");
 
 // Law 3 opportunity accounting and real automatic call timing.
 void AddBench(Team t, int count = 8)
