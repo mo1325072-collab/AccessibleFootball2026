@@ -22,6 +22,15 @@ public static class SoundEffectsPlayer
 
     private static bool _menuMusicPlaying = false;
     private static bool _menuMusicRequested;
+    private static bool _matchAudioContext;
+    public static void SetMatchAudioContext(bool active)
+    {
+        lock (_lock)
+        {
+            _matchAudioContext = active;
+            if (active) StopMenuMusic();
+        }
+    }
     private static bool _crowdPlaying = false;
     private static int _lastReportedCrowdVol = -1;
     private static DateTime _lastCrowdVolChange = DateTime.MinValue;
@@ -264,7 +273,7 @@ public static class SoundEffectsPlayer
                     dataSize = chunkSize;
                     break;
                 }
-                fs.Position = nextChunk;
+                fs.Position = nextChunk + (chunkSize & 1);
             }
             if (byteRate > 0 && dataSize > 0) return (double)dataSize / byteRate;
         }
@@ -274,8 +283,9 @@ public static class SoundEffectsPlayer
 
     public static string GetMciType(string filePath)
     {
-        string ext = Path.GetExtension(filePath).ToLowerInvariant();
-        return ext == ".mp3" ? "mpegvideo" : "waveaudio";
+        // waveaudio does not support the setaudio volume commands used below.
+        // Use the same volume-capable MCI digital-video driver for PCM WAV and MP3.
+        return "mpegvideo";
     }
 
     // =========================================================================
@@ -285,6 +295,7 @@ public static class SoundEffectsPlayer
     {
         lock (_lock)
         {
+            if (_matchAudioContext) { StopMenuMusic(); return; }
             _menuMusicRequested = true;
             // إيقاف أي نشيد أو صوت افتتاحية عند الدخول إلى القوائم
             SendMci("stop anthem");
@@ -386,6 +397,15 @@ public static class SoundEffectsPlayer
     }
 
     public static void ApplyMusicVolume()
+    {
+        lock (_lock)
+        {
+            if (_matchAudioContext) { StopMenuMusic(); return; }
+            ApplyMenuMusicVolume();
+        }
+    }
+
+    private static void ApplyMenuMusicVolume()
     {
         int vol = Math.Clamp((int)(GetEffectiveMusicVolume() * 1000), 0, 1000);
         // تغيير مستوى الصوت لا يبدأ الموسيقى أبداً: تعديل الإعدادات من قائمة الإيقاف
@@ -690,6 +710,8 @@ public static class SoundEffectsPlayer
         lock (_lock)
         {
             _commentaryBusyUntil = DateTime.MinValue;
+            _activeOneShots.Remove("comm_voice");
+            _activeOneShotPans.Remove("comm_voice");
             SendMci("stop comm_voice");
             SendMci("close comm_voice");
         }
@@ -712,31 +734,41 @@ public static class SoundEffectsPlayer
 
     public static bool IsCommentaryPlaying()
     {
-        if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f) return false;
-        if (DateTime.UtcNow < _commentaryBusyUntil) return true;
-        try
+        lock (_lock)
         {
-            var sb = new StringBuilder(128);
-            int err = MciPlayback.SendString("status comm_voice mode", sb, sb.Capacity, IntPtr.Zero);
-            if (err == 0 && sb.ToString().Equals("playing", StringComparison.OrdinalIgnoreCase))
+            if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f) return false;
+            if (DateTime.UtcNow < _commentaryBusyUntil) return true;
+            if (!_activeOneShots.ContainsKey("comm_voice")) return false;
+            var mode = new StringBuilder(128);
+            int err = MciPlayback.SendString("status comm_voice mode", mode, mode.Capacity, IntPtr.Zero);
+            if (err == 0)
             {
-                return true;
+                string state = mode.ToString().Trim();
+                if (state.Equals("playing", StringComparison.OrdinalIgnoreCase) || state.Equals("paused", StringComparison.OrdinalIgnoreCase)) return true;
             }
+            // The complete known duration has already elapsed. A failed query alone never shortens it.
+            _activeOneShots.Remove("comm_voice");
+            return false;
         }
-        catch { }
-        return false;
     }
 
     public static bool PlayCommentaryAudio(string filePath)
     {
-        if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f || string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
-        // نافذة الانشغال تساوي المدة الحقيقية للمقطع (نداءات الأسماء القصيرة لا تحجب التعليق 3 ثوانٍ كاملة)
-        double seconds = filePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? GetWavDurationSeconds(filePath) : 0;
-        if (seconds <= 0.05) seconds = 3.2;
-        _commentaryBusyUntil = DateTime.UtcNow.AddSeconds(Math.Clamp(seconds, 0.3, 30.0));
-        bool played = PlayOneShot(filePath, "comm_voice");
-        if (!played) _commentaryBusyUntil = DateTime.MinValue;
-        return played;
+        lock (_lock)
+        {
+            if (!_commentaryEnabled || GetEffectiveCommentaryVolume() <= .001f || string.IsNullOrEmpty(filePath) || !File.Exists(filePath) || IsCommentaryPlaying()) return false;
+            if (!PlayOneShot(filePath, "comm_voice")) return false;
+            double seconds = filePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ? GetWavDurationSeconds(filePath) : 0;
+            var length = new StringBuilder(64);
+            MciPlayback.SendString("set comm_voice time format milliseconds", null, 0, IntPtr.Zero);
+            if (MciPlayback.SendString("status comm_voice length", length, length.Capacity, IntPtr.Zero) == 0 &&
+                double.TryParse(length.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double milliseconds))
+                seconds = Math.Max(seconds, milliseconds / 1000.0);
+            if (seconds <= .05) seconds = 3.2;
+            // Never cap a long phrase at30seconds. The full clip owns this channel until finished.
+            _commentaryBusyUntil = DateTime.UtcNow.AddSeconds(Math.Max(.3, seconds) + .12);
+            return true;
+        }
     }
 
     // =========================================================================
