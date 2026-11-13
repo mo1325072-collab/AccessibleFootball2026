@@ -534,6 +534,31 @@ var exhausted=New();exhausted.HomeTeam.SubstitutionsUsed=5;var exhaustedVictim=e
 var exhaustedReader=new Reader();bool acknowledged=false;var unavailableMenu=GamePlanMenuBuilder.CreateInjurySubstitutionMenu(exhausted,exhaustedReader,()=>acknowledged=true);unavailableMenu.Open();
 Check(unavailableMenu.Count==1&&exhausted.HomeTeam.Players.Count(p=>p.IsActiveOnPitch)==10,"exhausted substitutions show a truthful continue-short option and actually remove the injured player");unavailableMenu.SelectCurrent();
 Check(acknowledged&&exhausted.PendingInjuryPlayer==null&&exhausted.HomeTeam.SubstitutionsUsed==5,"acknowledging no legal reserve does not invent or charge a replacement");
+// Source facts stay separate from game balancing and unknown fields.
+if(dbArgument >= 0)
+{
+ var restoredDatabaseType=typeof(JsonDatabaseProvider);
+ restoredDatabaseType.GetMethod("LoadDatabaseFromFile",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{args[dbArgument+1]});
+ restoredDatabaseType.GetField("_isInitialized",BindingFlags.Static|BindingFlags.NonPublic)!.SetValue(null,true);
+var sourcedAdditions = new[]{("FC Aiglons (Tchad)","Biwé Mangana"),("FC Aiglons (Tchad)","Abderamane Ahmat"),("Panthère Sportive du Ndé","Njoya Mohamed Malik"),("Panthère Sportive du Ndé","Mouen Adolphe Phillipe"),("AS ZAM","Harouna Doulla Younoussa"),("DC Virunga","Djodjo Mushila")};
+foreach(var (teamName,playerName) in sourcedAdditions)
+{
+ var st=JsonDatabaseProvider.GetTeamByName(teamName)!;
+ var sp=st.Players.Concat(st.Bench).Single(p=>p.Name==playerName);
+ Check(sp.RatingIsEstimated&&sp.RatingProvenance.Contains("55")&&sp.DataSourceUrls.Length>0,"sourced addition carries explicit balance55provenance: "+playerName);
+ Check(sp.HasKnownSourcePosition,"new addition has a documented position: "+playerName);
+ if(playerName!="Abderamane Ahmat")Check(sp.Age==0&&!sp.HasKnownAge&&sp.SimulationAge==25,"unknown age remains unknown with explicit neutral simulation band: "+playerName);
+ var copy=sp.Clone();Check(copy.RatingIsEstimated&&copy.DataSourceUrls.SequenceEqual(sp.DataSourceUrls)&&copy.Age==sp.Age,"provenance survives match clone: "+playerName);
+ foreach(var language in new[]{UiLanguage.Arabic,UiLanguage.English})
+ { LocalizationService.CurrentLanguage=language;Check(sp.DataProvenanceSummary.Contains(language==UiLanguage.English?"estimated":"تقديرية"),"estimate disclosed in accessible attributes: "+playerName+language); }
+}
+foreach(var n in new[]{"FC Aiglons (Tchad)","Panthère Sportive du Ndé"})Check(JsonDatabaseProvider.GetTeamByName(n)!.GetMatchStartIssue()==null,"sourced seven-player squad now passes real start guard: "+n);
+foreach(var n in new[]{"AS ZAM","DC Virunga"})Check(JsonDatabaseProvider.GetTeamByName(n)!.GetMatchStartIssue()!=null,"incomplete sourced squad remains honestly blocked: "+n);
+var unknownSource=JsonDatabaseProvider.GetTeamByName("FC Canchungo")!.Players.Concat(JsonDatabaseProvider.GetTeamByName("FC Canchungo")!.Bench).Where(p=>p.SourcePosition=="Unknown").ToList();
+Check(unknownSource.Count==5&&unknownSource.All(p=>p.PrimaryPosition==SpecificPosition.Unknown&&!p.HasKnownSourcePosition),"five existing unknown source positions are not silently rewritten asCM");
+Check(unknownSource.All(p=>p.Clone().PrimaryPosition==SpecificPosition.Unknown),"unknown source position survives clone");
+LocalizationService.CurrentLanguage=UiLanguage.Arabic;
+}
 Console.WriteLine($"{passed} assertions passed. No Windows/MCI/NVDA runtime was exercised.");
 
 sealed class Input : IInputHandler
