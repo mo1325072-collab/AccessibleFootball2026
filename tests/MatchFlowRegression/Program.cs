@@ -38,6 +38,8 @@ foreach(int skipKey in new[]{13,32})
     lineupGate.Complete();
     if(!lineupGate.KeyDown(skipKey,out skip)||skip)throw new Exception("held skip cannot become gameplay action through repeat");
     if(!lineupGate.KeyUp(skipKey)||lineupGate.KeyDown(skipKey,out skip))throw new Exception("released skip key is available for next fresh gameplay action");
+    lineupGate.Begin();lineupGate.KeyDown(skipKey,out skip);lineupGate.Complete();lineupGate.ReleaseAll();
+    if(lineupGate.KeyDown(skipKey,out skip))throw new Exception("focus-loss reset must release skip latch");
     lineupGate.Begin();lineupGate.Complete();
     if(lineupGate.IsActive||lineupGate.KeyDown(87,out skip))throw new Exception("natural completion enables gameplay without a key");
 }
