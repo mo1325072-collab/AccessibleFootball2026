@@ -48,12 +48,13 @@ Check(!anthemCommands.Any(c=>c.StartsWith("open ")),"missing national anthem nev
 anthemCommands.Clear();
 var egypt=AccessibleFootball2026.Core.Models.TeamDatabase.CreateEgypt();
 national.PlayMatchNationalAnthems(egypt,new AccessibleFootball2026.Core.Models.Team("club","Club",AccessibleFootball2026.Core.Models.TeamSide.Away),skipChecker:()=>false);
-Check(anthemCommands.Any(c=>c.Contains("EGY.wav")),"actual JSON Egypt identity reaches EGY anthem instead of numeric-ID lookup");
-Check(national.TryPlayNationalAnthemSample("EGY")&&national.IsAnthemPlaying,"national preview records successful playing state");
+Check(!anthemCommands.Any(c=>c.Contains("EGY.wav")),"useridentifiedEGYchant neverplays asEgyptnationalanthem");
+Check(!national.TryPlayNationalAnthemSample("EGY")&&!national.IsAnthemPlaying,"useridentifiedEGYchant isalsoblockedinanthem_preview");
+Check(national.TryPlayNationalAnthemSample("MAR")&&national.IsAnthemPlaying,"othercountryplaybackstate notgeneralizedfromEgyptidentification");
 national.StopAllSounds();Check(!national.IsAnthemPlaying,"stopping anthem clears actual playback state");
 
 foreach(var (factory,code) in new (Func<AccessibleFootball2026.Core.Models.Team>,string)[]{
- (AccessibleFootball2026.Core.Models.TeamDatabase.CreateEgypt,"EGY"),(AccessibleFootball2026.Core.Models.TeamDatabase.CreateMorocco,"MAR"),
+ (AccessibleFootball2026.Core.Models.TeamDatabase.CreateMorocco,"MAR"),
  (AccessibleFootball2026.Core.Models.TeamDatabase.CreateAlgeria,"ALG"),(AccessibleFootball2026.Core.Models.TeamDatabase.CreateTunisia,"TUN"),
  (AccessibleFootball2026.Core.Models.TeamDatabase.CreateSaudiArabia,"KSA"),(AccessibleFootball2026.Core.Models.TeamDatabase.CreateFrance,"FRA"),
  (AccessibleFootball2026.Core.Models.TeamDatabase.CreateEngland,"ENG"),(AccessibleFootball2026.Core.Models.TeamDatabase.CreateSpain,"ESP"),
@@ -71,18 +72,18 @@ transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,b
  if(command.StartsWith("open ")&&command.Contains("ARG.wav"))secondStarted=true;
  if(command=="status anthem mode")buffer?.Append(secondStarted||stopwatch.ElapsedMilliseconds>=4300?"stopped":"playing");return 0;
 }));
-var ceremony=national.PlayMatchNationalAnthemsAsync(egypt,AccessibleFootball2026.Core.Models.TeamDatabase.CreateArgentina());
+var ceremony=national.PlayMatchNationalAnthemsAsync(AccessibleFootball2026.Core.Models.TeamDatabase.CreateMorocco(),AccessibleFootball2026.Core.Models.TeamDatabase.CreateArgentina());
 Check(!ceremony.IsCompleted,"match ceremony yields while first anthem plays instead of blocking UI thread");
 await Task.Delay(4100);
 Check(!ceremony.IsCompleted&&!secondStarted,"national anthem remains active beyond old four-second truncation without overlapping away anthem");
 await ceremony;
 Check(secondStarted&&!national.IsAnthemPlaying,"away anthem follows natural home completion then closes cleanly");
 transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{buffer?.Append("playing");return 0;}));
-bool skip=false;stopwatch.Restart();ceremony=national.PlayMatchNationalAnthemsAsync(egypt,AccessibleFootball2026.Core.Models.TeamDatabase.CreateArgentina(),()=>skip);
+bool skip=false;stopwatch.Restart();ceremony=national.PlayMatchNationalAnthemsAsync(AccessibleFootball2026.Core.Models.TeamDatabase.CreateMorocco(),AccessibleFootball2026.Core.Models.TeamDatabase.CreateArgentina(),()=>skip);
 await Task.Delay(50);skip=true;await ceremony;
 Check(stopwatch.ElapsedMilliseconds<1000&&national.WasSkipped&&!national.IsAnthemPlaying,"skip cancels ceremony promptly while awaited playback is active");
 transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>command.StartsWith("open ")?1:0));
-Check(!national.TryPlayNationalAnthemSample("EGY")&&national.LastPlayedAnthem==null&&!national.IsAnthemPlaying,"device failure never reports a successfully played anthem");
+Check(!national.TryPlayNationalAnthemSample("MAR")&&national.LastPlayedAnthem==null&&!national.IsAnthemPlaying,"device failure never reports a successfully played anthem");
 
 // Stadium subject: event identity tests do not authenticate the chant's recording label.
 anthemCommands.Clear();
