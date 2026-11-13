@@ -864,7 +864,6 @@ public class AccessibleFootballWindow : Form
         }
 
         _stadiumSoundEngine.SetMatchTeams(homeTeam, awayTeam);
-        _stadiumSoundEngine.ApplyStadiumAcousticsForTeam(homeTeam);
         _callnameManager.PreWarmSquads(homeTeam, awayTeam);
 
         // تشغيل صوت المدرجات الحقيقي المستمر وصافرة الحكم
