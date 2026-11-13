@@ -508,6 +508,27 @@ public static class SoundEffectsPlayer
     // =========================================================================
     // 4. الركلات وصافرة الحكم واهتزاز الشباك واستخلاص الكرة
     // =========================================================================
+    /// <summary>Academy previews never substitute procedural match impacts for missing recordings.</summary>
+    public static bool TryPlayAcademySample(string soundId)
+    {
+        if (new[] { "TackleWon", "TackleMissed", "BallLost", "Foul", "Penalty", "Corner", "GoalKick", "ThrowIn", "PlayerSwitch" }.Contains(soundId))
+            return PlayOneShot(Path.Combine(_baseAudioDir, "SFX", "Earcons", soundId + ".wav"), "academy_earcon");
+        string? path = soundId switch
+        {
+            "BallKick" or "PowerfulShot" => ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact"),
+            "RefereeWhistle" => ResolveExtractedSample(Path.Combine("SFX", "Whistles"), "Whistle"),
+            "GoalNet" => ResolveExtractedSample(Path.Combine("SFX", "GoalNet"), "GoalNet"),
+            "WoodworkHit" => ResolveExtractedSample(Path.Combine("SFX", "PostHit"), "PostHit"),
+            "GoalkeeperSave" => TryResolveExistingAudioPath("SFX", "Saves", "GoalkeeperSave"),
+            "CrowdAmbiance" => TryResolveExistingAudioPath("SFX", "Crowd", "CrowdAmbiance"),
+            "GoalRoar" => TryResolveExistingAudioPath("SFX", "Crowd", "CrowdGoal") ?? TryResolveExistingAudioPath("SFX", "Crowd", "CrowdCheer"),
+            "MissGasp" => TryResolveExistingAudioPath("SFX", "Crowd", "CrowdMiss") ?? TryResolveExistingAudioPath("SFX", "Crowd", "CrowdGasp"),
+            _ => null
+        };
+        // Only the documented recorded save path is accepted; a shot kick is not a save.
+        return path != null && PlayOneShot(path, soundId is "CrowdAmbiance" or "GoalRoar" or "MissGasp" ? "crowd_academy" : "academy_sfx");
+    }
+
     public static void PlayKick(float pan = 0.0f)
     {
         LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
