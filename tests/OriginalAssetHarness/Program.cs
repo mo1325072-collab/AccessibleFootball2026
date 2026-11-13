@@ -1,3 +1,4 @@
+using AccessibleFootball2026.Core.Models;
 using System.Reflection;
 using System.Security.Cryptography;
 using AccessibleFootball2026.Audio;
@@ -179,6 +180,31 @@ deferredGoal.HandleMatchEvent(goalEvent);await Task.Delay(650);deferredGoal.Canc
 Check(deferredReader.Pending.Count==0&&deferredDone==0&&!deferredGoal.HasPendingGoalAnnouncement,"cancelled goal waiting on commentary never speaks later in another menu");
 deferredGoal.HandleMatchEvent(goalEvent);await Task.Delay(650);deferredReader.Pending.Last().SetResult();await Task.Delay(60);
 Check(deferredDone==1&&!deferredGoal.HasPendingGoalAnnouncement,"fresh goal after cancellation completes once without stale generation interference");
+
+// Positional beacon: geometry, real stereo command path and source-byte preservation.
+var beaconBytes=File.ReadAllBytes(Path.Combine(root,"SFX","Beacon","GoalBeacon.wav"));
+GoalBeaconPlayer.Initialize(root);
+GoalBeaconPlayer.CalculateBeacon(0,34,false,1,out var distance,out var strength,out var beaconPan);
+Check(distance==105&&strength==0,"first-half beacon is silent at own goal");
+GoalBeaconPlayer.CalculateBeacon(105,34,true,1,out distance,out strength,out beaconPan);
+Check(distance==105&&strength==0,"second-half beacon is silent at own goal after direction swap");
+GoalBeaconPlayer.CalculateBeacon(100,34,false,1,out distance,out var nearStrength,out beaconPan);
+GoalBeaconPlayer.CalculateBeacon(70,34,false,1,out distance,out var farStrength,out beaconPan);
+Check(nearStrength>farStrength&&farStrength>0,"beacon grows smoothly nearer the current attacking goal");
+GoalBeaconPlayer.CalculateBeacon(100,10,false,1,out distance,out strength,out var firstHalfPan);
+GoalBeaconPlayer.CalculateBeacon(5,10,true,1,out distance,out strength,out var secondHalfPan);
+Check(firstHalfPan>0&&secondHalfPan<0&&Math.Abs(firstHalfPan+secondHalfPan)<.0001,"beacon left/right perspective flips at halftime");
+MatchSettings.Current.MasterVolumePercent=50;MatchSettings.Current.GoalBeaconVolumePercent=40;MatchSettings.Current.ApplyLive();
+foreach(var pan in new[]{-1f,0f,1f})
+{
+ anthemCommands.Clear();Check(GoalBeaconPlayer.PlayBeaconPulse(1,pan),"beacon pulse reaches production playback: pan "+pan);
+ int playIndex=anthemCommands.IndexOf("play beacon_ch from 0");
+ Check(playIndex>0&&anthemCommands.Take(playIndex).Contains("setaudio beacon_ch left volume to "+(pan>0?0:200))&&anthemCommands.Take(playIndex).Contains("setaudio beacon_ch right volume to "+(pan<0?0:200)),"beacon sets category-scaled stereo before playback: pan "+pan);
+}
+anthemCommands.Clear();GoalBeaconPlayer.Stop();GoalBeaconPlayer.UpdateBeacon(100,34,false,false);
+Check(!anthemCommands.Any(c=>c=="play beacon_ch from 0"),"gameplay beacon cannot pulse when player lacks possession");
+GoalBeaconPlayer.Stop();Check(beaconBytes.SequenceEqual(File.ReadAllBytes(Path.Combine(root,"SFX","Beacon","GoalBeacon.wav"))),"beacon initialization preserves supplied source recording bytes");
+MatchSettings.Current.MasterVolumePercent=100;MatchSettings.Current.GoalBeaconVolumePercent=100;MatchSettings.Current.ApplyLive();
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
 
