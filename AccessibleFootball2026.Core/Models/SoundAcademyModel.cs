@@ -20,34 +20,19 @@ public record SoundAcademyItem(
 
 public static class SoundAcademyDatabase
 {
-    public static List<SoundAcademyCategory> GetCategories() => new()
-    {
-        new("earcons", "نغمات التنبيه الدلالية", "Tactical Earcons"),
-        new("sfx", "مؤثرات المباراة", "Match sounds"),
-        new("atmosphere", "أجواء المدرجات", "Stadium crowd"),
-        new("beacon", "منارة المرمى", "Goal beacon"),
-        new("anthems", "الأناشيد", "Anthems")
-    };
-
-    public static List<SoundAcademyItem> GetItemsByCategory(string categoryId, Func<string, Action>? audioResolver = null) => categoryId switch
+    // A flat academy, with no category navigation. Legacy lookups expose only allowed cues.
+    public static List<SoundAcademyCategory> GetCategories() => new();
+    public static List<SoundAcademyItem> GetItemsByCategory(string categoryId, Func<string, Action>? audioResolver=null) => categoryId switch
     {
         "earcons" => GetEarconItems(audioResolver),
-        "sfx" => GetMatchSfxItems(audioResolver),
-        "atmosphere" => GetAtmosphereItems(audioResolver),
         "beacon" => GetBeaconItems(audioResolver),
-        "anthems" => GetAnthemItems(audioResolver),
-        _ => new List<SoundAcademyItem>()
+        _ => new()
     };
-
-    public static List<SoundAcademyItem> GetAllItems(Func<string, Action>? audioResolver = null)
+    public static List<SoundAcademyItem> GetAllItems(Func<string, Action>? audioResolver=null)
     {
-        var list = new List<SoundAcademyItem>();
-        list.AddRange(GetEarconItems(audioResolver));
-        list.AddRange(GetMatchSfxItems(audioResolver));
-        list.AddRange(GetAtmosphereItems(audioResolver));
-        list.AddRange(GetBeaconItems(audioResolver));
-        list.AddRange(GetAnthemItems(audioResolver));
-        return list;
+        var items=GetEarconItems(audioResolver);
+        items.AddRange(GetBeaconItems(audioResolver));
+        return items;
     }
 
     private static List<SoundAcademyItem> GetEarconItems(Func<string, Action>? resolver) => new()
@@ -135,95 +120,6 @@ public static class SoundAcademyDatabase
         )
     };
 
-    private static List<SoundAcademyItem> GetMatchSfxItems(Func<string, Action>? resolver) => new()
-    {
-        new(
-            "BallKick",
-            "sfx",
-            "ركلة الكرة والتمرير (Ball Kick)",
-            "Pass Kick Sound",
-            "صوت ركل الكرة بالقدم في التمريرات العادية والأرضية وتدوير اللعب بين الزملاء.",
-            "Physical foot-to-ball impact sound for standard ground passes and ball rotation.",
-            resolver?.Invoke("BallKick")
-        ),
-        new(
-            "PowerfulShot",
-            "sfx",
-            "التسديدة القوية الصاروخية (Powerful Shot)",
-            "Powerful Shot Impact",
-            "صوت ركلة عنيفة ومباشرة للكرة بكامل القوة نحو المرمى.",
-            "Heavy explosive strike impact sound for powerful shots aimed at goal.",
-            resolver?.Invoke("PowerfulShot")
-        ),
-        new(
-            "GoalNet",
-            "sfx",
-            "اهتزاز الشباك بالهدف (Goal Net Vibration)",
-            "Goal Net Rustle",
-            "صوت ارتطام الكرة العنيف بالشباك وتمايل حبال المرمى عند تسجيل الأهداف.",
-            "Authentic net impact sound of the ball hitting the back of the net on goals.",
-            resolver?.Invoke("GoalNet")
-        ),
-        new(
-            "WoodworkHit",
-            "sfx",
-            "ارتطام القائم والعارضة (Woodwork Post Hit)",
-            "Woodwork Post / Crossbar Hit",
-            "رنين معدني مدوٍ لارتطام الكرة بالقائم أو العارضة وحرمان اللاعب من هدف محقق.",
-            "Resonant metallic clang of the ball rattling off the goal post or crossbar.",
-            resolver?.Invoke("WoodworkHit")
-        ),
-        new(
-            "RefereeWhistle",
-            "sfx",
-            "صافرة الحكم الرسمية (Referee Whistle)",
-            "Referee Whistle",
-            "صافرة الحكم لإيقاف اللعب في الأخطاء وبداية ونهاية الأشواط والمباراة.",
-            "Sharp official referee whistle signaling fouls, half-time, and match stoppages.",
-            resolver?.Invoke("RefereeWhistle")
-        ),
-        new(
-            "GoalkeeperSave",
-            "sfx",
-            "تصدي حارس المرمى (Goalkeeper Save)",
-            "Goalkeeper Diving Save",
-            "صوت تصدي قفازات الحارس وإبعاد الكرة الصاروخية عن المرمى ببراعة.",
-            "Fingertip glove deflection and ground impact sound of a goalkeeper making a save.",
-            resolver?.Invoke("GoalkeeperSave")
-        )
-    };
-
-    private static List<SoundAcademyItem> GetAtmosphereItems(Func<string, Action>? resolver) => new()
-    {
-        new(
-            "CrowdAmbiance",
-            "atmosphere",
-            "صخب وهتاف المدرجات المستمر (Crowd Ambiance)",
-            "Stadium Crowd Murmur & Ambiance",
-            "صوت جماهير الملعب المستمر في الخلفية، يتفاعل ويعلو تدريجياً مع اقتراب الهجمة ويهدأ في الوسط.",
-            "Continuous stadium crowd murmur that dynamically reacts to attacking build-ups.",
-            resolver?.Invoke("CrowdAmbiance")
-        ),
-        new(
-            "GoalRoar",
-            "atmosphere",
-            "زئير وهتاف الهدف العظيم (Goal Celebration Roar)",
-            "Goal Roar & Crowd Celebration",
-            "هتاف وزئير المدرجات الصاخب والمحتفل لحظة هز شباك الخصم بهدف.",
-            "Massive roaring crowd eruption celebrating an authentic goal scored in the net.",
-            resolver?.Invoke("GoalRoar")
-        ),
-        new(
-            "MissGasp",
-            "atmosphere",
-            "تنهيدة وحسرة الفرصة الضائعة (Miss Murmur & Gasp)",
-            "Miss Murmur & Collective Gasp",
-            "تفاعل وحسرة الجماهير عند مرور تسديدة خطيرة بجوار القائم أو ضياع فرصة مؤكدة.",
-            "Collective gasp and murmur of disappointment as a close shot misses.",
-            resolver?.Invoke("MissGasp")
-        )
-    };
-
     private static List<SoundAcademyItem> GetBeaconItems(Func<string, Action>? resolver) => new()
     {
         new(
@@ -252,19 +148,13 @@ public static class SoundAcademyDatabase
             "نبضة منارة المرمى مائلة نحو الأذن اليمنى، تشير إلى أن المرمى يقع إلى يمينك على الجناح.",
             "Goal beacon pulse panned to the right ear indicating the goal is to your right side.",
             resolver?.Invoke("BeaconRight")
-        )
+        ),
+        new("BeaconNear","beacon","منارة المرمى: قريب وقوي","Goal beacon: near and louder","عندما تقترب من المرمى تزداد قوة النبضة.","The pulse becomes louder as you approach the goal.",resolver?.Invoke("BeaconNear")),
+        new("BeaconFar","beacon","منارة المرمى: بعيد وخافت","Goal beacon: far and softer","كلما ابتعدت تقل قوة النبضة حتى حد السماع.","The pulse becomes softer farther from goal, up to the audible limit.",resolver?.Invoke("BeaconFar")),
+        new("BeaconOutOfRange","beacon","منارة المرمى: خارج مدى السماع (صمت)","Goal beacon: outside audible range (silence)","خارج نطاق 52.5 متر تسكت المنارة. هذه عينة صامتة مقصودة.","Outside 52.5 metres the beacon is silent. This preview is intentionally silent.",resolver?.Invoke("BeaconOutOfRange")),
+        new("BeaconNoPossession","beacon","منارة المرمى: بدون استحواذ (صمت)","Goal beacon: no possession (silence)","بدون استحواذك لا تصدر المنارة نبضة. هذه عينة صامتة مقصودة.","Without your possession the beacon emits no pulse. This preview is intentionally silent.",resolver?.Invoke("BeaconNoPossession")),
+        new("BeaconSecondHalfLeft","beacon","منارة المرمى: اتجاه الشوط الثاني لليسار","Goal beacon: second-half left direction","في الشوط الثاني ينعكس اتجاه المنارة مع تبديل جهة الهجوم.","In the second half panning reverses with the attacking direction.",resolver?.Invoke("BeaconSecondHalfLeft")),
+        new("BeaconSecondHalfRight","beacon","منارة المرمى: اتجاه الشوط الثاني لليمين","Goal beacon: second-half right direction","بعد تبديل المرميين يكون الاتجاه بالنسبة لجهة هجومك الجديدة.","After switching ends the direction is relative to your new attacking goal.",resolver?.Invoke("BeaconSecondHalfRight"))
     };
 
-    private static List<SoundAcademyItem> GetAnthemItems(Func<string, Action>? resolver) => new()
-    {
-        new(
-            "ChampionsLeagueAnthem",
-            "anthems",
-            "نشيد دوري أبطال أوروبا الرسمي (UEFA Champions League)",
-            "UEFA Champions League Official Anthem",
-            "النشيد الرسمي التاريخي لبطولة دوري أبطال أوروبا، يعزف عند انطلاق المباريات الكبرى والنهائيات.",
-            "The iconic UEFA Champions League orchestral anthem played before premier continental matches.",
-            resolver?.Invoke("ChampionsLeagueAnthem")
-        )
-    };
 }
