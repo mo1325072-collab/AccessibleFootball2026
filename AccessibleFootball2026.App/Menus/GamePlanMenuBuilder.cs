@@ -650,10 +650,6 @@ public static class GamePlanMenuBuilder
 
         menu.AddItem(T("المستشار التكتيكي", "Tactical advisor"), async () =>
         {
-            if (TacticalAiAdvisor.IsNeuralModelAvailable)
-            {
-                screenReader.Speak(T("جاري استشارة نموذج الذكاء الاصطناعي Qwen 2.5 وتحليل المباراة...", "Consulting optional tactical model"));
-            }
             var advisorMenu = new AccessibleMenu(T("المستشار التكتيكي", "Tactical advisor"), screenReader);
             var language = MatchSettings.Current.Language;
             string report = await Task.Run(() => TacticalAiAdvisor.GenerateTacticalReport(match, language));
