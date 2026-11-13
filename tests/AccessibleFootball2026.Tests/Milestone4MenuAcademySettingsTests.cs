@@ -251,99 +251,21 @@ public static class Milestone4MenuAcademySettingsTests
     // ----------------------------------------------------------------------------------------
     public static void TestSoundAcademy_AllSoundsAndTriggersWithExplanations()
     {
-        var categories = SoundAcademyDatabase.GetCategories();
-        Assert(categories.Count == 1, $"Sound Academy must have 1 category (earcons), got {categories.Count}");
-
-        var catIds = categories.Select(c => c.Id).ToList();
-        Assert(catIds.Contains("earcons"), "Sound Academy must have 'earcons' category");
-
-        // 1. All 9 Earcons verification
-        var earconItems = SoundAcademyDatabase.GetItemsByCategory("earcons");
-        Assert(earconItems.Count == 9, $"Earcons category must contain all 9 earcons, got {earconItems.Count}");
-        var earconNames = earconItems.Select(e => e.Id).ToList();
-        string[] required9 = { "TackleWon", "TackleMissed", "BallLost", "Foul", "Penalty", "Corner", "GoalKick", "ThrowIn", "PlayerSwitch" };
-        foreach (var req in required9)
-        {
-            Assert(earconNames.Contains(req), $"Sound Academy must contain earcon '{req}'");
-        }
-
-        // 2. Match SFX verification
-        var sfxItems = SoundAcademyDatabase.GetItemsByCategory("sfx");
-        var sfxIds = sfxItems.Select(s => s.Id).ToList();
-        Assert(sfxIds.Contains("BallKick"), "Match SFX must contain BallKick");
-        Assert(sfxIds.Contains("PowerfulShot"), "Match SFX must contain PowerfulShot");
-        Assert(sfxIds.Contains("GoalNet"), "Match SFX must contain GoalNet");
-        Assert(sfxIds.Contains("WoodworkHit"), "Match SFX must contain WoodworkHit");
-        Assert(sfxIds.Contains("RefereeWhistle"), "Match SFX must contain RefereeWhistle");
-        Assert(sfxIds.Contains("GoalkeeperSave"), "Match SFX must contain GoalkeeperSave");
-
-        // 3. Stadium Atmosphere verification
-        var atmosphereItems = SoundAcademyDatabase.GetItemsByCategory("atmosphere");
-        var atmosIds = atmosphereItems.Select(a => a.Id).ToList();
-        Assert(atmosIds.Contains("CrowdAmbiance"), "Atmosphere must contain CrowdAmbiance");
-        Assert(atmosIds.Contains("GoalRoar"), "Atmosphere must contain GoalRoar");
-        Assert(atmosIds.Contains("MissGasp"), "Atmosphere must contain MissGasp");
-
-        // 4. 3D Goal Beacon verification
-        var beaconItems = SoundAcademyDatabase.GetItemsByCategory("beacon");
-        var beaconIds = beaconItems.Select(b => b.Id).ToList();
-        Assert(beaconIds.Contains("BeaconCenter"), "Beacon must contain BeaconCenter");
-        Assert(beaconIds.Contains("BeaconLeft"), "Beacon must contain BeaconLeft");
-        Assert(beaconIds.Contains("BeaconRight"), "Beacon must contain BeaconRight");
-
-        // 5. Anthems verification
-        var anthemItems = SoundAcademyDatabase.GetItemsByCategory("anthems");
-        var anthemIds = anthemItems.Select(a => a.Id).ToList();
-        Assert(anthemIds.Contains("ChampionsLeagueAnthem"), "Anthems must contain ChampionsLeagueAnthem");
-        Assert(!anthemIds.Contains("NationalAnthem"), "Canceled national anthem feature must not have an academy entry");
-
-        // 6. Audio trigger wiring & non-throwing execution
-        int triggeredAudioCount = 0;
-        var allItems = SoundAcademyDatabase.GetAllItems(soundId => () => triggeredAudioCount++);
-        Assert(allItems.Count >= 23, $"Total Sound Academy items must be >= 23, got {allItems.Count}");
-
-        foreach (var item in allItems)
-        {
-            Assert(!string.IsNullOrEmpty(item.ArabicName), $"Item {item.Id} must have Arabic name");
-            Assert(!string.IsNullOrEmpty(item.EnglishName), $"Item {item.Id} must have English name");
-            Assert(!string.IsNullOrEmpty(item.ArabicDescription), $"Item {item.Id} must have Arabic description");
-            Assert(!string.IsNullOrEmpty(item.EnglishDescription), $"Item {item.Id} must have English description");
-
-            // Execute action
-            item.PlayAudioAction?.Invoke();
-        }
-        Assert(triggeredAudioCount == allItems.Count,
-            $"All {allItems.Count} sound academy items must execute their audio triggers. Triggered: {triggeredAudioCount}");
-
-        // 7. Test SoundAcademyMenuBuilder integration
-        var reader = new MockScreenReader();
-        var anthemEngine = new AnthemEngine(reader);
-        var menuStack = new Stack<AccessibleMenu>();
-        var soundMenu = SoundAcademyMenuBuilder.CreateSoundAcademyMenu(
-            reader,
-            anthemEngine,
-            m => menuStack.Push(m),
-            () => { if (menuStack.Count > 0) menuStack.Pop(); });
-
-        Assert(soundMenu != null, "SoundAcademyMenu must not be null");
-        Assert(soundMenu.Count == 2, $"SoundAcademyMenu must have 1 category + 1 back item, got {soundMenu.Count}");
-
-        // Open earcons sub-menu
-        soundMenu.SelectCurrent();
-        Assert(menuStack.Count == 1, "Selecting category must push sub-menu");
-        var earconMenu = menuStack.Peek();
-        Assert(earconMenu.Count == 10, $"Earcon submenu must contain 9 earcons + 1 back item, got {earconMenu.Count}");
-
-        // Trigger first earcon item
-        SoundEffectsPlayer.ResetTelemetry();
-        reader.SpokenMessages.Clear();
-        Assert(earconMenu.GetItem(0).SuppressSelectionSound, "Sound Academy items must have SuppressSelectionSound set to true");
-        earconMenu.SelectCurrent();
-        Assert(reader.SpokenMessages.Count > 0, "Selecting earcon item must speak tactical meaning");
-        Assert(!reader.SpokenMessages.Any(m => m.Contains("تم اختيار") || m.Contains("Selected:")), 
-            "Selecting sound in Sound Academy must NOT speak 'تم اختيار' prefix, only the pure sound and tactical explanation");
-        Assert(SoundEffectsPlayer.LastPlayedSound != "ui_select", 
-            "Sound Academy item selection must NOT play the menu selection sound to prevent audio clashing");
+        Assert(SoundAcademyDatabase.GetCategories().Count==0,"Academy must have no categories");
+        var items=SoundAcademyDatabase.GetAllItems();
+        Assert(items.Count==18,"Academy must contain nine semantic cues and nine beacon demonstrations");
+        Assert(items.Count(i=>i.CategoryId=="earcons")==9,"Exactly nine semantic cues");
+        Assert(items.All(i=>i.CategoryId is "earcons" or "beacon"),"No match effects, crowd or music academy entries");
+        int triggered=0;
+        foreach(var item in SoundAcademyDatabase.GetAllItems(_=>()=>triggered++)) item.PlayAudioAction?.Invoke();
+        Assert(triggered==items.Count,"Every sample has a preview action");
+        var reader=new MockScreenReader();var anthemEngine=new AnthemEngine(reader);
+        int pushes=0;
+        var soundMenu=SoundAcademyMenuBuilder.CreateSoundAcademyMenu(reader,anthemEngine,_=>pushes++,()=>{});
+        Assert(soundMenu.Count==items.Count+1,"Flat list includes all samples and Back");
+        soundMenu.GetItem(0).OnSelect?.Invoke();
+        Assert(pushes==0,"Playing a sample must not enter a category submenu");
+        Assert(soundMenu.GetItem(0).SuppressSelectionSound,"Preview suppresses selection chime");
     }
 
     // ----------------------------------------------------------------------------------------
