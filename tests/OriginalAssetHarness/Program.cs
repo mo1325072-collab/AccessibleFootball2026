@@ -98,9 +98,9 @@ stadiumAudit.HandleMatchContext(new AccessibleFootball2026.Core.MatchEvent(Acces
 Check(!anthemCommands.Any(c=>c.StartsWith("play chant_ch")),"home foul cannot trigger home crowd protesting an opponent foul");
 anthemCommands.Clear();
 stadiumAudit.HandleMatchContext(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.FoulCommitted,"foul",subjectPlayer:barcelona.Players[0]),0,0,1);
-Check(anthemCommands.Any(c=>c.StartsWith("play chant_ch")),"opponent foul still reaches selected home chant route (recording identity separate)");
+Check(!anthemCommands.Any(c=>c.StartsWith("play chant_ch")),"opponent foul does not play an unverified protest recording or a cheerful team chant");
 stadiumAudit.ActiveStadiumKey="CampNou";stadiumAudit.SetMatchTeams(madrid,barcelona);
-Check(!stadiumAudit.ShouldPlayChantForTeam(madrid)&&!stadiumAudit.ShouldPlayChantForTeam(barcelona),"away side at its own stadium cannot impersonate the home crowd");
+Check(!stadiumAudit.ShouldPlayChantForTeam(madrid)&&stadiumAudit.ShouldPlayChantForTeam(barcelona),"participating away-slot Barcelona owns CampNou crowd just like home-slot Barcelona");
 
 var atletico=new AccessibleFootball2026.Core.Models.Team("ESP_ATM","أتلتيكو مدريد",AccessibleFootball2026.Core.Models.TeamSide.Home);
 stadiumAudit.ActiveStadiumKey="SantiagoBernabeu";stadiumAudit.SetMatchTeams(atletico,barcelona);
@@ -219,6 +219,60 @@ Check(anthemCommands.Last(c=>c.StartsWith("setaudio crowd volume to "))=="setaud
 SoundEffectsPlayer.SetCrowdDucking(.2f);anthemCommands.Clear();SoundEffectsPlayer.StopCommentaryAudio();SoundEffectsPlayer.SetCrowdVolume(1000,true);
 Check(anthemCommands.Last(c=>c.StartsWith("setaudio crowd volume to "))=="setaudio crowd volume to "+(int)(baseCrowd*.2f),"commentary stop preserves reader-only crowd reduction");
 SoundEffectsPlayer.SetCrowdDucking(1);
+
+// New user-supplied index + contemporaneous PES2013 map: identity, not suffix semantics.
+var indexedStadium=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(root){ActiveStadiumKey="SantiagoBernabeu"};
+indexedStadium.SetMatchTeams(madrid,barcelona);anthemCommands.Clear();
+transport.SetValue(null,(Func<string,System.Text.StringBuilder?,int>)((command,buffer)=>{anthemCommands.Add(command);buffer?.Append("stopped");return 0;}));
+indexedStadium.PlayTeamChant(madrid,AccessibleFootball2026.Audio.SFX.ChantSlot.GoalCelebration,force:true);
+Check(anthemCommands.Any(c=>c.StartsWith("open ")&&Enumerable.Range(550,8).Any(i=>c.Contains("Chant_"+i+".wav"))),"Madrid home chant uses documented550-557 pool, never archive entry173");
+indexedStadium.ActiveStadiumKey="CampNou";indexedStadium.SetMatchTeams(barcelona,madrid);anthemCommands.Clear();
+indexedStadium.PlayTeamChant(barcelona,AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm,force:true);
+Check(anthemCommands.Any(c=>c.StartsWith("open ")&&Enumerable.Range(541,8).Any(i=>c.Contains("Chant_"+i+".wav"))),"Barcelona home chant uses supplied documented541-548 pool, never archive entry153");
+
+indexedStadium.ActiveStadiumKey="SantiagoBernabeu";indexedStadium.SetMatchTeams(barcelona,madrid);anthemCommands.Clear();
+indexedStadium.HandleMatchContext(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.BallZoneChanged,"zone"),0,0,1);
+Check(anthemCommands.Any(c=>c.StartsWith("open ")&&Enumerable.Range(550,8).Any(i=>c.Contains("Chant_"+i+".wav"))),"automatic context uses away-slot Madrid's crowd at Bernabeu");
+indexedStadium.ActiveStadiumKey="CampNou";indexedStadium.SetMatchTeams(madrid,barcelona);anthemCommands.Clear();
+indexedStadium.HandleMatchContext(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.BallZoneChanged,"zone"),0,0,1);
+Check(anthemCommands.Any(c=>c.StartsWith("open ")&&Enumerable.Range(541,8).Any(i=>c.Contains("Chant_"+i+".wav"))),"automatic context uses away-slot Barcelona's crowd at CampNou");
+indexedStadium.ActiveStadiumKey="SanSiro";indexedStadium.SetMatchTeams(madrid,barcelona);anthemCommands.Clear();
+indexedStadium.PlayTeamChant(madrid,AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm,force:true);
+indexedStadium.PlayTeamChant(barcelona,AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm,force:true);
+Check(!anthemCommands.Any(c=>c.StartsWith("open ")),"Madrid+Barcelona at SanSiro has neutral crowd with neither team's chants");
+indexedStadium.ActiveStadiumKey="SantiagoBernabeu";indexedStadium.SetMatchTeams(atletico,barcelona);
+Check(!indexedStadium.ShouldPlayChantForTeam(madrid),"a ground owner's chant stays off when that team is absent from match");
+indexedStadium.ActiveStadiumKey="CampNou";indexedStadium.SetMatchTeams(madrid,barcelona);
+int protestClaims=0;indexedStadium.OnDiscontentWhistlePlayed+=_=>protestClaims++;anthemCommands.Clear();
+indexedStadium.PlayTeamChant(barcelona,AccessibleFootball2026.Audio.SFX.ChantSlot.DiscontentWhistle,force:true);
+Check(protestClaims==0&&!anthemCommands.Any(c=>c.StartsWith("open ")),"a numbered chant suffix alone never claims or plays recorded protest whistles");
+var indexMethod=typeof(AccessibleFootball2026.Audio.SFX.StadiumSoundEngine).GetMethod("EnsureChantLabelIndexLoaded",BindingFlags.Instance|BindingFlags.NonPublic)!;
+indexMethod.Invoke(indexedStadium,null);
+var loadedLabels=(Dictionary<string,int>?)typeof(AccessibleFootball2026.Audio.SFX.StadiumSoundEngine).GetField("_chantLabelIndex",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(indexedStadium);
+Check(loadedLabels?.Count==643&&loadedLabels["SP_R0109_01"]==550&&loadedLabels["A_SP_C0001_03"]==153,"supplied643-record envelope parses original konami_ainf_label without dropping labels");
+
+// Compatibility and fail-closed selection use real bytes copied into isolated test roots.
+var indexRoot=Path.Combine(Path.GetTempPath(),"chant-index-"+Guid.NewGuid());
+var indexDir=Path.Combine(indexRoot,"SFX","Chants");Directory.CreateDirectory(indexDir);
+File.Copy(Directory.GetFiles(Path.Combine(root,"SFX","Chants"),"Chant_550.wav",SearchOption.AllDirectories).Single(),Path.Combine(indexDir,"Chant_550.wav"));
+File.Copy(Directory.GetFiles(Path.Combine(root,"SFX","Chants"),"Chant_173.wav",SearchOption.AllDirectories).Single(),Path.Combine(indexDir,"Chant_173.wav"));
+File.Copy(Directory.GetFiles(Path.Combine(root,"SFX","Chants"),"Chant_153.wav",SearchOption.AllDirectories).Single(),Path.Combine(indexDir,"Chant_153.wav"));
+void TrialIndex(string? json,bool expected,string name)
+{
+ var indexPath=Path.Combine(indexDir,"chants_index.json");
+ if(json==null)File.Delete(indexPath);else File.WriteAllText(indexPath,json);
+ var trial=new AccessibleFootball2026.Audio.SFX.StadiumSoundEngine(indexRoot){ActiveStadiumKey="SantiagoBernabeu"};
+ trial.SetMatchTeams(madrid,barcelona);anthemCommands.Clear();
+ trial.PlayTeamChant(madrid,AccessibleFootball2026.Audio.SFX.ChantSlot.GeneralRhythm,force:true);
+ Check(anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("Chant_550.wav"))==expected &&
+       !anthemCommands.Any(c=>c.StartsWith("open ")&&(c.Contains("Chant_173.wav")||c.Contains("Chant_153.wav"))),name);
+}
+TrialIndex(null,false,"missing chant index never invents a team from numeric archive173/153");
+TrialIndex("[{\"Index\":550,\"Label\":\"SP_R0109_01\"}]",true,"extractor Index/Label array remains compatible");
+TrialIndex("[{\"index\":550,\"label\":\"SP_R0108_01\"}]",false,"archive range alone cannot override a conflicting team label");
+TrialIndex("[{\"index\":550,\"label\":\"SP_R0109_01\"},{\"index\":173,\"label\":\"SP_R0109_01\"}]",false,"conflicting duplicated label fails closed");
+TrialIndex("{not-json",false,"invalid chant JSON fails closed without numeric fallback");
+Directory.Delete(indexRoot,true);
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
 
