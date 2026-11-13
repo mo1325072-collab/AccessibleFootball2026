@@ -24,87 +24,6 @@ public class TacticalAiAdvisor
         public Action? ApplyAction { get; set; }
     }
 
-    private static string ResolveModelDirectory()
-    {
-        var candidates = new List<string> { Path.Combine(AppContext.BaseDirectory, "Models") };
-        string? dir = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(dir))
-        {
-            if (File.Exists(Path.Combine(dir, "AccessibleFootball2026.sln"))) candidates.Add(Path.Combine(dir, "Models"));
-            dir = Path.GetDirectoryName(dir);
-        }
-        candidates.Add(@"D:\AccessibleFootball2026\Models");
-        return candidates.FirstOrDefault(p => File.Exists(Path.Combine(p, "qwen2.5-3b-instruct-q4_k_m.gguf")) &&
-            File.Exists(Path.Combine(p, "llama-bin", "llama-cli.exe"))) ?? candidates[0];
-    }
-    public static string LlamaCliPath => Path.Combine(ResolveModelDirectory(), "llama-bin", "llama-cli.exe");
-    public static string ModelPath => Path.Combine(ResolveModelDirectory(), "qwen2.5-3b-instruct-q4_k_m.gguf");
-    public static bool IsNeuralModelAvailable => File.Exists(LlamaCliPath) && File.Exists(ModelPath) && new FileInfo(ModelPath).Length > 1_500_000_000;
-
-    public static string QueryNeuralQwenModel(string prompt, int maxTokens = 30, int timeoutSeconds = 8)
-    {
-        if (!IsNeuralModelAvailable) return string.Empty;
-        return RunModelProcess(LlamaCliPath, ModelPath, prompt, maxTokens, timeoutSeconds);
-    }
-
-    private static string RunModelProcess(string executable, string model, string prompt, int maxTokens, int timeoutSeconds)
-    {
-        try
-        {
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = executable,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-            foreach (var arg in new[] { "-m", model, "-p", prompt, "-n", Math.Clamp(maxTokens, 1, 1024).ToString(), "-c", "2048", "--single-turn", "--simple-io", "--no-display-prompt", "-t", "4" })
-                psi.ArgumentList.Add(arg);
-            using var process = System.Diagnostics.Process.Start(psi);
-            if (process == null) return string.Empty;
-            process.StandardInput.Close();
-            var outputTask = process.StandardOutput.ReadToEndAsync();
-            var errorTask = process.StandardError.ReadToEndAsync(); // Drain both pipes; diagnostics must not deadlock inference.
-            bool finished = process.WaitForExit(Math.Clamp(timeoutSeconds, 1, 120) * 1000);
-            if (!finished)
-            {
-                try { process.Kill(entireProcessTree: true); process.WaitForExit(2000); } catch { }
-                return string.Empty;
-            }
-            if (process.ExitCode != 0) return string.Empty;
-            string output = outputTask.GetAwaiter().GetResult();
-            _ = errorTask.GetAwaiter().GetResult();
-
-            int assistantIdx = output.IndexOf("<|im_start|>assistant");
-            if (assistantIdx >= 0)
-            {
-                output = output.Substring(assistantIdx + "<|im_start|>assistant".Length);
-            }
-            int promptIdx = output.IndexOf("[ Prompt:");
-            if (promptIdx >= 0)
-            {
-                output = output.Substring(0, promptIdx);
-            }
-            int exitIdx = output.IndexOf("Exiting...");
-            if (exitIdx >= 0)
-            {
-                output = output.Substring(0, exitIdx);
-            }
-
-            string clean = output.Trim();
-            // إزالة الأسطر الفارغة الزائدة
-            clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\s+", " ");
-            return clean;
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-
     /// <summary>
     /// توليد تقرير تكتيكي صوتي شامل للمستخدم بلغة اللعبة المعتمدة
     /// </summary>
@@ -119,27 +38,8 @@ public class TacticalAiAdvisor
 
         if (language == UiLanguage.Arabic)
         {
-            // فحص إمكانية التوليد المباشر من نموذج Qwen 2.5 3B
-            if (IsNeuralModelAvailable)
             {
-                var tired = match.HomeTeam.Players
-                    .Where(p => p.Role != PlayerRole.Goalkeeper && !p.IsSentOff && !p.IsOffPitch)
-                    .OrderBy(p => p.Stamina)
-                    .FirstOrDefault();
-
-                string tiredInfo = tired != null ? $"{tired.Name} بطاقة {tired.Stamina}%" : "لا يوجد إجهاد كبير";
-                string qwenPrompt = $"<|im_start|>system\nأنت مستشار كروي تكتيكي خبير لمباراة كرة قدم تفاعلية للمكفوفين. تحدث في جملتين موجزتين ومباشرتين بالعربية لتقديم نصيحة تكتيكية للمدرب.<|im_end|>\n<|im_start|>user\nالمباراة بين فريقنا {match.HomeTeam.Name} والخصم {match.AwayTeam.Name}. النتيجة الحالية: {homeScore} - {awayScore}. الدقيقة: {minute}. أكثر لاعب مجهد: {tiredInfo}. ما هي نصيحتك للتبديل والخطة الآن؟<|im_end|>\n<|im_start|>assistant\n";
-
-                string neuralOutput = QueryNeuralQwenModel(qwenPrompt);
-                if (!string.IsNullOrWhiteSpace(neuralOutput) && neuralOutput.Length > 10)
-                {
-                    sb.Append($"تقرير المستشار التكتيكي بالذكاء الاصطناعي (Qwen 2.5 3B) في الدقيقة {minute}: {neuralOutput} ");
-                }
-            }
-
-            if (sb.Length == 0)
-            {
-                sb.Append($"تقرير تكتيكي بالقواعد المحلية، وليس نموذج Qwen، في الدقيقة {minute}: ");
+                sb.Append($"تقرير تكتيكي بالقواعد المحلية في الدقيقة {minute}: ");
 
                 // 1. تقييم الموقف الحالي للنتيجة
                 if (goalDiff > 1)
@@ -207,7 +107,7 @@ public class TacticalAiAdvisor
         }
         else
         {
-            sb.Append($"Native-rule tactical report (not Qwen inference) at minute {minute}: ");
+            sb.Append($"Native-rule tactical report at minute {minute}: ");
 
             if (goalDiff > 0)
                 sb.Append($"Your team is leading ({homeScore} - {awayScore}). Solid tactical game. ");
@@ -394,7 +294,7 @@ public class TacticalAiAdvisor
         if (!match.CanMakeSubstitution(match.HomeTeam)) return false;
 
         // Meaningful fatigue uses the existing 70% boundary, relative to the player's own capacity.
-        // A booking plus three recorded fouls is the native second-yellow risk rule, not a prediction by Qwen.
+        // A booking plus three recorded fouls is the native second-yellow risk rule, not a model prediction.
         float Fitness(Player p) => 100f * p.Stamina / Math.Max(1, p.BaseStamina);
         bool CardRisk(Player p) => p.YellowCards > 0 && match.PerformanceOf(p).Fouls >= 3;
         var candidates = match.HomeTeam.Players.Where(p => p.IsActiveOnPitch &&
