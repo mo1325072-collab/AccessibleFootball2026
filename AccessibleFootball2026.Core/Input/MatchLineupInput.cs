@@ -20,5 +20,6 @@ public sealed class MatchLineupInput
         _dismissKey = null;
         return true;
     }
+    public void ReleaseAll() => _dismissKey = null;
     public void Complete() => IsActive = false;
 }
