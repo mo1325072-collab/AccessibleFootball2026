@@ -23,30 +23,11 @@ public class AnthemEngine
     public AnthemEngine(IScreenReader screenReader, string? assetsDir = null)
     {
         _screenReader = screenReader;
-        _assetsBaseDir = assetsDir ?? ResolveAssetsBaseDir();
+        _assetsBaseDir = assetsDir ?? Path.Combine(SoundEffectsPlayer.BaseAudioDirectory, "Anthems");
         Directory.CreateDirectory(_assetsBaseDir);
     }
 
-    private static string ResolveAssetsBaseDir()
-    {
-        string dDriveAnthems = @"D:\AccessibleFootball2026\Assets\Audio\Anthems";
-        if (Directory.Exists(dDriveAnthems)) return dDriveAnthems;
 
-        string binAnthems = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio", "Anthems");
-        if (Directory.Exists(binAnthems)) return binAnthems;
-
-        string? dir = AppDomain.CurrentDomain.BaseDirectory;
-        while (!string.IsNullOrEmpty(dir))
-        {
-            if (File.Exists(Path.Combine(dir, "AccessibleFootball2026.sln")))
-            {
-                string slnAnthems = Path.Combine(dir, "Assets", "Audio", "Anthems");
-                if (Directory.Exists(slnAnthems)) return slnAnthems;
-            }
-            dir = Path.GetDirectoryName(dir);
-        }
-        return binAnthems;
-    }
 
     private static bool StartAnthem(string path, bool fromStart)
     {
