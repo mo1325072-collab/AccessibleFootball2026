@@ -238,7 +238,8 @@ Files: SmartAudioCoordinator.cs and tests/OriginalAssetHarness; existing MatchFl
 - Overlapping announcements share ducking claims: the first completion cannot restore full crowd volume while a newer announcement still has not finished.
 - Controlled-completion tests cover speech longer than the old timer and final restoration. Existing flow tests cover commentary-first latest-only reader updates and goal/penalty-only preemption. Goal announcement tests wait for actual reader completion.
 - Canceling a match now cancels its waiting or already-started goal announcement, releases its ducking claim and suppresses stale completion callbacks. Tests cover cancellation before commentary ends, cancellation during speech and a clean next goal.
-- Native NVDA completion, actual audible mixing, older-NVDA estimated waits and recorded-commentary ducking still need separate verification. These are not inferred from mocked completion.
+- User correction at 17:51 Cairo: crowd reduction applies ONLY to screen-reader speech, never to the recorded commentator. The briefly published commentator-ducking addition was removed. Regression checks verify unchanged normal crowd during recorded commentary and preserved reader-only reduction when commentary stops.
+- Native NVDA completion, actual audible mixing and older-NVDA estimated waits still need separate verification. These are not inferred from mocked completion.
 
 ### Stage 7: beacon and integrated academy/volume checks
 
@@ -258,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 87 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 90 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
