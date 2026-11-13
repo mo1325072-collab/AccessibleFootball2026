@@ -155,11 +155,11 @@ public class AccessibleFootballWindow : Form
 
     private void SetupAudioEvents()
     {
-        // ربط الخفض الصوتي لصوت الجماهير عند تحدث قارئ الشاشة أو المعلق
-        _coordinator.OnCrowdVolumeDucking += factor =>
-        {
-            SoundEffectsPlayer.SetCrowdDucking(factor);
-        };
+        // Duck actual reader speech, not the wait while a recorded commentator owns the channel.
+        if (_screenReader is PriorityScreenReader priorityReader)
+            priorityReader.SpeechActivityChanged += speaking => SoundEffectsPlayer.SetCrowdDucking(speaking ? .2f : 1f);
+        else
+            _coordinator.OnCrowdVolumeDucking += SoundEffectsPlayer.SetCrowdDucking;
 
         _stadiumSoundEngine.OnDiscontentWhistlePlayed += team =>
         {
