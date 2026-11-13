@@ -29,6 +29,20 @@ if(cairoGround==null||!cairoGround.IsGroundFor(egyptGroundTeam)||!cairoGround.Na
 if(!JsonDatabaseProvider.GetAllGroups().Any(group=>StadiumCatalog.GetGroundsForProductionGroup(group).Any(ground=>ground.Key=="CairoInternational")))throw new Exception("Cairo must appear through the actual grouped stadium selector");
 if(cairoGround.IsGroundFor(TeamDatabase.CreateAlAhly()))throw new Exception("national Egypt link must not invent a club link");
 Console.WriteLine("PASS Cairo selectable directly for Egypt and through production-group stadium selection without invented club/audio claims");
+// Exclusive lineup input is a separate gate, not match possession/radar input.
+foreach(int skipKey in new[]{13,32})
+{
+    var lineupGate=new AccessibleFootball2026.Core.Input.MatchLineupInput();lineupGate.Begin();
+    if(!lineupGate.KeyDown(87,out var skipShot)||skipShot||!lineupGate.IsActive)throw new Exception("lineup consumes shot without starting gameplay");
+    if(!lineupGate.KeyDown(skipKey,out var skip)||!skip)throw new Exception("Enter/Space must request lineup skip");
+    lineupGate.Complete();
+    if(!lineupGate.KeyDown(skipKey,out skip)||skip)throw new Exception("held skip cannot become gameplay action through repeat");
+    if(!lineupGate.KeyUp(skipKey)||lineupGate.KeyDown(skipKey,out skip))throw new Exception("released skip key is available for next fresh gameplay action");
+    lineupGate.Begin();lineupGate.Complete();
+    if(lineupGate.IsActive||lineupGate.KeyDown(87,out skip))throw new Exception("natural completion enables gameplay without a key");
+}
+Console.WriteLine("PASS lineup gate consumes controls, Enter/Space skips, held skip repeats cannot trigger radar, natural completion unlocks play");
+
 var direct = new DirectShootoutInput();
 direct.KeyDown(0x26);direct.Tick(.2f);direct.KeyUp(0x26);
 if(Math.Abs(direct.FacingY+.18f)>.001f)throw new Exception("up must use ordinary negative facing-Y turn rate");
