@@ -118,7 +118,62 @@ anthemCommands.Clear();sparseStadium.ActiveStadiumKey="NeutralStadium";sparseSta
 Check(!anthemCommands.Any(c=>c.StartsWith("open ")&&c.Contains("Acoustic_3.wav")),"missing neutral acoustic never substitutes the available Bernabeu file");
 var acousticField=typeof(SoundEffectsPlayer).GetField("_stadiumAcousticPath",BindingFlags.Static|BindingFlags.NonPublic)!;
 Check(acousticField.GetValue(null)==null,"missing selected acoustic clears stale previous stadium configuration");
+
+// Event routing follows typed facts, not the language used by event prose.
+SoundEffectsPlayer.Initialize(root);
+var effectsCoordinator=new SmartAudioCoordinator(new Reader());
+void RouteCheck(AccessibleFootball2026.Core.MatchEvent e,string alias,string name)
+{
+ anthemCommands.Clear();effectsCoordinator.HandleMatchEvent(e);
+ Check(anthemCommands.Any(c=>c=="play "+alias+" from 0"),name);
+}
+RouteCheck(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.BallKicked,"Cross into box")
+ {Context=AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty.With(("action.kind","cross"))},"cross_kick","cross event uses typed action even with English prose");
+RouteCheck(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.BallKicked,"عرضية")
+ {Context=AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty.With(("action.kind","pass"),("pass.type","short"))},"pass_kick","explicit short pass facts override misleading cross prose");
+RouteCheck(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.BallKicked,"Keeper distributes")
+ {Context=AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty.With(("action.kind","pass"),("pass.height","high"))},"cross_kick","high keeper distribution selects airborne kick route by event facts");
+RouteCheck(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.UserTackleSuccessful,"Sliding tackle")
+ {Context=AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty.With(("tackle.sliding",true))},"slide_tackle","sliding tackle uses typed fact with English prose");
+RouteCheck(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.UserTackleSuccessful,"انزلاق")
+ {Context=AccessibleFootball2026.Core.Commentary.CommentaryContext.Empty.With(("tackle.sliding",false))},"stand_tackle","standing tackle fact overrides misleading sliding prose");
+anthemCommands.Clear();effectsCoordinator.HandleMatchEvent(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.GoalkeeperSave,"save"));
+Check(!anthemCommands.Any(c=>c=="play pass_kick from 0"),"missing goalkeeper-save recording never masquerades as a pass kick");
+
+
+foreach(var (kind,alias) in new (AccessibleFootball2026.Core.MatchEventType,string)[]{
+ (AccessibleFootball2026.Core.MatchEventType.WoodworkHit,"post_hit"),
+ (AccessibleFootball2026.Core.MatchEventType.ShotTaken,"shot_kick"),
+ (AccessibleFootball2026.Core.MatchEventType.CornerKick,"earcon_ch"),
+ (AccessibleFootball2026.Core.MatchEventType.GoalKick,"earcon_ch"),
+ (AccessibleFootball2026.Core.MatchEventType.ThrowIn,"earcon_ch"),
+ (AccessibleFootball2026.Core.MatchEventType.FoulCommitted,"whistle"),
+ (AccessibleFootball2026.Core.MatchEventType.Offside,"whistle"),
+ (AccessibleFootball2026.Core.MatchEventType.HalfTime,"whistle"),
+ (AccessibleFootball2026.Core.MatchEventType.FullTime,"whistle"),
+ (AccessibleFootball2026.Core.MatchEventType.PenaltyAwarded,"whistle"),
+ (AccessibleFootball2026.Core.MatchEventType.OpponentTackleSuccessful,"earcon_ch")})
+ RouteCheck(new AccessibleFootball2026.Core.MatchEvent(kind,"event"),alias,"match event reaches its production effect path: "+kind);
+// Reader ducking follows completion, including overlapping announcements.
+var completionReader=new ControlledReader();var speechCoordinator=new SmartAudioCoordinator(completionReader);var ducking=new List<float>();
+speechCoordinator.OnCrowdVolumeDucking+=factor=>{lock(ducking)ducking.Add(factor);};
+var radar=new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.TacticalRadarInfo,"long explicit radar");
+speechCoordinator.HandleMatchEvent(radar);await Task.Delay(1550);
+Check(ducking.Last()==.2f,"crowd remains ducked beyond 1.4 seconds while reader has not completed");
+speechCoordinator.HandleMatchEvent(radar);completionReader.Pending[0].SetResult();await Task.Delay(50);
+Check(ducking.Last()==.2f,"first completed reader request cannot unduck a newer active request");
+completionReader.Pending[1].SetResult();await Task.Delay(50);
+Check(ducking.Last()==1f,"last reader completion restores crowd immediately without a fixed timer");
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
 
 sealed class Reader:IScreenReader{public bool IsAvailable=>true;public void Speak(string s,bool interrupt=true){}public void CancelSpeech(){}}
+
+sealed class ControlledReader:IScreenReader
+{
+ public bool IsAvailable=>true;
+ public List<TaskCompletionSource> Pending=new();
+ public void Speak(string text,bool interrupt=true) { Pending.Add(new(TaskCreationOptions.RunContinuationsAsynchronously)); }
+ public Task SpeakUntilFinishedAsync(string text,bool interrupt=true) { Speak(text,interrupt);return Pending.Last().Task; }
+ public void CancelSpeech() { foreach(var p in Pending)p.TrySetResult(); }
+}
