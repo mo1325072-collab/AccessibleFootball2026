@@ -28,7 +28,7 @@ public class StadiumSoundEngine
     public event Action<Team>? OnDiscontentWhistlePlayed;
     public Team? ActiveHomeTeam { get; private set; }
     public Team? ActiveAwayTeam { get; private set; }
-    public string ActiveStadiumKey { get; set; } = "SantiagoBernabeu";
+    public string ActiveStadiumKey { get; set; } = "NeutralStadium";
     public string ActiveStadiumName => ActiveStadiumKey switch
     {
         "SantiagoBernabeu" => "ملعب سانتياجو برنابيو (معقل ريال مدريد)",
@@ -41,16 +41,16 @@ public class StadiumSoundEngine
         // الشرط المزدوج الصارم:
         // 1. الفريق يلعب على أرضه وصاحب الأرض (Home Team)
         // 2. الملعب الحالي هو ملعبه الرسمي الحقيقي الموثق
-        if (ActiveHomeTeam == null || ActiveHomeTeam != team)
+        if (team.IsNationalTeam || ActiveHomeTeam == null || ActiveHomeTeam != team)
             return false;
 
         bool isRealMadrid = team.Id == "ESP_RMA" || team.Id == "173" || 
-                            team.Name.Contains("Real Madrid", StringComparison.OrdinalIgnoreCase) || 
-                            team.Name.Contains("مدريد", StringComparison.OrdinalIgnoreCase);
+                            team.Name.Equals("Real Madrid", StringComparison.OrdinalIgnoreCase) || 
+                            team.Name.Equals("ريال مدريد", StringComparison.OrdinalIgnoreCase);
 
         bool isBarcelona = team.Id == "ESP_BAR" || team.Id == "153" || 
-                           team.Name.Contains("Barcelona", StringComparison.OrdinalIgnoreCase) || 
-                           team.Name.Contains("برشلونة", StringComparison.OrdinalIgnoreCase);
+                           (team.Name.Equals("Barcelona", StringComparison.OrdinalIgnoreCase) || team.Name.Equals("FC Barcelona", StringComparison.OrdinalIgnoreCase)) || 
+                           team.Name.Equals("برشلونة", StringComparison.OrdinalIgnoreCase);
 
         if (ActiveStadiumKey == "SantiagoBernabeu" && isRealMadrid)
             return true;
@@ -72,6 +72,7 @@ public class StadiumSoundEngine
 
     public void SetMatchTeams(Team home, Team away)
     {
+        _lastChantPlayTime = DateTime.MinValue;
         ActiveHomeTeam = home;
         ActiveAwayTeam = away;
         ApplyStadiumAcousticsForTeam(home);
@@ -127,7 +128,11 @@ public class StadiumSoundEngine
         // 2. خطأ ارتكبه الخصم ضد صاحب الأرض
         if (matchEvent.Type == MatchEventType.FoulCommitted)
         {
-            PlayTeamChant(ActiveHomeTeam, ChantSlot.DiscontentWhistle, force: true);
+            // SubjectPlayer is the tackler in MatchEngine. Only an away-team foul warrants
+            // home crowd protest. Missing actor evidence must not invent an opponent foul.
+            if (matchEvent.SubjectPlayer != null && ActiveAwayTeam != null &&
+                ActiveAwayTeam.Players.Contains(matchEvent.SubjectPlayer))
+                PlayTeamChant(ActiveHomeTeam, ChantSlot.DiscontentWhistle, force: true);
             return;
         }
 
@@ -164,12 +169,12 @@ public class StadiumSoundEngine
         if (!ShouldPlayChantForTeam(team)) return;
 
         bool isRealMadrid = team.Id == "ESP_RMA" || team.Id == "173" || 
-                            team.Name.Contains("Real Madrid", StringComparison.OrdinalIgnoreCase) || 
-                            team.Name.Contains("مدريد", StringComparison.OrdinalIgnoreCase);
+                            team.Name.Equals("Real Madrid", StringComparison.OrdinalIgnoreCase) || 
+                            team.Name.Equals("ريال مدريد", StringComparison.OrdinalIgnoreCase);
 
         bool isBarcelona = team.Id == "ESP_BAR" || team.Id == "153" || 
-                           team.Name.Contains("Barcelona", StringComparison.OrdinalIgnoreCase) || 
-                           team.Name.Contains("برشلونة", StringComparison.OrdinalIgnoreCase);
+                           (team.Name.Equals("Barcelona", StringComparison.OrdinalIgnoreCase) || team.Name.Equals("FC Barcelona", StringComparison.OrdinalIgnoreCase)) || 
+                           team.Name.Equals("برشلونة", StringComparison.OrdinalIgnoreCase);
 
         string teamId = isRealMadrid ? "173" : (isBarcelona ? "153" : team.Id);
 
