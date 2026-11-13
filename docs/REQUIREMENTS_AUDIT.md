@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 114 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 134 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -308,3 +308,21 @@ Remaining work, not marked complete:
 - Exact production names are bound to the source identities, including ArsenalFC,BrentfordFC,EvertonFC,LiverpoolFC,ChelseaFC,FulhamFC,SunderlandAFC. Everton is bound to HillDickinsonStadium, not the former GoodisonPark. No team is added or league roster changed.
 - Catalog now28unique grounds covering29actual teams, with500still awaiting sourced grounds. This supersedes Stage11's partial8/9/520checkpoint. SharedSanSiro staysoneground, and national grounds are not claimedexclusive.
 -114/114real-asset/catalogchecks pass including all20Englishclubs exactlyonecurrentdocumentedground and no staleGoodisonfallback. Broadergroundcoverage, authenticstadiumacoustics, mostteamchants and nativeWindowsUI/audioacceptanceremainopen. Candidateisstillinternalandhasnotbeenrebuiltfor theselaterrepairs.
+
+
+### Stage 13: Italian and German production club grounds; shared-ground decision
+
+- All20Italian and18German production clubs now have source-backed grounds. Italy: official SerieA notice27 published4September2026 for2026/27, read in full: https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf . Germany: official2026/27 club-and-ground list read in full: https://www.bundesliga.com/en/bundesliga/clubs . Only venue identity is used, not unrelated capacities or claims.
+- Names are bound to actual production records, including their existing spelling variants. Atalanta uses NewBalanceArena; Hoffenheim uses SNPArena. Roma/Lazio share one RomeOlimpico entry, just as Milan/Inter share one SanSiro. No new team is created.
+- Catalog now63uniquegrounds cover65actualteams;464teams still await sources. Earlier partial counts remain historical checkpoints, not full-coverage claims.
+- User-approved shared-ground rule: if both participants use the selected ground, choose the designated Home team, currently the human-controlled team. If only the Away-slot team uses it, that sole owner still wins. If neither does, neutral crowd. The resolver is tested for both Milan/Inter orders, sole-away ownership and no ownership. This does not invent Milan/Inter chant recordings; audible pools remain the two corroborated Madrid/Barcelona pools.
+- Stadium selection puts participating teams' verified grounds first and groups other verified grounds by actual database competition. This avoids one long list as coverage grows. Sharedgrounds are deduplicated within groups; neutral and Back remain available. Cup-final/rivalry flags still pass to match start.
+-125/125portable real-file/catalog checks pass; Windows-target build has0errors. Group data and callbacks are source/build checked, but native WinForms focus, keyboard and screen-reader acceptance remain unexecuted. No claim of native Windows/NVDA/audio verification or finished release.
+
+
+### Stage 14: full random chant clips and compact stadium first menu
+
+- Latest user instruction supersedes the earlier25-second-start/goal-force behavior: each team clip finishes before another random selection; no fixed order, repeats allowed. Removed the old25second timer and goal-event teamchant start. Playback status is checked on the actual chant channel; playing/paused/unknown/error state cannot be treated as completion. Explicit force cannot cut a clip. Natural completion allows the next random clip when active-play context is next processed. StopAll and volume muting clear the playback gate through existing channel cleanup.
+- Goals retain the existing crowd_goal/CrowdGoal route, not a team chant. MissedChance retains crowd_miss/CrowdMiss. Recovered CrowdGoal, CrowdMiss and CrowdCheer are byte-identical to supplied Crowd files, with numeric duplicates411,425,412respectively. This is byte provenance and routing evidence, not a claim of independent audible semantic or licensing verification.
+- Compact stadium first menu shows verified participating grounds once, then Chooseanotherstadium. That opens remaining grounds grouped by actual database competition; owned grounds are excluded from that list. Back/Escape uses existing menu history. Neutral remains available. Missing ground evidence is never filled with an invented venue.
+-134/134real-file/recorded-command checks, settings66/66, journeys313/313 and Windows-target build0errors. Tests cover active clip refusal, completion, force refusal, status error, next-match cleanup, actual goal crowd route and missedchance route. Native Windows/NVDA/mixing/menu acceptance remains unexecuted. Crowd reduction remains screen-reader-only, never recorded commentator.
