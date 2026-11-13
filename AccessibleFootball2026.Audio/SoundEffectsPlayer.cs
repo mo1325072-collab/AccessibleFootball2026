@@ -518,7 +518,7 @@ public static class SoundEffectsPlayer
             "BallKick" or "PowerfulShot" => ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact"),
             "RefereeWhistle" => ResolveExtractedSample(Path.Combine("SFX", "Whistles"), "Whistle"),
             "GoalNet" => ResolveExtractedSample(Path.Combine("SFX", "GoalNet"), "GoalNet"),
-            "WoodworkHit" => ResolveExtractedSample(Path.Combine("SFX", "PostHit"), "PostHit"),
+            "WoodworkHit" => ResolveOriginalMappedSample("SFX", "PostHit", "PostHit") ?? ResolveExtractedSample(Path.Combine("SFX", "PostHit"), "PostHit"),
             "GoalkeeperSave" => TryResolveExistingAudioPath("SFX", "Saves", "GoalkeeperSave"),
             "CrowdAmbiance" => TryResolveExistingAudioPath("SFX", "Crowd", "CrowdAmbiance"),
             "GoalRoar" => TryResolveExistingAudioPath("SFX", "Crowd", "CrowdGoal") ?? TryResolveExistingAudioPath("SFX", "Crowd", "CrowdCheer"),
@@ -529,12 +529,37 @@ public static class SoundEffectsPlayer
         return path != null && PlayOneShot(path, soundId is "CrowdAmbiance" or "GoalRoar" or "MissGasp" ? "crowd_academy" : "academy_sfx");
     }
 
+    // Named files can also be generated fallbacks. Only known original bytes may
+    // outrank numeric originals or be presented as original academy recordings.
+    private static readonly Dictionary<string, string> OriginalMappedHashes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SFX/PostHit/PostHit"] = "6043c420a1d463d946725d1942bf8b2233f172de243ec85f2ae8f9431acdb755",
+        ["SFX/Kicks/Kick_Center"] = "a8c938948d6080f4350f3c96c48eecb9ff229954880fe8c0f655b6f3640a5c89",
+        ["SFX/Kicks/Shot_Center"] = "867752d427aabad52039331f94e622e4edd125d2470773cc3215d990ec93d9bc",
+        ["SFX/Kicks/Pass_Center"] = "a8c938948d6080f4350f3c96c48eecb9ff229954880fe8c0f655b6f3640a5c89",
+        ["SFX/Kicks/Cross_Center"] = "867752d427aabad52039331f94e622e4edd125d2470773cc3215d990ec93d9bc",
+    };
+    private static string? ResolveOriginalMappedSample(params string[] parts)
+    {
+        string key = string.Join('/', parts);
+        string? path = TryResolveExistingAudioPath(parts);
+        if (path == null || !OriginalMappedHashes.TryGetValue(key, out var expected)) return null;
+        try
+        {
+            using var file = File.OpenRead(path);
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(file)).Equals(expected, StringComparison.OrdinalIgnoreCase) ? path : null;
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
     public static void PlayKick(float pan = 0.0f)
     {
         LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
         pan = LastPlayedPan;
         string fileName = "Kick_Center";
-        string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
+        string? p = ResolveOriginalMappedSample("SFX", "Kicks", fileName)
+                 ?? ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
                  ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick")
                  ?? ResolveAudioPath("SFX", "Kicks", "Pass");
@@ -546,7 +571,8 @@ public static class SoundEffectsPlayer
         LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
         pan = LastPlayedPan;
         string fileName = "Shot_Center";
-        string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
+        string? p = ResolveOriginalMappedSample("SFX", "Kicks", fileName)
+                 ?? ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
                  ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Shot") 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick_Center");
@@ -558,7 +584,8 @@ public static class SoundEffectsPlayer
         LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
         pan = LastPlayedPan;
         string fileName = "Pass_Center";
-        string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
+        string? p = ResolveOriginalMappedSample("SFX", "Kicks", fileName)
+                 ?? ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
                  ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Pass") 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick_Center");
@@ -570,7 +597,8 @@ public static class SoundEffectsPlayer
         LastPlayedPan = float.IsFinite(pan) ? Math.Clamp(pan, -1, 1) : 0;
         pan = LastPlayedPan;
         string fileName = "Cross_Center";
-        string? p = ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
+        string? p = ResolveOriginalMappedSample("SFX", "Kicks", fileName)
+                 ?? ResolveExtractedSample(Path.Combine("SFX", "Kicks"), "Kick", "Impact")
                  ?? ResolveAudioPath("SFX", "Kicks", fileName) 
                  ?? ResolveAudioPath("SFX", "Kicks", "Cross") 
                  ?? ResolveAudioPath("SFX", "Kicks", "Kick_Center");
