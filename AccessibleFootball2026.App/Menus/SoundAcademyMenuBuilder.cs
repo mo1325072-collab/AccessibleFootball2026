@@ -88,7 +88,6 @@ public static class SoundAcademyMenuBuilder
         "BeaconLeft" => GoalBeaconPlayer.PlayBeaconPulse(.85f, -.85f),
         "BeaconRight" => GoalBeaconPlayer.PlayBeaconPulse(.85f, .85f),
         "ChampionsLeagueAnthem" => anthemEngine.PlayChampionsLeagueSample(),
-        "NationalAnthem" => anthemEngine.TryPlayNationalAnthemSample("EGY"),
         _ => SoundEffectsPlayer.TryPlayAcademySample(soundId)
     };
 
