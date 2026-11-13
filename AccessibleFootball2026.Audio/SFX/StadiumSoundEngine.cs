@@ -80,8 +80,6 @@ public class StadiumSoundEngine
 
     public void ApplyStadiumAcousticsForTeam(Team homeTeam)
     {
-        if (!Directory.Exists(_acousticsDir)) return;
-
         // ربط هوية الملعب الحقيقي في PES 2013 بالملف الصوتي للملعب
         string acousticFile = ActiveStadiumKey switch
         {
@@ -90,15 +88,16 @@ public class StadiumSoundEngine
             _ => Path.Combine(_acousticsDir, "Acoustic_10.wav")                  // ملعب محايد بصوت جماهير PES 2013 عام
         };
 
-        if (!File.Exists(acousticFile))
-        {
-            var files = Directory.GetFiles(_acousticsDir, "*.wav");
-            acousticFile = files.Length > 0 ? files[0] : string.Empty;
-        }
-
         if (File.Exists(acousticFile))
         {
             SoundEffectsPlayer.SetStadiumAcoustics(acousticFile);
+        }
+        else
+        {
+            // A missing ground must not silently become another stadium or retain last match's ground.
+            // Stop clears the prior acoustic selection. General crowd ambience remains available.
+            SoundEffectsPlayer.StopCrowdAmbiance();
+            SoundEffectsPlayer.StartCrowdAmbiance();
         }
     }
 
