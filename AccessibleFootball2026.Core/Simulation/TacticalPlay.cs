@@ -19,7 +19,7 @@ public partial class MatchEngine
     public static float TacticalStaminaRate(TeamTactics tactics, Player player)
     {
         if (player.Role == PlayerRole.Goalkeeper) return 28f / 90 * .15f;
-        int age = player.Age > 0 ? player.Age : 25;
+        int age = player.SimulationAge; // Explicit neutral simulation band when source age is unknown.
         float tempoCost = .9f + tactics.Tempo * .002f;
         if (tactics.PressingIntensity > 75)
         {
