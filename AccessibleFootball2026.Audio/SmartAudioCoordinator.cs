@@ -113,7 +113,7 @@ public class SmartAudioCoordinator
         }
         else if (matchEvent.Type == MatchEventType.GoalkeeperSave)
         {
-            SoundEffectsPlayer.PlayPassKick(matchEvent.SpatialPan);
+            SoundEffectsPlayer.TryPlayGoalkeeperSave(matchEvent.SpatialPan);
         }
         else if (matchEvent.Type == MatchEventType.WoodworkHit)
         {
@@ -138,11 +138,11 @@ public class SmartAudioCoordinator
         }
         else if (matchEvent.Type == MatchEventType.UserTackleSuccessful)
         {
-            if (matchEvent.Description.Contains("انزلاق") || matchEvent.Description.Contains("زحلقة"))
+            if (IsSlidingTackle(matchEvent))
             {
                 SoundEffectsPlayer.PlaySlideTackle(matchEvent.SpatialPan);
             }
-            else if (matchEvent.Description.Contains("هادئ") || matchEvent.Description.Contains("وقوف"))
+            else if (matchEvent.Context.TryGet("tackle.sliding", out _) || matchEvent.Description.Contains("هادئ") || matchEvent.Description.Contains("وقوف"))
             {
                 SoundEffectsPlayer.PlayStandTackle(matchEvent.SpatialPan);
             }
@@ -161,7 +161,7 @@ public class SmartAudioCoordinator
         }
         else if (matchEvent.Type == MatchEventType.BallKicked)
         {
-            if (matchEvent.Description.Contains("عرضية") || matchEvent.Description.Contains("عالية"))
+            if (IsAirborneKick(matchEvent))
             {
                 SoundEffectsPlayer.PlayCrossKick(matchEvent.SpatialPan);
             }
@@ -177,7 +177,7 @@ public class SmartAudioCoordinator
         else if (matchEvent.Type == MatchEventType.TackleSuccessful 
                  || matchEvent.Type == MatchEventType.TackleAttempted)
         {
-            if (matchEvent.Description.Contains("انزلاق") || matchEvent.Description.Contains("زحلقة"))
+            if (IsSlidingTackle(matchEvent))
             {
                 SoundEffectsPlayer.PlaySlideTackle(matchEvent.SpatialPan);
             }
@@ -297,6 +297,25 @@ public class SmartAudioCoordinator
         }
     }
 
+    private static bool IsSlidingTackle(MatchEvent e)
+    {
+        if (e.Context.TryGet("tackle.sliding", out var sliding))
+            return string.Equals(sliding,"true",StringComparison.OrdinalIgnoreCase);
+        // Legacy producers without structured facts retain their old route.
+        return e.Description.Contains("انزلاق") || e.Description.Contains("زحلقة");
+    }
+
+    private static bool IsAirborneKick(MatchEvent e)
+    {
+        if (e.Context.TryGet("action.kind", out var kind))
+        {
+            if (kind == "cross") return true;
+            if (kind == "pass") return e.Context.TryGet("pass.height",out var height) && height == "high";
+            return false;
+        }
+        return e.Description.Contains("عرضية") || e.Description.Contains("عالية") || e.Description.Contains("رفع الركنية");
+    }
+
     private int _goalSequenceGeneration;
     public bool HasPendingGoalAnnouncement { get; private set; }
 
@@ -315,22 +334,32 @@ public class SmartAudioCoordinator
             await Task.Delay(250);
         }
         if (generation != Volatile.Read(ref _goalSequenceGeneration)) return;
-        OnCrowdVolumeDucking?.Invoke(.2f);
+        BeginReaderDucking();
         try { if (AccessibleFootball2026.Core.Models.MatchSettings.Current.ScreenReaderSpokenEventsEnabled) await _screenReader.SpeakUntilFinishedAsync(goalData.ToOfficialAnnouncement() + ". اضغط إنتر لإنهاء الإعادة واستئناف المباراة."); }
-        finally {OnCrowdVolumeDucking?.Invoke(1f);}
+        finally { EndReaderDucking(); }
         if (generation == Volatile.Read(ref _goalSequenceGeneration))
         { HasPendingGoalAnnouncement = false; OnGoalSequenceCompleted?.Invoke(); }
     }
 
-    private void SpeakWithDucking(string text, bool explicitRequest = false)
+    private readonly object _duckingLock = new();
+    private int _readerDuckingUsers;
+    private void BeginReaderDucking()
+    {
+        lock (_duckingLock)
+            if (++_readerDuckingUsers == 1) OnCrowdVolumeDucking?.Invoke(.2f);
+    }
+    private void EndReaderDucking()
+    {
+        lock (_duckingLock)
+            if (--_readerDuckingUsers == 0) OnCrowdVolumeDucking?.Invoke(1f);
+    }
+
+    private async void SpeakWithDucking(string text, bool explicitRequest = false)
     {
         if (!explicitRequest && !AccessibleFootball2026.Core.Models.MatchSettings.Current.ScreenReaderSpokenEventsEnabled) return;
-        OnCrowdVolumeDucking?.Invoke(0.2f);
-        _screenReader.Speak(text, interrupt: true);
-
-        Task.Delay(1400).ContinueWith(_ =>
-        {
-            OnCrowdVolumeDucking?.Invoke(1.0f);
-        });
+        BeginReaderDucking();
+        try { await _screenReader.SpeakUntilFinishedAsync(text, interrupt: true); }
+        catch { /* A failed/cancelled reader still releases its own ducking claim. */ }
+        finally { EndReaderDucking(); }
     }
 }
