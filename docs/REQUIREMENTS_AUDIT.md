@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 137 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 121 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -349,3 +349,14 @@ Remaining work, not marked complete:
 - Removed the national pre-match ceremony and keyboard/wait state, the academy national-anthem entry and callback. Legacy national API entrypoints remain inert for binary/source compatibility: no file lookup, no open command and no waiting. No country mappings are invented for chant playback.
 - Preserved all original bytes, approved Champions League intro/academy playback, Gemini menu music and Move/Select v2. No replacement anthem sourcing is needed.
 -137/137real-file/recorded-command checks after cancellation; national no-play/no-wait, academy removal and UCL preservation are covered. Native Windows/NVDA checks remain unexecuted.
+
+
+### Stage 18: Chant-backed grounds only; flat sound academy
+
+- The user changed stadium scope: a ground is useful here only when its team's distinctive chant is available. The all-529-team coverage target and its pending denominator are canceled. Ground-name research alone does not qualify a menu choice. Earlier coverage totals above are historical, not current targets.
+- Removed all unsupported ground entries, including the French metadata briefly committed before this correction. Only Santiago Bernabeu / Real Madrid and Spotify Camp Nou / FC Barcelona remain, backed by the corroborated SP_R0109 and SP_R0108 recovered chant pools. Neutral remains a fallback choice. Other team mappings stay unresolved, not inferred from generic crowd sounds. The shared-ground home tie-break remains the design if a supported shared ground is added in future; there is no unsupported shared-ground entry now.
+- Academy is one flat list, without category submenus: exactly nine semantic cues and nine goal-beacon demonstrations. Beacon demonstrations cover center/left/right, near/louder, far/softer, out-of-range silence, no-possession silence, and the reversed left/right relationship in the second half. Silent cases are explicitly explained as intentional, not reported as missing samples. Distance/half examples use the real beacon calculation. Preview selection and Back stop prior channels.
+- Match effects, crowd and music previews are no longer academy entries, but their underlying game audio is not removed. The approved UCL startup intro, Gemini menu music and exact Move/Select v2 bytes stay intact. National anthem cancellation remains in force.
+- 121/121 real-file/recorded-command checks, 392/392 player-journey checks and 66/66 settings checks pass. Windows-target build has zero warnings and errors. Counts changed because obsolete catalog/category checks were replaced with the revised requirements; this is not native Windows/NVDA or audible mixing verification.
+
+- Two offered grounds means two currently corroborated and wired chant-to-team mappings, NOT proof that other teams have no supplied chants. The 643-record chant index contains many other recordings whose modern team/country identities remain unresolved. The user's set-level national-chant classification does not establish individual country mappings. Those bytes are preserved and the mapping investigation remains open; additional eligible production-team grounds can be added after identity and actual available recording checks, not by name-only expansion.
