@@ -42,6 +42,9 @@ public class JsonPlayerEntry
     public int? age { get; set; }
     public string? position { get; set; }
     public int power { get; set; }
+    public bool power_estimated { get; set; }
+    public string? power_provenance { get; set; }
+    public string[]? source_urls { get; set; }
 }
 
 /// <summary>
@@ -182,6 +185,31 @@ public static class JsonDatabaseProvider
         _groupArabicNames.Clear();
     }
 
+    // Sourced additions are separate from the untouched original user database.
+    // 55 is a disclosed game-balance baseline, never a measured ability claim.
+    private static void ApplySourcedRosterAdditions(JsonPlayerDbRoot root)
+    {
+        if(root.teams == null) return;
+        var additions = new (string Team, JsonPlayerEntry Player)[]
+        {
+            ("FC Aiglons (Tchad)",new JsonPlayerEntry { name="Biwé Mangana", age=null, position="Goalkeeper", power=55, power_estimated=true, power_provenance="Estimated gameplay balance baseline55. Not an externally sourced ability rating; individual attributes derived by existing role-based rules.", source_urls=new[] {"https://www.tecormedias.com/biwe-mangana-lascension-du-dernier-rempart-du-football-tchadien/","https://lesportif.td/les-aiglons-fc-nouveaux-maitres-du-football-tchadien-retour-sur-une-saison-2025-2026-historique/"}}),
+            ("FC Aiglons (Tchad)",new JsonPlayerEntry { name="Abderamane Ahmat", age=33, position="Centre-Back", power=55, power_estimated=true, power_provenance="Estimated gameplay balance baseline55. Not an externally sourced ability rating; individual attributes derived by existing role-based rules.", source_urls=new[] {"https://www.transfermarkt.fr/fc-aiglons-tchad-/startseite/verein/113820"}}),
+            ("Panthère Sportive du Ndé",new JsonPlayerEntry { name="Njoya Mohamed Malik", age=null, position="Goalkeeper", power=55, power_estimated=true, power_provenance="Estimated gameplay balance baseline55. Not an externally sourced ability rating; individual attributes derived by existing role-based rules.", source_urls=new[] {"https://dailysports.net/fr/news/elite-one-panthere-fc-annonce-sa-7e-recrue-estivale/"}}),
+            ("Panthère Sportive du Ndé",new JsonPlayerEntry { name="Mouen Adolphe Phillipe", age=null, position="Midfielder", power=55, power_estimated=true, power_provenance="Estimated gameplay balance baseline55. Not an externally sourced ability rating; individual attributes derived by existing role-based rules.", source_urls=new[] {"https://dailysports.net/fr/news/elite-one-panthere-fc-annonce-sa-7e-recrue-estivale/"}}),
+            ("AS ZAM",new JsonPlayerEntry { name="Harouna Doulla Younoussa", age=null, position="Goalkeeper", power=55, power_estimated=true, power_provenance="Estimated gameplay balance baseline55. Not an externally sourced ability rating; individual attributes derived by existing role-based rules.", source_urls=new[] {"https://africatopsports.com/football/coupe-caf-asko-as-zam-les-compositions-officielles/","https://togofoot.tg/prel-coupe-caf-sans-forcer-asko-passe-au-second-tour/"}}),
+            ("DC Virunga",new JsonPlayerEntry { name="Djodjo Mushila", age=null, position="Goalkeeper", power=55, power_estimated=true, power_provenance="Estimated gameplay balance baseline55. Not an externally sourced ability rating; individual attributes derived by existing role-based rules.", source_urls=new[] {"https://africatopsports.com/caf/coupe-caf-les-compositions-officielles-de-dc-virunga-vs-c-d-primeiro-de-agosto/","https://congoprofond.net/dc-virunga-verrouille-son-heros-djodjo-mushila-reste-pour-trois-ans/"}}),
+        };
+        foreach(var (teamName, player) in additions)
+        {
+            var team=root.teams.FirstOrDefault(t=>string.Equals(t.team,teamName,StringComparison.OrdinalIgnoreCase)&&t.type=="club");
+            if(team == null) continue;
+            team.players ??= new List<JsonPlayerEntry>();
+            // A future source update wins over this checkpoint, without duplicate insertion.
+            string NormalizeName(string? n) => string.Concat((n ?? "").Normalize(System.Text.NormalizationForm.FormD).Where(c=>!char.IsWhiteSpace(c)&&char.GetUnicodeCategory(c)!=System.Globalization.UnicodeCategory.NonSpacingMark)).ToLowerInvariant();
+            if(!team.players.Any(p=>NormalizeName(p.name)==NormalizeName(player.name))) team.players.Add(player);
+        }
+    }
+
     private static void LoadDatabaseFromFile(string jsonPath)
     {
             string json = File.ReadAllText(jsonPath);
@@ -191,6 +219,7 @@ public static class JsonDatabaseProvider
             };
             var root = JsonSerializer.Deserialize<JsonPlayerDbRoot>(json, options);
             if (root?.teams == null || root.teams.Count == 0) return;
+            ApplySourcedRosterAdditions(root);
 
             if (root.index?.groups != null)
             {
@@ -235,7 +264,7 @@ public static class JsonDatabaseProvider
 
                         var (specPos, role) = ParsePosition(p.position);
                         int power = Math.Clamp(p.power, 45, 99);
-                        int age = p.age is > 0 ? p.age.Value : 25;
+                        int age = p.age is > 0 ? p.age.Value : 0;
 
                         int spd, pas, sho, def, phy;
                         CalculatePlayerAttributes(role, power, out spd, out pas, out sho, out def, out phy);
@@ -264,6 +293,10 @@ public static class JsonDatabaseProvider
                             tacticalRole: PlayerTacticalRole.None
                         );
 
+                        player.RatingIsEstimated = p.power_estimated;
+                        player.RatingProvenance = p.power_provenance ?? string.Empty;
+                        player.DataSourceUrls = p.source_urls ?? Array.Empty<string>();
+                        player.SourcePosition = p.position ?? string.Empty;
                         createdPlayers.Add(player);
                         shirtNumberCounter++;
                     }
@@ -362,7 +395,7 @@ public static class JsonDatabaseProvider
 
     private static (SpecificPosition Pos, PlayerRole Role) ParsePosition(string? posStr)
     {
-        if (string.IsNullOrWhiteSpace(posStr)) return (SpecificPosition.CM, PlayerRole.Midfielder);
+        if (string.IsNullOrWhiteSpace(posStr)) return (SpecificPosition.Unknown, PlayerRole.Unknown);
 
         string p = posStr.Trim().ToLowerInvariant();
         if (p.Contains("goalkeeper") || p == "gk")
@@ -399,7 +432,7 @@ public static class JsonDatabaseProvider
         if (p.Contains("forward") || p == "fw")
             return (SpecificPosition.CF, PlayerRole.Forward);
 
-        return (SpecificPosition.CM, PlayerRole.Midfielder);
+        return (SpecificPosition.Unknown, PlayerRole.Unknown);
     }
 
     private static void CalculatePlayerAttributes(PlayerRole role, int power, out int spd, out int pas, out int sho, out int def, out int phy)
