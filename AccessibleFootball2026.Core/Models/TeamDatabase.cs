@@ -168,6 +168,17 @@ public static class StadiumCatalog
         new("Maradona","دييجو أرماندو مارادونا","Diego Armando Maradona",false,new[] {"SSC Napoli"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
         new("Bluenergy","فريولي (بلوينرجي)","Friuli / Bluenergy Stadium",false,new[] {"Udinese Calcio"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
         new("Ferraris","لويجي فيراريس","Luigi Ferraris",false,new[] {"Genoa CFC"},"https://images.legaseriea.it/image/private/fl_attachment/prd/atagcfmsdksksrhe3amr.pdf"),
+        new("Riazor","أبانكا ريازور","Estadio ABANCA-RIAZOR",false,new[] {"Deportivo A Coruña"},"https://www.laliga.com/en-GB/clubs/rc-deportivo"),
+        new("LaCartuja","لا كارتوخا","Estadio La Cartuja",false,new[] {"Real Betis Balompié"},"https://www.laliga.com/en-GB/clubs/real-betis"),
+        new("Anoeta","أنويتا (ريالي أرينا)","Anoeta (Reale Arena)",false,new[] {"Real Sociedad"},"https://www.laliga.com/en-GB/clubs/real-sociedad"),
+        new("SanMames","سان ماميس","Estadio San Mamés",false,new[] {"Athletic Bilbao"},"https://www.laliga.com/en-GB/clubs/athletic-club"),
+        new("RCDE","آر سي دي إي","RCDE Stadium",false,new[] {"RCD Espanyol Barcelona"},"https://www.laliga.com/en-GB/clubs/rcd-espanyol"),
+        new("LaRosaleda","لا روساليدا","La Rosaleda",false,new[] {"Málaga CF"},"https://www.laliga.com/en-GB/clubs/malaga-cf"),
+        new("ElSadar","إل سادار","Estadio El Sadar",false,new[] {"CA Osasuna"},"https://www.laliga.com/en-GB/clubs/c-a-osasuna"),
+        new("SanchezPizjuan","رامون سانشيز بيزخوان","Ramón Sánchez-Pizjuán",false,new[] {"Sevilla FC"},"https://www.laliga.com/en-GB/clubs/sevilla-fc"),
+        new("Coliseum","كوليسيوم","Coliseum",false,new[] {"Getafe CF"},"https://www.laliga.com/en-GB/clubs/getafe-cf"),
+        new("CiutatValencia","سيوتات دي فالنسيا","Estadio Ciutat de València",false,new[] {"Levante UD"},"https://www.laliga.com/en-GB/clubs/levante-ud"),
+        new("Vallecas","فاييكاس","Estadio de Vallecas",false,new[] {"Rayo Vallecano"},"https://www.laliga.com/en-GB/clubs/rayo-vallecano/next-matches"),
     };
 
     public static IReadOnlyList<StadiumDefinition> GetAvailableStadiums()
@@ -214,6 +225,17 @@ public static class TeamChantCatalog
         new("SSC Napoli","SP_R0327_",760,762,MapSource),
         new("Udinese Calcio","SP_R0190_",656,662,MapSource),
         new("Genoa CFC","SP_R0323_",755,759,MapSource),
+        new("Deportivo A Coruña","SP_R0111_",564,565,MapSource),
+        new("Real Betis Balompié","SP_R0194_",665,666,MapSource),
+        new("Real Sociedad","SP_R0196_",670,676,MapSource),
+        new("Athletic Bilbao","SP_R0258_",714,721,MapSource),
+        new("RCD Espanyol Barcelona","SP_R0259_",722,723,MapSource),
+        new("Málaga CF","SP_R0260_",724,726,MapSource),
+        new("CA Osasuna","SP_R0263_",732,733,MapSource),
+        new("Sevilla FC","SP_R0265_",734,740,MapSource),
+        new("Getafe CF","SP_R0362_",763,764,MapSource),
+        new("Levante UD","SP_R0366_",765,771,MapSource),
+        new("Rayo Vallecano","SP_R0370_",772,776,MapSource),
     };
     public static TeamChantPool? Find(Team team) => team.IsNationalTeam ? null :
         Pools.FirstOrDefault(p=>p.TeamName.Equals(team.Name,StringComparison.OrdinalIgnoreCase));
