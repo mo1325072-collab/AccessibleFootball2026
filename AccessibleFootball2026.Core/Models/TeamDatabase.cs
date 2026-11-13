@@ -150,11 +150,13 @@ public sealed record StadiumDefinition(string Key, string ArabicName, string Eng
 public static class StadiumCatalog
 {
     // Only grounds whose participating club has a corroborated, recovered chant pool.
-    // Current mappings: Madrid SP_R0109 (550-557), Barcelona SP_R0108 (541-548).
+    // Each offered club has a concrete historical dt01 range and supplied label/file pool.
     private static readonly StadiumDefinition[] Verified =
     {
         new("SantiagoBernabeu","سانتياجو برنابيو","Santiago Bernabeu",false,new[] {"Real Madrid"},"https://bernabeu.realmadrid.com/"),
         new("CampNou","سبوتيفاي كامب نو","Spotify Camp Nou",false,new[] {"FC Barcelona"},"https://www.fcbarcelona.com/en/card/4510623/spotify-camp-nou-202627-pass"),
+        new("OldTrafford","أولد ترافورد","Old Trafford",false,new[] {"Manchester United"},"https://www.premierleague.com/en/news/4725666/all-you-need-to-know-about-the-20-premier-league-stadiums/"),
+        new("SanSiro","سان سيرو (جوزيبي مياتزا)","San Siro (Giuseppe Meazza)",false,new[] {"Inter Milan","AC Milan"},"https://sansirostadium.com/the-stadium/?lang=en"),
     };
 
     public static IReadOnlyList<StadiumDefinition> GetAvailableStadiums()
@@ -173,4 +175,23 @@ public static class StadiumCatalog
     public static StadiumDefinition? Find(string key) =>
         GetAvailableStadiums().FirstOrDefault(s => s.Key == key);
 
+}
+
+
+/// <summary>Historical original-slot attribution, checked against supplied labels and recovered files.
+/// This is metadata corroboration, not an independent listening certification.</summary>
+public sealed record TeamChantPool(string TeamName,string LabelPrefix,int FirstIndex,int LastIndex,string SourceUrl);
+public static class TeamChantCatalog
+{
+    private const string MapSource="https://www.pesgaming.com/forums/threads/chant-map.92044/";
+    public static readonly IReadOnlyList<TeamChantPool> Pools = new TeamChantPool[]
+    {
+        new("Real Madrid","SP_R0109_",550,557,MapSource),
+        new("FC Barcelona","SP_R0108_",541,549,MapSource),
+        new("Manchester United","SP_R0100_",535,540,MapSource),
+        new("Inter Milan","SP_R0119_",592,597,MapSource),
+        new("AC Milan","SP_R0121_",604,610,MapSource),
+    };
+    public static TeamChantPool? Find(Team team) => team.IsNationalTeam ? null :
+        Pools.FirstOrDefault(p=>p.TeamName.Equals(team.Name,StringComparison.OrdinalIgnoreCase));
 }
