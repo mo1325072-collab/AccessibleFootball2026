@@ -41,7 +41,16 @@ public class AnthemEngine
         // Never let an unknown ID become a path or substitute a different country's file.
         if (id.Length == 0 || id.Any(c => !char.IsAsciiLetterOrDigit(c))) return null;
         string stem = Path.Combine(national ? Path.Combine(_assetsBaseDir,"National") : _assetsBaseDir,id);
-        return File.Exists(stem+".mp3") ? stem+".mp3" : File.Exists(stem+".wav") ? stem+".wav" : null;
+        string? path = File.Exists(stem+".mp3") ? stem+".mp3" : File.Exists(stem+".wav") ? stem+".wav" : null;
+        // User listened to this exact supplied EGY recording and identified a chant, not an anthem.
+        // Preserve the file, but never present it as Egypt's national anthem. A future replacement
+        // is not rejected solely because it uses the same country code.
+        if (national && id.Equals("EGY",StringComparison.OrdinalIgnoreCase) && path != null)
+        {
+            string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
+            if (hash.Equals("B76A2253A9F3ECB365C0C708551BBC9CDF99B8F511B82C5380A6258F812B3D94",StringComparison.Ordinal)) return null;
+        }
+        return path;
     }
 
     private bool StartAnthem(string? path, string id)
