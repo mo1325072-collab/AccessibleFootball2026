@@ -80,6 +80,7 @@ public static class Program
             TestSettingsSaveReloadCancelAndFailure();
             TestInjuryChoiceWindowRouting();
             TestPauseSubmenuDoesNotStartMenuMusic();
+            TestTerminalMatchRejectsPauseMenu();
             TestKeyEventArgsSuppressKeyPressMechanics();
             TestFormLevelMatchKeysSuppression();
             TestFormLevelMenuKeysSuppression();
@@ -210,6 +211,23 @@ public static class Program
             Assert(Field<MatchEngine>(window, "_activeMatch").State == MatchState.InPlay && !commands.Any(c => c.StartsWith("play bgm_menu")), "Resume after nested pause stays in match audio context");
         }
         finally { MciPlayback.TestCommand = null; }
+    }
+
+    private static void TestTerminalMatchRejectsPauseMenu()
+    {
+        using var window = CreateTestWindow(out var input);
+        window.Show();
+        typeof(AccessibleFootballWindow).GetMethod("StartInteractiveMatch", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, new object[] { TeamDatabase.CreateAlAhly(), TeamDatabase.CreateZamalek(), false, false });
+        var match = Field<MatchEngine>(window, "_activeMatch");
+        var timer = Field<System.Windows.Forms.Timer>(window, "_gameLoopTimer"); timer.Stop();
+        typeof(MatchEngine).GetProperty("State")!.SetValue(match, MatchState.GameOver);
+        var key = typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyDown", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        foreach (var code in new[] { Keys.Escape, Keys.Enter, Keys.D })
+        {
+            var e = new KeyEventArgs(code); key.Invoke(window, new object[] { window, e });
+            Assert(e.Handled && e.SuppressKeyPress && match.State == MatchState.GameOver && !timer.Enabled && typeof(AccessibleFootballWindow).GetField("_currentMenu", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window) == null,
+                "Terminal handoff rejects pause/field key " + code);
+        }
     }
 
     private static void TestInjuryChoiceWindowRouting()
@@ -627,7 +645,7 @@ public static class Program
         var qDown = new KeyEventArgs(Keys.Q);
         onKeyDownMethod!.Invoke(window, new object[] { window, qDown });
         Assert(typeof(AccessibleFootballWindow).GetField("_activeMatch", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window) != null, "Q cannot terminate the match");
-        typeof(AccessibleFootballWindow).GetMethod("EndMatchAndReturnToMenu", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, null);
+        typeof(AccessibleFootballWindow).GetMethod("EndMatchAndReturnToMenu", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window, new object[] { false });
 
         Assert(listBox.Visible, "Phase 5 (Returned to Menu): _displayListBox.Visible == true");
         Assert(listBox.Enabled, "Phase 5 (Returned to Menu): _displayListBox.Enabled == true");
@@ -671,6 +689,6 @@ public static class Program
 
         // Clean up match
         var endMatchMethod = typeof(AccessibleFootballWindow).GetMethod("EndMatchAndReturnToMenu", BindingFlags.NonPublic | BindingFlags.Instance);
-        endMatchMethod!.Invoke(window, null);
+        endMatchMethod!.Invoke(window, new object[] { false });
     }
 }
