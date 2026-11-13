@@ -233,6 +233,26 @@ using(var orderedReader=new PriorityScreenReader(heldReader,()=>recordedBusy))
  Check(commands.Contains("setaudio crowd volume to 240")&&commands.Contains("setaudio chant_ch volume to 300")&&commands.Contains("setaudio crowd_cheer volume to 300"),"reader completion restores every crowd channel to the latest saved volume");
 }
 SoundEffectsPlayer.StopAll();SoundEffectsPlayer.SetCrowdDucking(1);Defaults();
+// Commentary context reflects actual crowd channels, not the removed musical bed or a stale alias.
+SoundEffectsPlayer.StopAll();Defaults();SoundEffectsPlayer.SetStadiumAcoustics(null);
+string crowdMode="playing";bool statusFails=false;
+MciPlayback.TestCommand=(command,buffer)=>{commands.Add(command);if(command.StartsWith("status "))buffer?.Append(crowdMode);return command.StartsWith("status ")&&statusFails?1:0;};
+Check(!SoundEffectsPlayer.IsCrowdActive,"no crowd fact merely because a ground/lineup was selected");
+SoundEffectsPlayer.PlayWhistle();Check(!SoundEffectsPlayer.IsCrowdActive,"SFX cannot masquerade as active crowd");
+var oneShotMethod=typeof(SoundEffectsPlayer).GetMethod("PlayOneShot",BindingFlags.Static|BindingFlags.NonPublic)!;
+oneShotMethod.Invoke(null,new object?[]{Path.Combine(root,"chant.wav"),"lineup_music",null,null,null});
+Check(!SoundEffectsPlayer.IsCrowdActive,"intentional lineup music never supplies crowd fact even when its status is playing");
+SoundEffectsPlayer.PlayOneShotChant(Path.Combine(root,"chant.wav"));
+Check(SoundEffectsPlayer.IsCrowdActive,"playing full chant supports crowd context without continuous musical bed");
+crowdMode="stopped";Check(!SoundEffectsPlayer.IsCrowdActive,"retained completed chant alias does not claim audible crowd");
+crowdMode="paused";Check(!SoundEffectsPlayer.IsCrowdActive,"paused chant does not claim audible crowd");
+crowdMode="playing";statusFails=true;Check(!SoundEffectsPlayer.IsCrowdActive,"failed crowd status query fails closed for commentary facts");
+statusFails=false;s.SfxVolumePercent=0;Apply();Check(SoundEffectsPlayer.IsCrowdActive,"crowd fact follows crowd category, not SFX volume");
+s.CrowdVolumePercent=0;Apply();Check(!SoundEffectsPlayer.IsCrowdActive,"crowd mute removes crowd fact");
+s.CrowdVolumePercent=100;Apply();SoundEffectsPlayer.PlayCrowdGoal();
+Check(SoundEffectsPlayer.IsCrowdActive,"playing goal reaction supports crowd fact without ambience or chant");
+SoundEffectsPlayer.StopAll();Check(!SoundEffectsPlayer.IsCrowdActive,"menu/end cleanup clears crowd fact");
+MciPlayback.TestCommand=(command,buffer)=>{commands.Add(command);buffer?.Append("stopped");return 0;};Defaults();
 var updateRelease = new { draft=false,prerelease=false,tag_name="game-v2026.11.15",html_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/tag/game-v2026.11.15",assets=new[]{new{name="AccessibleFootball2026-Full-Setup.exe",size=1234,state="uploaded",browser_download_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/download/game-v2026.11.15/AccessibleFootball2026-Full-Setup.exe"}}};
 var updateJson=JsonSerializer.Serialize(new[]{updateRelease});
 Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(updateJson).State==AccessibleFootball2026.App.GameUpdateState.Available,"update checker accepts a stable newer game release with uploaded installer");
