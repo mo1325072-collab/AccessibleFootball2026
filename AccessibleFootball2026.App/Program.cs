@@ -35,28 +35,14 @@ internal static class Program
         }
 
 
-        string dDriveAudio = @"D:\AccessibleFootball2026\Assets\Audio";
-        string appBaseAudio = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio");
-        string desktopGameAudio = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "AccessibleFootball2026", "Assets", "Audio");
-
-        // مجلد الأصول بجوار ملف الحل (وجهة أداة استخراج صوتيات PES 2013) عند التشغيل من بناء داخل المشروع
-        string? slnAudio = null;
-        string? walkDir = AppDomain.CurrentDomain.BaseDirectory;
-        while (!string.IsNullOrEmpty(walkDir))
+        // Distribution owns all assets. Never search another PC's Desktop, Downloads, D drive or source tree.
+        string baseAudioDir = Path.Combine(AppContext.BaseDirectory,"Assets","Audio");
+        if(!File.Exists(Path.Combine(baseAudioDir,"Commentary","FaresAwad","commentary_context.json")) ||
+            !File.Exists(Path.Combine(AppContext.BaseDirectory,"players_database.json")))
         {
-            if (File.Exists(Path.Combine(walkDir, "AccessibleFootball2026.sln")))
-            {
-                string candidate = Path.Combine(walkDir, "Assets", "Audio");
-                if (Directory.Exists(candidate) && Directory.GetFiles(candidate, "*.*", SearchOption.AllDirectories).Length > 0)
-                {
-                    slnAudio = candidate;
-                }
-                break;
-            }
-            walkDir = Path.GetDirectoryName(walkDir);
+            MessageBox.Show("ملفات اللعبة المرفقة غير مكتملة. شغّل ملف اللعبة الكامل بدلاً من نسخ ملف التشغيل الداخلي وحده.\nGame content is incomplete. Run the full game package, not a copied internal executable.","AccessibleFootball2026");
+            return 2;
         }
-
-        string baseAudioDir = SoundEffectsPlayer.ResolveBestAudioBaseDirectory(appBaseAudio, slnAudio, desktopGameAudio, dDriveAudio);
 
         MatchSettings.Load();
         SoundEffectsPlayer.MasterVolumeSetting = MatchSettings.Current.MasterVolumePercent;
