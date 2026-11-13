@@ -82,7 +82,7 @@ public static class TacticsExtensions
 /// </summary>
 public record struct TacticalSynergyResult(
     int SynergyScore,              // من 0 إلى 100
-    float AdvantageMultiplier,     // معامل التأثير على الأداء الميداني (0.65 إلى 1.35)
+    float AdvantageMultiplier,     // معامل تنسيق الالتحامات (0.40 إلى 1.25)
     IReadOnlyList<string> Conflicts, // التناقضات المكتشفة التي تسببت في عقاب تكتيكي
     IReadOnlyList<string> PositiveSynergies // نقاط التناغم المثالي التي تمنح الفريق تفوقاً
 );
@@ -171,10 +171,10 @@ public class TeamTactics
 
     /// <summary>
     /// حساب معامل استنزاف لياقة اللاعب بناءً على عمره الدقيق وشريط الضغط
-    /// يطبق القواعد الفيزيائية الحقيقية:
+    /// يطبق إعدادات توازن اللعبة المطلوبة، وليست حقائق فسيولوجية:
     /// - أقل من 19 سنة: رئة لا تتعب، لا يتأثر بالضغط العالي
     /// - 19 إلى 24 سنة: طاقة شبابية قصوى، ينهج في آخر 10 دقائق فقط
-    /// - 24 إلى 29 سنة: قمة النضج، ينفد وقوده عند الدقيقة 60
+    /// - 25 إلى 29 سنة: قمة النضج، ينفد وقوده عند الدقيقة 60
     /// - فوق 29 سنة (30+): خبرة بلا مجهود إضافي، يجيب جاز بنهاية الشوط الأول (دقيقة 40-45)
     /// </summary>
     public float GetStaminaDecayMultiplier(Player player)
@@ -222,7 +222,7 @@ public class TeamTactics
         }
         else if (age <= 29)
         {
-            // 24 - 29: يجيب جاز عند الدقيقة 60
+            // 25 - 29: يجيب جاز عند الدقيقة 60
             return Math.Clamp(1.25f + highRatio * 0.30f, 1.25f, 1.55f);
         }
         else
@@ -260,7 +260,7 @@ public class TeamTactics
         if (PressingIntensity > 75 && DefensiveLineDepth < 35)
         {
             score -= 25;
-            conflicts.Add(LocalizationService.Text("تفكك الخطوط: ضغط هجومي عالي جداً مع دفاع متراجع يترك مسافة 40 متراً خالية في وسط الملعب!", "High pressing with a deep defensive line leaves gaps between the lines."));
+            conflicts.Add(LocalizationService.Text("تفكك الخطوط: ضغط هجومي عال مع دفاع متراجع يباعد بين الخطوط ويترك مساحة في الوسط.", "High pressing with a deep defensive line leaves gaps between the lines."));
         }
 
         // 4. خطأ مصيدة التسلل مع خط دفاع متراجع داخل الـ 18
@@ -308,24 +308,24 @@ public class TeamTactics
         }
 
         // 10. فحص التناغم والتناقض الصارم مع الخطة (Formation Contradictions):
-        // القاعدة الذهبية: مستحيل تنزل بخطة دفاعية (5-3-2 أو 5-4-1) وتلعب ضغط عالي!
+        // Game-design constraint for the named low-block presets, not a universal football law.
         var req = FormationManager.GetRequirement(formation);
         if (req.IsDefensive && PressingIntensity > 60)
         {
             score -= 30;
-            conflicts.Add(LocalizationService.Text($"تناقض تكتيكي كارثي: الخطة الحالية ({req.ArabicName}) دفاعية متكتلة بخمسة مدافعين، ولكن شريط الضغط مضبوط على مستوى عالي ({PressingIntensity}%)! هذا يمزق الخطوط ويترك ثغرات شاسعة بين الدفاع والهجوم ويستنزف اللياقة دون جدوى!", "A defensive five-player back line conflicts with high pressing."));
+            conflicts.Add(LocalizationService.Text($"تناقض تكتيكي كارثي: الخطة الحالية ({req.ArabicName}) دفاعية متكتلة بخمسة مدافعين، ولكن شريط الضغط مضبوط على مستوى عالي ({PressingIntensity}%)! هذا يمزق الخطوط ويترك ثغرات شاسعة بين الدفاع والهجوم ويستنزف اللياقة دون جدوى!", "High pressing conflicts with this low-block preset in the game."));
         }
 
         // تناغم خطة 4-3-3A الهجومية مع الضغط العالي
         if (formation == FormationType.Formation433_Attack && PressingIntensity >= 70)
         {
-            synergies.Add(LocalizationService.Text("تناغم هجومي كاسح: تقارب خطوط 4-3-3 A والضغط العالي يخنق الخصم في مناطقه!", "Attacking 4-3-3 and high pressing work together."));
+            synergies.Add(LocalizationService.Text("تناغم 4-3-3 بوسط متدرج مع الضغط العالي.", "Attacking 4-3-3 and high pressing work together."));
         }
 
         // تناغم خطة 4-3-3B الدفاعية مع محور الارتكاز والتوازن
         if (formation == FormationType.Formation433_Defend && (Focus == AttackingFocus.CounterAttack || Focus == AttackingFocus.Balanced))
         {
-            synergies.Add(LocalizationService.Text("تناغم 4-3-3 B المتوازنة: محور الارتكاز الصريح يؤمن ظهر الدفاع ويسهل التحول المنظم!", "Holding 4-3-3 supports balanced play and counter-attacks."));
+            synergies.Add(LocalizationService.Text("تناغم 4-3-3 بمحور ارتكاز واثنين وسط مع التوازن والمرتدات.", "Holding 4-3-3 supports balanced play and counter-attacks."));
         }
 
         // تناغم خطة 5-3-2 و 5-4-1 مع التكتل الدفاعي والمرتدات
@@ -344,18 +344,11 @@ public class TeamTactics
         return new TacticalSynergyResult(score, advantageMult, conflicts, synergies);
     }
 
-    public TeamTactics Clone()
-    {
-        return new TeamTactics
-        {
-            PressingIntensity = PressingIntensity,
-            DefensiveLineDepth = DefensiveLineDepth,
-            PassingDirectness = PassingDirectness,
-            Tempo = Tempo,
-            Marking = Marking,
-            Tackling = Tackling,
-            Focus = Focus,
-            OffsideTrap = OffsideTrap
-        };
-    }
+    public void UseLinkedDefensiveLine()
+    { _defensiveLineExplicitlySet=false;_defensiveLineDepth=_pressingIntensity; }
+    public void UseLinkedTempo()
+    { _tempoExplicitlySet=false;_tempo=_passingDirectness; }
+
+    // Preserve whether each linked control was deliberately overridden. All fields are value types.
+    public TeamTactics Clone() => (TeamTactics)MemberwiseClone();
 }
