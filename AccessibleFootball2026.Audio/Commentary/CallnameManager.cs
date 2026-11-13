@@ -23,7 +23,7 @@ public class CallnameManager
 
     public CallnameManager(string? baseDir = null)
     {
-        string baseAudio = baseDir ?? ResolveBaseAudioDir();
+        string baseAudio = baseDir ?? SoundEffectsPlayer.BaseAudioDirectory;
         string commCallnames = Path.Combine(baseAudio, "Commentary", "RaoufKhlif", "Callnames");
         string rootCallnames = Path.Combine(baseAudio, "Callnames");
 
@@ -31,25 +31,7 @@ public class CallnameManager
         InitializeIndex();
     }
 
-    private static string ResolveBaseAudioDir()
-    {
-        string dDriveAudio = @"D:\AccessibleFootball2026\Assets\Audio";
-        if (Directory.Exists(dDriveAudio)) return dDriveAudio;
 
-        string? dir = AppDomain.CurrentDomain.BaseDirectory;
-        while (!string.IsNullOrEmpty(dir))
-        {
-            if (File.Exists(Path.Combine(dir, "AccessibleFootball2026.sln")))
-            {
-                string slnAudio = Path.Combine(dir, "Assets", "Audio");
-                if (Directory.Exists(slnAudio)) return slnAudio;
-            }
-            dir = Path.GetDirectoryName(dir);
-        }
-
-        string binAudio = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio");
-        return binAudio;
-    }
 
     private void InitializeIndex()
     {
@@ -230,4 +212,3 @@ public class CallnameManager
         return new string(buffer[..writeIdx]).Trim();
     }
 }
-
