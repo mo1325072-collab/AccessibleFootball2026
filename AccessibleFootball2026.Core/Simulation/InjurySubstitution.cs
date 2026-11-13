@@ -19,7 +19,7 @@ public partial class MatchEngine
             finally { _resolvingInjuryChoice = false; }
         }
         else if (!injured.IsOffPitch) LeavePitchInjured(injured, HomeTeam);
-        _pendingInjuryChoices.Dequeue();
+        if (_pendingInjuryChoices.Count > 0) _pendingInjuryChoices.Dequeue();
         return true;
     }
 
@@ -42,5 +42,6 @@ public partial class MatchEngine
         Publish(new MatchEvent(MatchEventType.PlayerInjured,
             $"يغادر {player.Name} مصاباً دون بديل. يتبقى {remaining} لاعبين في {team.Name}.", CurrentZone, subjectPlayer: player),
             ("injury.severity", "severe"), ("injury.replaced", false));
+        StopIfTooFewPlayers();
     }
 }
