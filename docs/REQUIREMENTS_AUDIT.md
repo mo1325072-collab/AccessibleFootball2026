@@ -259,7 +259,7 @@ Files: GoalBeaconPlayer.cs, menus/SoundAcademyMenuBuilder.cs, tests/OriginalAsse
 
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 103 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 112 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
@@ -282,7 +282,7 @@ Remaining work, not marked complete:
 - The evidence establishes team-pool identity, not per-suffix goal, comeback or whistle meaning. The old suffix01..05 semantic claims were removed. Non-protest triggers choose a team-pool recording without claiming its acoustic subtype. Unverified protest triggers stay silent instead of playing a cheerful generic chant or raising a whistle callback. Dedicated verified protest/celebration meanings remain open.
 - The 2018 relinking guide https://pesnewupdate.com/tutorial-relinking-chants-by-predator002/ also names R0108 Barcelona, but describes CPK/ACB/AWB rather than this Dt01.img. It is not used to infer new archive ranges. SP_R cannot safely be classified as national-only: the corroborated club chants are there.
 - Anthem files are not replaced from the historical chant list. Byte equality with chants and inconsistent names remains a provenance gap. No claim of genuine anthem identity, licensing, native playback or Windows/NVDA acceptance is made here.
-- Real-asset command tests pass103/103 after reproducing the prior pool/parser failures; they exercise supplied and legacy schemas, absent/malformed/conflicting indices, and keep the reader-only crowd reduction checks. Windows-target application builds with0errors. The older internal candidate is unchanged and does not yet include this source/index repair. It is not a release.
+- Real-asset command tests pass112/112 after reproducing the prior pool/parser failures; they exercise supplied and legacy schemas, absent/malformed/conflicting indices, and keep the reader-only crowd reduction checks. Windows-target application builds with0errors. The older internal candidate is unchanged and does not yet include this source/index repair. It is not a release.
 
 
 ### Stage 10: stadium scope and participation correction (in progress)
@@ -290,3 +290,13 @@ Remaining work, not marked complete:
 - User clarification at18:03:41 defines home as ownership of the selected stadium, not a UI slot. A team must participate and the selected stadium must be its real ground. Home/Away slot is irrelevant. Madrid+Barcelona at Bernabeu selects Madrid, at CampNou selects Barcelona, at SanSiro stays neutral. Context handling now selects that ground's participating owner and its own score/opponent, rather than always the Home slot.
 - Live production roster blob5bda1b220c73fa2c350c7301b6e57a54f8b753b3 contains529teams:318clubs+211national teams across13groups.643is the chant-record count. There are no stadium fields. Only stadiums bound to actually present production teams may be added; shared/multiple grounds are not forced into1:1counts. Complete stadium coverage is still in progress, not claimed here.
 - Venue identity is separate from recording identity: confirmed grounds do not authenticate Acoustic_2/3/10 as recordings of those grounds.
+
+
+### Stage 11: sourced stadium catalog foundation and match selection (partial)
+
+- Eight source-backed grounds currently cover nine production teams, leaving520of529without verified ground entries. This is explicitly partial coverage, not the requested full catalog completed.
+- SanSiro is one shared entry forACMilan+InterMilan, source https://sansirostadium.com/the-stadium/?lang=en . Bernabeu/RealMadrid source https://bernabeu.realmadrid.com/ . SpotifyCampNou/FCBarcelona source https://www.fcbarcelona.com/en/card/4510623/spotify-camp-nou-202627-pass .
+- National grounds: Wembley/England source https://www.wembleystadium.com/about/stadium-facts-and-features ; HampdenPark(currentBarclaysHampden)/Scotland sources https://www.scottishfa.co.uk/en/stadium-history and https://www.scottishfa.co.uk/en/barclays-hampden . CardiffCityStadium/Wales,Parken/Denmark,Ullevaal/Norway source https://faw.cymru/news/venues-confirmed-for-nations-league-fixtures/ . These are documented grounds, never a claim that each nation has only one stadium.
+- Every entry carries its sourceURL and is filtered against actual production JSON teams at runtime. No unrelated team or fabricated stadium is added. Missing evidence stays missing. Stadium identity does not imply a matching authentic acoustic recording or team chant exists.
+- Stadium selection now intercepts all valid match starts, not just Clasico. Cup-final and rivalry flags survive the choice; explicit selection is consumed once before match initialization. Neutral is always available, and other catalog grounds may be selected as neutral venues for unrelated teams. The old ordinary-match hard reset is removed only after an explicit selection.
+-112/112real-asset and catalog command checks, settings66/66 and player journeys313/313 pass. Windows-target application builds with0errors. The checks include sharedground membership, production-only filtering, nationalgroundtypes, honest520pendingcount, unknownkeyrefusal and selected stadium naming. Native WinForms keyboard/focus and actual Windows/NVDA/audio behavior are not certified by these checks.
