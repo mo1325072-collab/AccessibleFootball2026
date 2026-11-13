@@ -1486,7 +1486,8 @@ public class AccessibleFootballWindow : Form
         if (_activeMatch?.State is MatchState.PenaltyShootout or MatchState.GameOver)
         {
             e.Handled = true;
-            e.SuppressKeyPress = true;
+            // Even resolution-time auto-repeat must preserve KeyUp for the next kick.
+            e.SuppressKeyPress = false;
             return;
         }
         // 2. إذا كنا في مباراة حية جارية (التحكم بالملعب)
