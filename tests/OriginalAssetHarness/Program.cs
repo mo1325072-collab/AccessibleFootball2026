@@ -164,6 +164,21 @@ speechCoordinator.HandleMatchEvent(radar);completionReader.Pending[0].SetResult(
 Check(ducking.Last()==.2f,"first completed reader request cannot unduck a newer active request");
 completionReader.Pending[1].SetResult();await Task.Delay(50);
 Check(ducking.Last()==1f,"last reader completion restores crowd immediately without a fixed timer");
+
+var staleReader=new ControlledReader();var staleCoordinator=new SmartAudioCoordinator(staleReader,()=>true);bool staleCompleted=false;
+var staleDucking=new List<float>();staleCoordinator.OnCrowdVolumeDucking+=f=>staleDucking.Add(f);staleCoordinator.OnGoalSequenceCompleted+=()=>staleCompleted=true;
+staleCoordinator.HandleMatchEvent(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.GoalScored,"goal",goalData:new AccessibleFootball2026.Core.GoalDetails(egypt.Players[0],null,false,1,1,0,egypt)));
+await Task.Delay(650);Check(staleReader.Pending.Count==1&&staleCoordinator.HasPendingGoalAnnouncement,"goal reader enters an actual held announcement before cancellation test");
+staleCoordinator.CancelPendingGoalSequence();await Task.Delay(80);
+Check(staleReader.Pending[0].Task.IsCompleted&&!staleCoordinator.HasPendingGoalAnnouncement&&!staleCompleted,"leaving match cancels already-started old goal speech without firing completion");
+Check(staleDucking.Last()==1f,"cancelled old goal releases its ducking claim instead of leaking into next menu");
+
+var deferredReader=new ControlledReader();bool waitingOnCommentary=true;var deferredGoal=new SmartAudioCoordinator(deferredReader,()=>!waitingOnCommentary);int deferredDone=0;deferredGoal.OnGoalSequenceCompleted+=()=>deferredDone++;
+var goalEvent=new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.GoalScored,"goal",goalData:new AccessibleFootball2026.Core.GoalDetails(egypt.Players[0],null,false,1,1,0,egypt));
+deferredGoal.HandleMatchEvent(goalEvent);await Task.Delay(650);deferredGoal.CancelPendingGoalSequence();waitingOnCommentary=false;await Task.Delay(100);
+Check(deferredReader.Pending.Count==0&&deferredDone==0&&!deferredGoal.HasPendingGoalAnnouncement,"cancelled goal waiting on commentary never speaks later in another menu");
+deferredGoal.HandleMatchEvent(goalEvent);await Task.Delay(650);deferredReader.Pending.Last().SetResult();await Task.Delay(60);
+Check(deferredDone==1&&!deferredGoal.HasPendingGoalAnnouncement,"fresh goal after cancellation completes once without stale generation interference");
 SoundEffectsPlayer.StopAll();transport.SetValue(null,null);
 Console.WriteLine($"RESULT {passed} passed, {failed} failed. Real files, recorded MCI transport. No native playback or NVDA run.");return failed==0?0:1;
 
