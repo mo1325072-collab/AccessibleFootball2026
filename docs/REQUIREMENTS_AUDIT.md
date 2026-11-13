@@ -221,16 +221,34 @@ Files: StadiumSoundEngine.cs, AccessibleFootballWindow.cs, tools/AudioExtractor/
 - Identity is OPEN: extractor filenames Chant_N use archive entry Index, not team ID. Original AINF labels are preserved only in chants_index.json. That index and original dt01.img are absent from the recovered tree; supplied WAVs have no original-label metadata.
 - The existing numeric generic chant fallback is retained pending identity evidence. Its existence does not verify Madrid/Barcelona identity, nor does a passing route test authenticate its recording. The selected Acoustic_2/3/10 ground identities also remain source claims, not independently authenticated recordings.
 
+### Stage 5: match-event effects
+
+Files: SmartAudioCoordinator.cs, SoundEffectsPlayer.cs and tests/OriginalAssetHarness.
+
+- Six failures reproduced before repair: typed cross/high-pass and sliding/standing tackle facts were ignored in favor of Arabic description words, and a goalkeeper save played a pass kick despite having no dedicated save recording.
+- Structured action.kind, pass.height and tackle.sliding now select the production effect route. Old prose heuristics apply only when the relevant structured facts are absent.
+- Goalkeeper-save events now use an existing SFX/Saves/GoalkeeperSave recording if available. They never substitute a pass kick. The recovered pack contains no dedicated save recording, so that asset gap remains open.
+- Production-route checks cover shot, woodwork, corner, goal kick, throw-in, foul, offside, halftime, fulltime, penalty and opponent tackle in addition to the typed routing cases. Passing a route check does not certify the acoustic meaning of every supplied recording.
+
+### Stage 6: reader lifetime and crowd ducking
+
+Files: SmartAudioCoordinator.cs and tests/OriginalAssetHarness; existing MatchFlowRegression and ContextualMechanicsHarness.
+
+- Reproduced early crowd-volume restoration during an unfinished utterance. Reader ducking now follows SpeakUntilFinishedAsync rather than a fixed 1.4-second timer.
+- Overlapping announcements share ducking claims: the first completion cannot restore full crowd volume while a newer announcement still has not finished.
+- Controlled-completion tests cover speech longer than the old timer and final restoration. Existing flow tests cover commentary-first latest-only reader updates and goal/penalty-only preemption. Goal announcement tests wait for actual reader completion.
+- Native NVDA completion, actual audible mixing, older-NVDA estimated waits and recorded-commentary ducking still need separate verification. These are not inferred from mocked completion.
+
 ### Coverage evidence and remaining stages
 
-Latest OriginalAssetHarness result: 50 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
+Latest OriginalAssetHarness result: 70 passed, zero failed. Reproduced failures before repairs include action-pool routing, stale roots, anthem substitution/identity lookup/state, assumed stadium/home-foul behavior, and wrong/stale acoustic fallback.
 
 Regression evidence: settings lifecycle 66/66, commentary contexts 65/65, player journeys 313/313, match/database 196 assertions, contextual mechanics 146, physics 19/19. Not all older suites exercise the latest changes; logs identify each run. Windows application cross-build succeeds with no errors; one Windows-only API warning can appear on clean portable builds.
 
 Remaining work, not marked complete:
 
 1. Authenticate anthem/chant/stadium recording identities from source labels or independently verified recordings with suitable use permission.
-2. Audit every match-event-to-effect route, including goalkeeper save, trap/tackle variants and missing-file behavior.
+2. Complete trap/tackle and remaining match-event variants, missing-file behavior and authentic missing-save audio; the listed production routes are tested, not every possible event.
 3. Exercise commentary and reader ordering under overlapping events, interruptions, cancellation, silence settings and long utterances; verify ducking lifetime rather than assuming a fixed duration is sufficient.
 4. Audit beacon, positional panning, replays, academy stop/Back, menu transitions and volume settings as integrated journeys.
 5. Build/package the assembled assets reproducibly, verify final package content and run actual Windows/NVDA/native audio acceptance. No release is claimed before that evidence exists.
