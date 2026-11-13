@@ -76,7 +76,7 @@ public class CommentaryEngine : IDisposable
         ActiveCommentator = _availableCommentators.Find(c => c.Id == defaultCommentator)
                             ?? _availableCommentators[0];
 
-        string baseAudioDir = baseDir ?? ResolveBaseAudioDir();
+        string baseAudioDir = baseDir ?? SoundEffectsPlayer.BaseAudioDirectory;
         _baseCommentaryDir = Path.Combine(baseAudioDir, "Commentary");
         PreWarmCache();
         MatchSettings.OnSettingsChanged += ApplySettings;
@@ -143,25 +143,7 @@ public class CommentaryEngine : IDisposable
         }
     }
 
-    private static string ResolveBaseAudioDir()
-    {
-        string dDriveAudio = @"D:\AccessibleFootball2026\Assets\Audio";
-        if (Directory.Exists(dDriveAudio)) return dDriveAudio;
 
-        string? dir = AppDomain.CurrentDomain.BaseDirectory;
-        while (!string.IsNullOrEmpty(dir))
-        {
-            if (File.Exists(Path.Combine(dir, "AccessibleFootball2026.sln")))
-            {
-                string slnAudio = Path.Combine(dir, "Assets", "Audio");
-                if (Directory.Exists(slnAudio)) return slnAudio;
-            }
-            dir = Path.GetDirectoryName(dir);
-        }
-
-        string binAudio = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio");
-        return binAudio;
-    }
 
     public CommentaryLibrary LoadFaresLibrary()=>new(Path.Combine(_baseCommentaryDir,"FaresAwad"));
     public bool PlayLibraryRecording(CommentaryLibrary library,CommentaryLibrary.Recording recording)
