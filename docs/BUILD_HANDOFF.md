@@ -50,3 +50,9 @@ Packaging references:
 - https://jrsoftware.org/ishelp/topic_setup_diskspanning.htm
 - https://jrsoftware.org/ishelp/topic_filessection.htm
 - https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm
+
+## November14playtest source repairs
+
+See `PLAYTEST_REPAIR_2026-11-14.md` for the audio/intro fixes, update-check release policy, Arabic/English setup changes and native verification limits. Use Inno Setup6.5.0+ for its bundled official Arabic translation. No ready game patch is implied by the build-input release.
+
+For a code-only patch with no audio download or re-packaging, the builder can run `python Build-Complete.py --code-only`. This produces `build-complete/AccessibleFootball2026-CodePatch.zip` plus a SHA256/size JSON record. It contains only the freshly rebuilt EXE, leaving existing Assets, database, DLLs and settings in place. Close the game and back up the old EXE before replacement. This does not publish the patch or test native Windows output.
