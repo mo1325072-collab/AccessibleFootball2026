@@ -276,13 +276,16 @@ Directory.Delete(indexRoot,true);
 
 var grounds=StadiumCatalog.GetAvailableStadiums();
 Check(JsonDatabaseProvider.AllTeams.Count==529&&JsonDatabaseProvider.AllTeams.Count(t=>t.IsNationalTeam)==211,"stadium scope uses actual529productionteams including211national teams, not643chants");
-Check(grounds.Count==8&&grounds.All(g=>JsonDatabaseProvider.AllTeams.Any(g.IsGroundFor)),"every offered stadium is tied to at least one actual production team");
+Check(grounds.Count==28&&grounds.All(g=>JsonDatabaseProvider.AllTeams.Any(g.IsGroundFor)),"every offered stadium is tied to at least one actual production team");
 Check(grounds.Select(g=>g.Key).Distinct().Count()==grounds.Count&&grounds.All(g=>Uri.IsWellFormedUriString(g.SourceUrl,UriKind.Absolute)),"sourced stadium keys are unique and carry recoverable source URLs");
 var sanSiro=grounds.Single(g=>g.Key=="SanSiro");
 Check(sanSiro.IsGroundFor(JsonDatabaseProvider.GetTeamByName("AC Milan")!)&&sanSiro.IsGroundFor(JsonDatabaseProvider.GetTeamByName("Inter Milan")!),"one shared SanSiro entry represents both production Milan clubs");
 Check(!sanSiro.IsGroundFor(madrid)&&!sanSiro.IsGroundFor(barcelona),"Madrid and Barcelona cannot claim SanSiro ownership");
 Check(grounds.Count(g=>g.NationalTeams)==5&&grounds.Where(g=>g.NationalTeams).All(g=>JsonDatabaseProvider.AllTeams.Any(t=>t.IsNationalTeam&&g.IsGroundFor(t))),"five documented national grounds belong to actual national entries without fabricated clubs");
-Check(StadiumCatalog.GetTeamsAwaitingGroundEvidence().Count==520,"catalog honestly leaves520teams awaiting sourced grounds instead of inventing1:1venues");
+Check(StadiumCatalog.GetTeamsAwaitingGroundEvidence().Count==500,"catalog honestly leaves500teams awaiting sourced grounds instead of inventing1:1venues");
+var englishTeams=JsonDatabaseProvider.AllTeams.Where(t=>JsonDatabaseProvider.GetAllClubs().Contains(t)&&t.Name.Length>0).Where(t=>new[]{"Arsenal FC","Brentford FC","Brighton & Hove Albion","Tottenham Hotspur","Manchester City","Sunderland AFC","Everton FC","Hull City","Liverpool FC","Leeds United","Aston Villa","Chelsea FC","Ipswich Town","Nottingham Forest","Newcastle United","Crystal Palace","Fulham FC","Manchester United","AFC Bournemouth","Coventry City"}.Contains(t.Name)).ToList();
+Check(englishTeams.Count==20&&englishTeams.All(t=>grounds.Count(g=>g.IsGroundFor(t))==1),"all20actualEnglishleagueclubs have exactlyone current documented ground in first pass");
+Check(grounds.Single(g=>g.IsGroundFor(JsonDatabaseProvider.GetTeamByName("Everton FC")!)).Key=="HillDickinson","Everton uses currentHillDickinson not staleGoodisonPark");
 Check(StadiumCatalog.Find("MadeUpStadium")==null,"unknown stadium key is not invented from a name");
 indexedStadium.ActiveStadiumKey="SanSiro";
 Check(indexedStadium.ActiveStadiumName==sanSiro.DisplayName,"stadium announcer uses sourced shared-ground name rather than calling SanSiro unknown");
