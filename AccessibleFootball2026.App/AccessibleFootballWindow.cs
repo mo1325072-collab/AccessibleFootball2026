@@ -297,6 +297,7 @@ public class AccessibleFootballWindow : Form
     {
         base.OnDeactivate(e);
         _inputHandler.Reset();
+        _matchLineup.ReleaseAll();
         _shootoutInput?.ReleaseAll();
         _shootoutHeld.Clear();
     }
@@ -1113,6 +1114,7 @@ public class AccessibleFootballWindow : Form
         _screenReader.CancelSpeech();
         _inputHandler.Reset();
         _displayListBox.Enabled=true;
+        _displayListBox.Focus();
         _hintLabel.Text=T("Space أو C للرادار. Escape للإيقاف", "Space or C radar. Escape pauses");
         _lastFrameTime=DateTime.UtcNow;
         SoundEffectsPlayer.PlayWhistle();
@@ -1392,7 +1394,8 @@ public class AccessibleFootballWindow : Form
         }
         if (_matchLineup.KeyDown((int)e.KeyCode,out bool skipLineup))
         {
-            e.Handled=true; e.SuppressKeyPress=true;
+            // KeyPress handler consumes characters; leave KeyUp available to release the skip latch.
+            e.Handled=true; e.SuppressKeyPress=false;
             if (skipLineup) CompleteMatchLineup();
             return;
         }
