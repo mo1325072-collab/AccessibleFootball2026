@@ -49,21 +49,7 @@ public class StadiumSoundEngine
         if (team.IsNationalTeam || ResolveGroundCrowdTeam() != team)
             return false;
 
-        bool isRealMadrid = team.Id == "ESP_RMA" || team.Id == "173" || 
-                            team.Name.Equals("Real Madrid", StringComparison.OrdinalIgnoreCase) || 
-                            team.Name.Equals("ريال مدريد", StringComparison.OrdinalIgnoreCase);
-
-        bool isBarcelona = team.Id == "ESP_BAR" || team.Id == "153" || 
-                           (team.Name.Equals("Barcelona", StringComparison.OrdinalIgnoreCase) || team.Name.Equals("FC Barcelona", StringComparison.OrdinalIgnoreCase)) || 
-                           team.Name.Equals("برشلونة", StringComparison.OrdinalIgnoreCase);
-
-        if (ActiveStadiumKey == "SantiagoBernabeu" && isRealMadrid)
-            return true;
-
-        if (ActiveStadiumKey == "CampNou" && isBarcelona)
-            return true;
-
-        return false;
+        return TeamChantCatalog.Find(team) != null;
     }
 
     public StadiumSoundEngine(string? baseDir = null)
@@ -132,15 +118,10 @@ public class StadiumSoundEngine
         // التحقق من الشرط المزدوج: إذا لم يتحقق الشرط، يظل صوت الجماهير محايداً تماماً بدون أي هتاف خاص
         if (!ShouldPlayChantForTeam(team)) return;
 
-        bool isRealMadrid = team.Id == "ESP_RMA" || team.Id == "173" || 
-                            team.Name.Equals("Real Madrid", StringComparison.OrdinalIgnoreCase) || 
-                            team.Name.Equals("ريال مدريد", StringComparison.OrdinalIgnoreCase);
-
-        // Team identity is supported by the PES2013 dt01 entry map and supplied labels.
-        // Neither source documents goal/protest meaning for numbered suffixes.
-        // Do not turn an unverified protest into a happy team chant or a whistle callback.
-        if (slot == ChantSlot.DiscontentWhistle) return;
-        string? chantPath = ResolveTeamChantPath(isRealMadrid ? "0109" : "0108");
+        // Numbered suffixes do not prove event meaning. Use full random clips only.
+        var pool=TeamChantCatalog.Find(team);
+        if (pool == null) return;
+        string? chantPath = ResolveTeamChantPath(pool);
         if (chantPath == null) return;
         SoundEffectsPlayer.PlayOneShotChant(chantPath);
     }
@@ -189,17 +170,15 @@ public class StadiumSoundEngine
 
     // Source: docs/REQUIREMENTS_AUDIT.md, Stage 9. Restrict to corroborated concrete
     // dt01 entry ranges, not every prefix-shaped label or a numeric team-ID fallback.
-    private string? ResolveTeamChantPath(string originalTeamCode)
+    private string? ResolveTeamChantPath(TeamChantPool pool)
     {
         EnsureChantLabelIndexLoaded();
         if (_chantLabelIndex == null) return null;
-        int first = originalTeamCode == "0109" ? 550 : 541;
-        int last = originalTeamCode == "0109" ? 557 : 549;
         var candidates = new List<string>();
         foreach (var pair in _chantLabelIndex)
         {
-            if (pair.Value < first || pair.Value > last ||
-                !pair.Key.StartsWith($"SP_R{originalTeamCode}_", StringComparison.OrdinalIgnoreCase)) continue;
+            if (pair.Value < pool.FirstIndex || pair.Value > pool.LastIndex ||
+                !pair.Key.StartsWith(pool.LabelPrefix, StringComparison.OrdinalIgnoreCase)) continue;
             foreach (string dir in new[] { _chantsDir, Path.Combine(_chantsDir, "SP_R"), Path.Combine(_chantsDir, "Clubs") })
             {
                 string candidate = Path.Combine(dir, $"Chant_{pair.Value}.wav");
