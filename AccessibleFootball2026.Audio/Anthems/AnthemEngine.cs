@@ -36,7 +36,7 @@ public class AnthemEngine
         _stopRequested = false; WasSkipped = false; LastPlayedAnthem = null;
         float volume = SoundEffectsPlayer.GetEffectiveMusicVolume();
         if (path == null || volume <= .001f) return false;
-        string type = path.EndsWith(".mp3",StringComparison.OrdinalIgnoreCase) ? "mpegvideo" : "waveaudio";
+        string type = SoundEffectsPlayer.GetMciType(path);
         if (MciPlayback.SendString($"open \"{path}\" type {type} alias anthem",null,0,IntPtr.Zero) != 0) return false;
         if (MciPlayback.SendString($"setaudio anthem volume to {(int)(volume*1000)}",null,0,IntPtr.Zero) != 0 ||
             MciPlayback.SendString("play anthem from 0",null,0,IntPtr.Zero) != 0)
@@ -54,6 +54,8 @@ public class AnthemEngine
     public bool PlayChampionsLeagueSample() => StartAnthem(FindAnthem("ChampionsLeague"),"ChampionsLeague");
     public bool TryPlayNationalAnthemSample(string teamId) => false;
     public void PlayNationalAnthemSample(string? teamId=null) { }
+
+    public bool HasPlaybackCompleted => !IsAnthemPlaying || PlaybackHasCompleted();
 
     private bool PlaybackHasCompleted()
     {
