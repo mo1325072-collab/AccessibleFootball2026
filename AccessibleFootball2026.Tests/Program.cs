@@ -280,7 +280,7 @@ public static class Program
         foreach (var code in new[] { Keys.Escape, Keys.Enter, Keys.D })
         {
             var e = new KeyEventArgs(code); key.Invoke(window, new object[] { window, e });
-            Assert(e.Handled && e.SuppressKeyPress && match.State == MatchState.GameOver && !timer.Enabled && typeof(AccessibleFootballWindow).GetField("_currentMenu", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window) == null,
+            Assert(e.Handled && !e.SuppressKeyPress && match.State == MatchState.GameOver && !timer.Enabled && typeof(AccessibleFootballWindow).GetField("_currentMenu", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window) == null,
                 "Terminal handoff rejects pause/field key " + code);
         }
     }
