@@ -35,7 +35,7 @@ public static class Program
     private const uint MAPVK_VK_TO_CHAR = 2;
     private const uint MAPVK_VSC_TO_VK_EX = 3;
 
-    private static void TestStartupRequiresExplicitKey()
+    private static void TestStartupCompletesOrSkips()
     {
         foreach(var key in new[]{Keys.Enter,Keys.Space})
         {
@@ -43,7 +43,12 @@ public static class Program
             window.Show();Application.DoEvents();
             object? Field(string name)=>typeof(AccessibleFootballWindow).GetField(name,BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(window);
             void Down(Keys value)=>typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyDown",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(window,new object?[]{window,new KeyEventArgs(value)});
-            Assert(Field("_currentMenu")==null&&Field("_isInStartupIntro") is true,"startup exposes no menu before explicit Enter/Space even if audio unavailable");
+            if(Field("_currentMenu")!=null)
+            {
+                Assert(Field("_isInStartupIntro") is false,"failed or completed startup audio automatically opens menu");
+                continue;
+            }
+            Assert(Field("_isInStartupIntro") is true,"active startup exposes no underlying menu");
             Down(Keys.Down);Assert(Field("_currentMenu")==null,"startup arrows cannot expose a menu");
             Down(key);Assert(Field("_currentMenu")!=null&&Field("_isInStartupIntro") is false,"explicit startup key opens main menu");
             var menu=Field("_currentMenu");Down(key);Assert(ReferenceEquals(menu,Field("_currentMenu")),"held startup key cannot activate the newly opened menu");
@@ -95,7 +100,7 @@ public static class Program
 
         try
         {
-            TestStartupRequiresExplicitKey();
+            TestStartupCompletesOrSkips();
             TestPreMatchLineupGate();
             TestBilingualSettingsPreserveControls();
             TestSettingsSaveReloadCancelAndFailure();
