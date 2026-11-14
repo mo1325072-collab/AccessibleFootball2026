@@ -343,6 +343,28 @@ Check(AccessibleFootball2026.App.GameUpdateDownloader.WaitForProcessExit(int.Max
     sleeper.Kill();sleeper.WaitForExit();
     Check(AccessibleFootball2026.App.GameUpdateDownloader.WaitForProcessExit(sleeper.Id,TimeSpan.FromSeconds(5)),"the applier proceeds once the game process has really exited");
 }
+// Shootout taker choice: the picked five lead in exact order, the rest of the on-pitch players
+// follow in squad order, and nobody repeats before every eligible player has taken a kick.
+var shootoutTeam=new Team("shootout-home","shootout-home",TeamSide.Home);
+for(var i=0;i<11;i++)shootoutTeam.Players.Add(new Player(i,"player"+i,i+1,i==0?SpecificPosition.GK:SpecificPosition.ST,75,75,75,75,75));
+var roster=new ShootoutRoster(shootoutTeam);
+var firstDefault=roster.Taker(0);
+Check(roster.OrderTakers(new List<Player>{roster.Players[7],roster.Players[3],roster.Players[3]})==false&&roster.Taker(0)==firstDefault,"a duplicate pick is refused and the taker order stands");
+Check(roster.OrderTakers(new List<Player>{new Player(999,"stranger",99,SpecificPosition.ST,1,1,1,1,1)})==false&&roster.Taker(0)==firstDefault,"a player who is not on the pitch is refused and the taker order stands");
+Check(roster.OrderTakers(new List<Player>()).Equals(false),"an empty taker choice is refused");
+var chosen5=new List<Player>{roster.Players[7],roster.Players[3],roster.Players[9],roster.Players[1],roster.Players[5]};
+Check(roster.OrderTakers(chosen5),"five distinct on-pitch picks are accepted");
+Check(roster.Taker(0)==chosen5[0]&&roster.Taker(1)==chosen5[1]&&roster.Taker(4)==chosen5[4],"the picked five shoot in the exact chosen order");
+Check(roster.Taker(5)==shootoutTeam.Players[0]&&roster.Taker(10)==shootoutTeam.Players[10],"the remaining on-pitch players follow in squad order");
+Check(roster.Taker(11)==chosen5[0],"nobody repeats until every one of the 11 eligible players has taken a kick");
+var sentOffTeam=new Team("shootout-away","shootout-away",TeamSide.Away);
+for(var i=0;i<11;i++)sentOffTeam.Players.Add(new Player(100+i,"away"+i,i+1,i==0?SpecificPosition.GK:SpecificPosition.ST,75,75,75,75,75));
+sentOffTeam.Players[4].IsSentOff=true;sentOffTeam.Players[6].IsOffPitch=true;
+var reducedRoster=new ShootoutRoster(sentOffTeam);
+Check(reducedRoster.Players.Count==9,"red cards and substitutions shrink the eligible pool instead of inventing players");
+var reducedFirst=reducedRoster.Players[4];
+Check(reducedRoster.OrderTakers(new List<Player>{reducedFirst,reducedRoster.Players[0],reducedRoster.Players[8],reducedRoster.Players[2],reducedRoster.Players[5]}),"five picks are accepted from the reduced eligible pool");
+Check(reducedRoster.Taker(9)==reducedFirst,"with nine eligible players the first taker repeats on the tenth kick only");
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
 sealed class Input:IInputHandler{public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>new();public bool IsActionTriggered(GameAction action,bool possession)=>false;}
