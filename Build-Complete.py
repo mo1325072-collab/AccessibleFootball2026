@@ -19,7 +19,7 @@ def get(url,target):
  with urllib.request.urlopen(req,timeout=120) as r,tmp.open('wb') as w:shutil.copyfileobj(r,w,1024*1024)
  tmp.replace(target)
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--prepare-only',action='store_true');p.add_argument('--code-only',action='store_true',help='Build a code-only patch ZIP without reading or downloading audio');p.add_argument('--iscc');p.add_argument('--dotnet',default='dotnet');p.add_argument('--input-zip',type=Path,help='Optional predownloaded verified input ZIP; normally automatic GitHub download')
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--prepare-only',action='store_true');p.add_argument('--stage-only',action='store_true',help='Build and verify the full installer payload without invoking Inno; not an installer');p.add_argument('--code-only',action='store_true',help='Build a code-only patch ZIP without reading or downloading audio');p.add_argument('--iscc');p.add_argument('--dotnet',default='dotnet');p.add_argument('--input-zip',type=Path,help='Optional predownloaded verified input ZIP; normally automatic GitHub download')
  a=p.parse_args();work=ROOT/'build-complete';work.mkdir(exist_ok=True);parts=work/'download';parts.mkdir(exist_ok=True)
  if a.code_only:
   code=work/'code-only';code.mkdir(exist_ok=True)
@@ -72,17 +72,49 @@ def main():
  print('Verified',len(plan['repository_files'])+len(plan['additional_files']),'audio/support files.',flush=True)
  print('All input files verified. No game executed.',flush=True)
  if a.prepare_only:return
- if os.name!='nt':raise SystemExit('Verified input preparation complete. Run the installer build on Windows.')
- game=work/'game';game.mkdir(exist_ok=True)
- subprocess.run([a.dotnet,'publish',str(ROOT/'AccessibleFootball2026.App'),'--configuration','Release','--runtime','win-x64','--self-contained','true','--output',str(game)],check=True,cwd=ROOT)
+ if os.name!='nt' and not a.stage_only:raise SystemExit('Verified input preparation complete. Run the installer build on Windows, or use --stage-only for payload checks.')
+ # Derive linked distribution chants from the same production resolver, not a copied list.
+ inventory_path=work/'package-audio-inventory.json'
+ subprocess.run([a.dotnet,'run','--project',str(ROOT/'tools'/'PackageAudit'),'-c','Release','--',str(data/'Assets'/'Audio'),str(inventory_path)],check=True,cwd=ROOT)
+ inventory=json.loads(inventory_path.read_text())
+ linked=set(inventory['linked_chants'])
+ game=work/'game'
+ # Rebuild only this generated staging directory so stale excluded files cannot leak in.
+ if game.exists():shutil.rmtree(game)
+ game.mkdir()
+
+ subprocess.run([a.dotnet,'publish',str(ROOT/'AccessibleFootball2026.App'),'--configuration','Release','--runtime','win-x64','--self-contained','true','-p:EnableWindowsTargeting=true','--output',str(game)],check=True,cwd=ROOT)
+ excluded=[]
  for name in ('Assets','ThirdParty'):
-  if (data/name).exists():shutil.copytree(data/name,game/name,dirs_exist_ok=True)
+  if not (data/name).exists():continue
+  for source in (data/name).rglob('*'):
+   if not source.is_file():continue
+   relative=source.relative_to(data).as_posix()
+   audio_relative=relative.removeprefix('Assets/Audio/')
+   if audio_relative.startswith('SFX/Chants/') and source.suffix.lower() in ('.wav','.mp3') and audio_relative not in linked:
+    excluded.append({'path':relative,'bytes':source.stat().st_size});continue
+   target=game/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,target)
  shutil.copy2(ROOT/'AccessibleFootball2026.Core'/'Data'/'players_database.json',game/'players_database.json')
+ # Verify every retained staged payload against source-of-truth bytes, not just source existence.
+ expected=[r for r in plan['repository_files']+plan['additional_files'] if r['path'] not in {e['path'] for e in excluded}]
+ for r in expected:
+  target=game/r['path']
+  if not target.is_file() or target.stat().st_size!=r['bytes'] or digest(target)!=r['sha256']:raise SystemExit('Staged content missing/corrupt: '+r['path'])
+ for relative in inventory['required']+inventory['linked_chants']:
+  if not (game/'Assets'/'Audio'/relative).is_file():raise SystemExit('Staged runtime sound path missing: '+relative)
+ # Re-run the actual resolver at its installed relative layout. No original source files are removed.
+ subprocess.run([a.dotnet,'run','--project',str(ROOT/'tools'/'PackageAudit'),'-c','Release','--',str(game/'Assets'/'Audio'),str(work/'staged-audio-inventory.json')],check=True,cwd=ROOT)
+ staged_inventory=json.loads((work/'staged-audio-inventory.json').read_text())
+ if staged_inventory!=inventory:raise SystemExit('Installed-layout chant/sound resolution changed')
+ reduction={'excluded_unlinked_chants':len(excluded),'excluded_bytes':sum(r['bytes'] for r in excluded),'linked_chants_retained':len(linked),'retained_verified_content_files':len(expected),'required_runtime_paths_verified':len(inventory['required']),'all_commentary_retained':True,'native_windows_acceptance':False,'installer_compiled':False}
+ (work/'package-verification.json').write_text(json.dumps(reduction,indent=2));print(json.dumps(reduction,indent=2),flush=True)
+
  # Hash the freshly rebuilt game, never attach the old binary's manifest to changed source.
  files=[{'path':p.relative_to(game).as_posix(),'bytes':p.stat().st_size,'sha256':digest(p)} for p in sorted(game.rglob('*')) if p.is_file() and p.name!='manifest.json']
  try:source=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
  except (OSError,subprocess.CalledProcessError):source='source archive; git commit unavailable'
  (game/'manifest.json').write_text(json.dumps({'source_commit':source,'input_sha256':SHA,'files':files},indent=2))
+ if a.stage_only:print('Full payload staged and verified. No installer compiled or native game executed.');return
  iscc=a.iscc or shutil.which('ISCC.exe')
  if not iscc:
   candidates=[Path(os.environ.get(x,''))/'Inno Setup 6'/'ISCC.exe' for x in ('ProgramFiles(x86)','ProgramFiles')]
@@ -93,6 +125,8 @@ def main():
  subprocess.run([iscc,str(iss)],check=True)
  exe=work/'output'/'AccessibleFootball2026-Full-Setup.exe'
  if not exe.is_file() or list(exe.parent.glob('*.bin')):raise SystemExit('Not a complete one-file installer')
+ reduction['installer_compiled']=True;reduction['installer_bytes']=exe.stat().st_size;reduction['installer_sha256']=digest(exe)
+ (work/'package-verification.json').write_text(json.dumps(reduction,indent=2))
  print('BUILT',exe,'bytes',exe.stat().st_size,'SHA256',digest(exe))
  print('Still requires clean offline Windows/NVDA/audio/controls acceptance. No game was launched.')
 if __name__=='__main__':main()
