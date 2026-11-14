@@ -156,6 +156,31 @@ commands.Clear();using(var engine=new CommentaryEngine(CommentatorId.FaresAwad,r
  Check(!commands.Contains("stop comm_voice")&&!commands.Contains("close comm_voice"),"real goal and penalty admissions never interrupt a current phrase");
 }
 SoundEffectsPlayer.StopAll();commands.Clear();Check(anthem.PlayChampionsLeagueSample()&&anthem.HasPlaybackCompleted,"startup completion is observable for the UI transition");anthem.StopAllSounds();
+// A native playback rejection must never masquerade as successful sound telemetry.
+SoundEffectsPlayer.StopAll();Defaults();SoundEffectsPlayer.SetMatchAudioContext(false);
+foreach(var rejectedStage in new[]{"open","volume","play"})
+{
+ SoundEffectsPlayer.ResetTelemetry();commands.Clear();
+ MciPlayback.TestCommand=(command,buffer)=>
+ {
+  commands.Add(command);buffer?.Append("stopped");
+  return (rejectedStage=="open"&&command.StartsWith("open ")) ||
+   (rejectedStage=="volume"&&command.StartsWith("setaudio ")) ||
+   (rejectedStage=="play"&&command.StartsWith("play ")) ? 277 : 0;
+ };
+ SoundEffectsPlayer.PlayWhistle();
+ Check(SoundEffectsPlayer.TotalSoundsPlayedCount==0&&SoundEffectsPlayer.LastPlayedFilePath==null,"rejected "+rejectedStage+" is not counted as played");
+ Check(SoundEffectsPlayer.LastPlaybackFailure is { ErrorCode:277 } failure&&failure.Stage==rejectedStage&&failure.Alias=="whistle"&&failure.FileName.Length>0,"native "+rejectedStage+" failure preserves exact stage code alias and filename");
+ Check(rejectedStage=="play"||!Played("whistle"),"failed "+rejectedStage+" never advances to play");
+}
+MciPlayback.TestCommand=(command,buffer)=>{commands.Add(command);buffer?.Append("stopped");return 0;};
+SoundEffectsPlayer.ResetTelemetry();s.SfxVolumePercent=0;s.ApplyLive();SoundEffectsPlayer.PlayWhistle();
+Check(SoundEffectsPlayer.LastPlaybackFailure?.Stage=="muted"&&SoundEffectsPlayer.TotalSoundsPlayedCount==0,"intentional mute is distinguished from native failure and successful playback");
+Defaults();SoundEffectsPlayer.PlayWhistle();
+Check(SoundEffectsPlayer.TotalSoundsPlayedCount==1&&SoundEffectsPlayer.LastPlaybackFailure==null,"later accepted start clears old failure and counts only accepted playback");
+SoundEffectsPlayer.ResetTelemetry();SoundEffectsPlayer.SetMatchAudioContext(true);SoundEffectsPlayer.PauseMatchSounds();SoundEffectsPlayer.PlayWhistle();
+Check(SoundEffectsPlayer.LastPlaybackFailure?.Stage=="match-paused"&&SoundEffectsPlayer.TotalSoundsPlayedCount==0,"pause suppression has its own reason rather than claiming sound played");
+SoundEffectsPlayer.StopAll();SoundEffectsPlayer.SetMatchAudioContext(false);
 // Pause is resumable; leaving the match invalidates the whole queue and later dispatches.
 SoundEffectsPlayer.StopAll();SoundEffectsPlayer.SetMatchAudioContext(true);
 using(var lifecycle=new CommentaryEngine(CommentatorId.FaresAwad,root))
