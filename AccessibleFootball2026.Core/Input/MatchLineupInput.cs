@@ -5,6 +5,7 @@ public sealed class MatchLineupInput
 {
     public bool IsActive { get; private set; }
     private int? _dismissKey;
+    public bool IsDismissKeyHeld => _dismissKey.HasValue;
     public void Begin() { IsActive = true; _dismissKey = null; }
     public bool KeyDown(int key, out bool skip)
     {
