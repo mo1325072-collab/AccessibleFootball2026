@@ -6,8 +6,12 @@ using System.Text.Json;
 
 namespace AccessibleFootball2026.App;
 
-/// <summary>Expected content of one downloaded update file, from its published JSON hash record.</summary>
-public sealed record GameUpdateHashRecord(long Bytes, string Sha256, bool AssetsChanged, long ExeBytes, string? ExeSha256);
+/// <summary>
+/// Expected content of one downloaded update file, from its published JSON hash record.
+/// BaseVersion names the exact installed version a code patch was built from; the patch may
+/// only ever touch that baseline. Full installer records leave it null: they serve any install.
+/// </summary>
+public sealed record GameUpdateHashRecord(long Bytes, string Sha256, bool AssetsChanged, long ExeBytes, string? ExeSha256, string? BaseVersion);
 
 /// <summary>
 /// Downloads, verifies, stages and applies official game updates. Settings live outside the
@@ -41,13 +45,25 @@ public static class GameUpdateDownloader
             long exeBytes = 0; string? exeSha = null;
             if (root.TryGetProperty("exe_bytes", out var exeBytesNode)) exeBytesNode.TryGetInt64(out exeBytes);
             if (root.TryGetProperty("exe_sha256", out var exeShaNode) && IsSha256(exeShaNode.GetString())) exeSha = exeShaNode.GetString();
-            return new(bytes, shaNode.GetString()!.ToLowerInvariant(), assetsChanged, exeBytes, exeSha);
+            string? baseVersion = root.TryGetProperty("base_version", out var baseNode) && baseNode.ValueKind == JsonValueKind.String
+                ? baseNode.GetString() : null;
+            return new(bytes, shaNode.GetString()!.ToLowerInvariant(), assetsChanged, exeBytes, exeSha, baseVersion);
         }
         catch (JsonException) { return null; }
     }
 
     private static bool IsSha256(string? value) =>
         value != null && value.Length == 64 && value.All(Uri.IsHexDigit);
+
+    /// <summary>
+    /// A code patch is safe only for the exact install it was built from: the record must name
+    /// the installed version as its base, declare unchanged assets, and match the published
+    /// bytes. assets_changed=false alone is never enough: an install older than the patch's
+    /// baseline could carry different audio/data, so anything else takes the full installer.
+    /// </summary>
+    public static bool IsPatchCompatible(GameUpdateHashRecord record, long assetBytes, string installedVersion) =>
+        !record.AssetsChanged && record.Bytes == assetBytes &&
+        record.BaseVersion != null && record.BaseVersion == installedVersion;
 
     /// <summary>
     /// Downloads the offer's asset and its hash record into Updates/downloads, resuming any partial
@@ -139,7 +155,8 @@ public static class GameUpdateDownloader
         }
         var record = ParseHashRecord(recordText, offer.Asset.Name)
             ?? throw new InvalidDataException("Update hash record is missing or invalid.");
-        if (record.AssetsChanged) throw new InvalidDataException("This patch does not cover changed game content.");
+        if (!IsPatchCompatible(record, offer.Asset.Size, GameUpdateChecker.CurrentVersion))
+            throw new InvalidDataException("This patch was not built for the installed version; the full installer is required.");
 
         string installDir = AppContext.BaseDirectory;
         string pending = PendingRoot(installDir);
@@ -168,9 +185,10 @@ public static class GameUpdateDownloader
         File.Exists(Path.Combine(PendingRoot(installDir), "AccessibleFootball2026.exe"));
 
     /// <summary>
-    /// Applies a staged code patch over the install directory. Must run while the game itself is
-    /// not running (at process start, before audio or windows are created, or from the applier
-    /// copy after the game has exited). Settings, audio, database and saved data are untouched.
+    /// Applies a staged code patch over the install directory. Runs only from the applier copy
+    /// after the game process has fully exited: the running game's own executable is locked on
+    /// Windows, so a process can never swap its own image. Settings, audio, database and saved
+    /// data are untouched. On any failure the staged update is left intact for the next try.
     /// </summary>
     public static void ApplyPendingUpdateIfAny(string installDir)
     {
@@ -200,22 +218,52 @@ public static class GameUpdateDownloader
     }
 
     /// <summary>
-    /// Restarts the game through a temporary copy of itself that waits for this process to exit,
-    /// applies the staged patch, then relaunches the real game. Called only from the main menu,
-    /// never during a match.
+    /// Starts the temporary applier copy that waits for this process to exit, swaps in the
+    /// staged patch and relaunches the game. Called only from the main menu or from startup
+    /// before anything else loads, never during a match. Returns false when the applier could
+    /// not be started; the staged update then simply waits for the next launch.
     /// </summary>
-    public static void RestartAndApplyPendingUpdate()
+    public static bool TryStartApplier()
     {
-        string installDir = AppContext.BaseDirectory;
-        string currentExe = Environment.ProcessPath ?? Path.Combine(installDir, "AccessibleFootball2026.exe");
-        string applier = Path.Combine(UpdatesRoot(installDir), "AccessibleFootball2026-ApplyUpdate.exe");
-        File.Copy(currentExe, applier, true);
-        Process.Start(new ProcessStartInfo(applier,
-            $"--apply-update \"{installDir}\" {Environment.ProcessId} \"{currentExe}\"")
-        { UseShellExecute = false, WorkingDirectory = installDir });
+        try
+        {
+            string installDir = AppContext.BaseDirectory;
+            string currentExe = Environment.ProcessPath ?? Path.Combine(installDir, "AccessibleFootball2026.exe");
+            string applier = Path.Combine(UpdatesRoot(installDir), "AccessibleFootball2026-ApplyUpdate.exe");
+            File.Copy(currentExe, applier, true);
+            return Process.Start(new ProcessStartInfo(applier,
+                $"--apply-update \"{installDir}\" {Environment.ProcessId} \"{currentExe}\"")
+            { UseShellExecute = false, WorkingDirectory = installDir }) != null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
-    /// <summary>Entry point of the temporary applier copy: wait, apply, relaunch, remove itself.</summary>
+    /// <summary>
+    /// True when the process is gone within the timeout. A vanished PID counts as exited.
+    /// The swap must never run while the game lives: its executable is locked and a match may
+    /// be in progress.
+    /// </summary>
+    public static bool WaitForProcessExit(int processId, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            try { if (Process.GetProcessById(processId).HasExited) return true; }
+            catch (ArgumentException) { return true; }
+            Thread.Sleep(250);
+        }
+        try { return Process.GetProcessById(processId).HasExited; }
+        catch (ArgumentException) { return true; }
+    }
+
+    /// <summary>
+    /// Entry point of the temporary applier copy: wait for the game to fully exit, apply the
+    /// staged patch, relaunch with --after-update-attempt (so a failed swap cannot bounce the
+    /// next process straight back into the applier), then remove itself.
+    /// </summary>
     public static int ApplyUpdateEntry(string[] args)
     {
         if (args.Length < 4) return 2;
@@ -224,14 +272,13 @@ public static class GameUpdateDownloader
         string relaunchExe = args[3];
         try
         {
-            for (int waited = 0; waited < 600; waited++)
-            {
-                try { if (Process.GetProcessById(gamePid).HasExited) break; }
-                catch (ArgumentException) { break; }
-                Thread.Sleep(500);
-            }
+            // The game is still running after the wait: leave the staged update for the next
+            // launch instead of swapping over a locked executable or interrupting a match.
+            if (!WaitForProcessExit(gamePid, TimeSpan.FromSeconds(60))) return 1;
             ApplyPendingUpdateIfAny(installDir);
-            try { Process.Start(new ProcessStartInfo(relaunchExe) { UseShellExecute = true, WorkingDirectory = installDir }); }
+            // Relaunch whether or not the swap landed: the player asked for a restart and gets
+            // their game back, on the new build when the swap worked, otherwise unchanged.
+            try { Process.Start(new ProcessStartInfo(relaunchExe, "--after-update-attempt") { UseShellExecute = true, WorkingDirectory = installDir }); }
             catch (System.ComponentModel.Win32Exception) { /* the player can relaunch the game normally */ }
             // Best-effort self cleanup on the next launch cycle.
             try
