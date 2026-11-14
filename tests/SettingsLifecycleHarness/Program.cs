@@ -278,12 +278,37 @@ s.CrowdVolumePercent=100;Apply();SoundEffectsPlayer.PlayCrowdGoal();
 Check(SoundEffectsPlayer.IsCrowdActive,"playing goal reaction supports crowd fact without ambience or chant");
 SoundEffectsPlayer.StopAll();Check(!SoundEffectsPlayer.IsCrowdActive,"menu/end cleanup clears crowd fact");
 MciPlayback.TestCommand=(command,buffer)=>{commands.Add(command);buffer?.Append("stopped");return 0;};Defaults();
-var updateRelease = new { draft=false,prerelease=false,tag_name="game-v2026.11.15",html_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/tag/game-v2026.11.15",assets=new[]{new{name="AccessibleFootball2026-Full-Setup.exe",size=1234,state="uploaded",browser_download_url="https://github.com/mo1325072-collab/AccessibleFootball2026/releases/download/game-v2026.11.15/AccessibleFootball2026-Full-Setup.exe"}}};
-var updateJson=JsonSerializer.Serialize(new[]{updateRelease});
-Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(updateJson).State==AccessibleFootball2026.App.GameUpdateState.Available,"update checker accepts a stable newer game release with uploaded installer");
-foreach(var invalid in new[]{updateJson.Replace("game-v","build-inputs-"),updateJson.Replace("Full-Setup.exe","ExtraAudio.bin"),updateJson.Replace("\"prerelease\":false","\"prerelease\":true"),updateJson.Replace("\"draft\":false","\"draft\":true"),"[]"})Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(invalid).State==AccessibleFootball2026.App.GameUpdateState.NoPublishedGame,"build inputs, pre-releases, drafts and missing installers are not game updates");
-Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(updateJson.Replace("2026.11.15","2026.11.14")).State==AccessibleFootball2026.App.GameUpdateState.Current,"only an actual published matching game release confirms current");
+// In-game updater: release discovery on the dedicated releases repository, smallest verified download.
+var relBase="https://github.com/mo1325072-collab/Accessible-Football-Releases";
+object RelAsset(string name,long size)=>new{name,size,state="uploaded",browser_download_url=$"{relBase}/releases/download/game-v2026.2/{name}"};
+var installer=RelAsset("AccessibleFootball2026-Full-Setup.exe",500000000);var installerRec=RelAsset("AccessibleFootball2026-Full-Setup.json",120);
+var patchZip=RelAsset("AccessibleFootball2026-CodePatch.zip",90000000);var patchRec=RelAsset("AccessibleFootball2026-CodePatch.json",200);
+object Release(string tag,string published,object[] assets)=>new{draft=false,prerelease=false,tag_name=tag,published_at=published,html_url=$"{relBase}/releases/tag/{tag}",assets};
+var fullAssets=new[]{installer,installerRec};var allAssets=new[]{installer,installerRec,patchZip,patchRec};
+var updateJson=JsonSerializer.Serialize(new[]{Release("game-v2026.2","2026-11-20T12:00:00Z",allAssets)});
+var parsed=AccessibleFootball2026.App.GameUpdateChecker.Parse(updateJson);
+Check(parsed.State==AccessibleFootball2026.App.GameUpdateState.Available,"a published stable release with a different tag is an available update");
+Check(parsed.Offer!=null&&parsed.Offer.Kind==AccessibleFootball2026.App.GameUpdateDownloadKind.CodePatch&&parsed.Offer.Asset.Name=="AccessibleFootball2026-CodePatch.zip","updater prefers the small code patch when the release ships one");
+Check(parsed.Offer!=null&&parsed.Offer.HashRecordAsset.Name=="AccessibleFootball2026-CodePatch.json"&&parsed.Offer.InstallerAsset.Name=="AccessibleFootball2026-Full-Setup.exe","offer carries its hash record and the full installer fallback");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.2","2026-11-20T12:00:00Z",fullAssets)})).Offer!.Kind==AccessibleFootball2026.App.GameUpdateDownloadKind.FullInstaller,"a release without patch assets offers the full installer");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.2","2026-11-18T12:00:00Z",fullAssets),Release("game-v2026.1","2026-11-20T12:00:00Z",fullAssets)})).Offer!.Version=="2026.1","newest published release wins even with a lower version number");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.1","2026-11-20T12:00:00Z",allAssets)})).State==AccessibleFootball2026.App.GameUpdateState.Current,"installed tag confirms current only against the same release tag");
+foreach(var invalid in new[]{updateJson.Replace("game-v","build-inputs-"),updateJson.Replace("Full-Setup.exe","ExtraAudio.bin"),updateJson.Replace("Full-Setup.json","ExtraAudio.json"),updateJson.Replace("\"prerelease\":false","\"prerelease\":true"),updateJson.Replace("\"draft\":false","\"draft\":true"),updateJson.Replace("Accessible-Football-Releases","AccessibleFootball2026"),"[]"})Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(invalid).State==AccessibleFootball2026.App.GameUpdateState.NoPublishedGame,"build inputs, other repos, pre-releases, drafts and missing installer/hash assets are not game updates");
 Check(AccessibleFootball2026.App.GameUpdateChecker.Parse("{}").State==AccessibleFootball2026.App.GameUpdateState.Failed,"unexpected API response is failure, not up-to-date");
+var goodRecord=AccessibleFootball2026.App.GameUpdateDownloader.ParseHashRecord("{\"artifact\":\"AccessibleFootball2026-CodePatch.zip\",\"bytes\":90000000,\"sha256\":\""+new string('a',64)+"\",\"exe_bytes\":85000000,\"exe_sha256\":\""+new string('b',64)+"\",\"assets_changed\":false}","AccessibleFootball2026-CodePatch.zip");
+Check(goodRecord!=null&&goodRecord.Bytes==90000000&&goodRecord.ExeSha256==new string('b',64)&&!goodRecord.AssetsChanged,"published patch hash record parses with exe verification fields");
+Check(AccessibleFootball2026.App.GameUpdateDownloader.ParseHashRecord(goodRecord!=null?"{\"artifact\":\"Other.zip\",\"bytes\":1,\"sha256\":\""+new string('a',64)+"\"}":"{}","AccessibleFootball2026-CodePatch.zip")==null,"a hash record for a different artifact is rejected");
+Check(AccessibleFootball2026.App.GameUpdateDownloader.ParseHashRecord("{\"artifact\":\"AccessibleFootball2026-CodePatch.zip\",\"bytes\":90000000,\"sha256\":\"not-a-hash\"}","AccessibleFootball2026-CodePatch.zip")==null,"a hash record without a real SHA256 is rejected");
+// Staged patch application swaps only the executable and preserves every other file.
+var fakeInstall=Path.Combine(root,"install-"+Guid.NewGuid());Directory.CreateDirectory(fakeInstall);
+File.WriteAllText(Path.Combine(fakeInstall,"players_database.json"),"database");Directory.CreateDirectory(Path.Combine(fakeInstall,"Assets"));File.WriteAllText(Path.Combine(fakeInstall,"Assets","audio.wav"),"audio");
+File.WriteAllText(Path.Combine(fakeInstall,"AccessibleFootball2026.exe"),"old-exe");
+var pending=AccessibleFootball2026.App.GameUpdateDownloader.PendingRoot(fakeInstall);Directory.CreateDirectory(pending);File.WriteAllText(Path.Combine(pending,"AccessibleFootball2026.exe"),"new-exe");
+Check(AccessibleFootball2026.App.GameUpdateDownloader.HasPendingUpdate(fakeInstall),"staged patch is detected as pending");
+AccessibleFootball2026.App.GameUpdateDownloader.ApplyPendingUpdateIfAny(fakeInstall);
+Check(File.ReadAllText(Path.Combine(fakeInstall,"AccessibleFootball2026.exe"))=="new-exe","pending patch replaces the executable");
+Check(File.ReadAllText(Path.Combine(fakeInstall,"players_database.json"))=="database"&&File.ReadAllText(Path.Combine(fakeInstall,"Assets","audio.wav"))=="audio","patch application preserves database and audio");
+Check(!AccessibleFootball2026.App.GameUpdateDownloader.HasPendingUpdate(fakeInstall)&&File.Exists(Path.Combine(fakeInstall,"Updates","AccessibleFootball2026.previous.exe")),"applied patch clears staging and keeps a rollback copy");
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
 sealed class Input:IInputHandler{public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>new();public bool IsActionTriggered(GameAction action,bool possession)=>false;}
