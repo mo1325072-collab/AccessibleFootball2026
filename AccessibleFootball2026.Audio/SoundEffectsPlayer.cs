@@ -123,6 +123,31 @@ public static class SoundEffectsPlayer
             }
         }
     }
+    public sealed record PlaybackFailure(string Alias, string FileName, string Stage, int ErrorCode, string Detail);
+    public static PlaybackFailure? LastPlaybackFailure { get; private set; }
+    public static string? LastAttemptedFilePath { get; private set; }
+    // Accepted native commands are not proof that a speaker produced sound.
+    public static string PlaybackDiagnosticPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AccessibleFootball2026", "audio-failures.log");
+    private static bool PlaybackFailed(string alias, string path, string stage, int error = 0)
+    {
+        var failure = new PlaybackFailure(alias, Path.GetFileName(path), stage, error,
+            error == 0 ? stage : MciPlayback.DescribeError(error));
+        LastPlaybackFailure = failure;
+        // Log only explicit failed starts, not normal close/status probes. Never log full user paths.
+        if (OperatingSystem.IsWindows() && (error != 0 || stage == "missing-file"))
+        {
+            try
+            {
+                string log = PlaybackDiagnosticPath;
+                Directory.CreateDirectory(Path.GetDirectoryName(log)!);
+                if (File.Exists(log) && new FileInfo(log).Length > 131072) File.WriteAllText(log, "");
+                File.AppendAllText(log, $"{DateTime.UtcNow:O} alias={alias} file={failure.FileName} stage={stage} code={error} detail={failure.Detail.Replace('\r',' ').Replace('\n',' ')}{Environment.NewLine}");
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+        return false;
+    }
     public static string? LastPlayedSound { get; private set; }
     public static string? LastPlayedFilePath { get; private set; }
 
@@ -154,6 +179,8 @@ public static class SoundEffectsPlayer
     {
         LastPlayedSound = null;
         LastPlayedFilePath = null;
+        LastAttemptedFilePath = null;
+        LastPlaybackFailure = null;
         LastPlayedPan = 0.0f;
         TotalSoundsPlayedCount = 0;
         _commentaryBusyUntil = DateTime.MinValue;
@@ -951,32 +978,41 @@ public static class SoundEffectsPlayer
 
     private static bool PlayOneShot(string filePath, string alias, string? soundName = null, float? customVolume = null, float? pan = null)
     {
-        LastPlayedSound = soundName ?? alias; LastPlayedFilePath = filePath; TotalSoundsPlayedCount++;
-        float volume = customVolume ?? ChannelVolume(alias);
-        if (volume <= .001f || string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
         lock (_lock)
         {
-            if (_matchSoundsPaused && !alias.StartsWith("ui_", StringComparison.Ordinal)) return false;
+            LastAttemptedFilePath = filePath;
+            LastPlaybackFailure = null;
+            float volume = customVolume ?? ChannelVolume(alias);
+            if (volume <= .001f) return PlaybackFailed(alias, filePath, "muted");
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return PlaybackFailed(alias, filePath, "missing-file");
+            if (_matchSoundsPaused && !alias.StartsWith("ui_", StringComparison.Ordinal)) return PlaybackFailed(alias, filePath, "match-paused");
             string type = alias is "comm_voice" or "chant_ch" ? "mpegvideo" : GetMciType(filePath);
             SendMci($"close {alias}");
-            if (MciPlayback.SendString($"open \"{filePath}\" type {type} alias {alias}", null, 0, IntPtr.Zero) != 0) return false;
-            if (!ApplyOneShotVolume(alias, Math.Clamp((int)(volume * 1000), 0, 1000), pan) ||
-                MciPlayback.SendString($"play {alias} from 0", null, 0, IntPtr.Zero) != 0) { SendMci($"close {alias}"); return false; }
+            int result = MciPlayback.SendString($"open \"{filePath}\" type {type} alias {alias}", null, 0, IntPtr.Zero);
+            if (result != 0) return PlaybackFailed(alias, filePath, "open", result);
+            if (!ApplyOneShotVolume(alias, Math.Clamp((int)(volume * 1000), 0, 1000), pan, filePath))
+            { SendMci($"close {alias}"); return false; }
+            result = MciPlayback.SendString($"play {alias} from 0", null, 0, IntPtr.Zero);
+            if (result != 0) { SendMci($"close {alias}"); return PlaybackFailed(alias, filePath, "play", result); }
             _activeOneShots[alias] = 1f;
             if (pan.HasValue) _activeOneShotPans[alias] = pan.Value;
             else _activeOneShotPans.Remove(alias);
+            LastPlayedSound = soundName ?? alias; LastPlayedFilePath = filePath; TotalSoundsPlayedCount++;
             return true;
         }
     }
 
-    private static bool ApplyOneShotVolume(string alias, int volume, float? pan)
+    private static bool ApplyOneShotVolume(string alias, int volume, float? pan, string? filePath = null)
     {
-        if (MciPlayback.SendString($"setaudio {alias} volume to {volume}", null, 0, IntPtr.Zero) != 0) return false;
+        int result = MciPlayback.SendString($"setaudio {alias} volume to {volume}", null, 0, IntPtr.Zero);
+        if (result != 0) return PlaybackFailed(alias, filePath ?? "", "volume", result);
         if (!pan.HasValue) return true;
         int left = (int)(volume * (pan.Value > 0 ? 1 - pan.Value : 1));
         int right = (int)(volume * (pan.Value < 0 ? 1 + pan.Value : 1));
-        return MciPlayback.SendString($"setaudio {alias} left volume to {left}", null, 0, IntPtr.Zero) == 0 &&
-            MciPlayback.SendString($"setaudio {alias} right volume to {right}", null, 0, IntPtr.Zero) == 0;
+        result = MciPlayback.SendString($"setaudio {alias} left volume to {left}", null, 0, IntPtr.Zero);
+        if (result != 0) return PlaybackFailed(alias, filePath ?? "", "left-volume", result);
+        result = MciPlayback.SendString($"setaudio {alias} right volume to {right}", null, 0, IntPtr.Zero);
+        return result == 0 || PlaybackFailed(alias, filePath ?? "", "right-volume", result);
     }
 
     // =========================================================================
