@@ -122,9 +122,14 @@ public class StadiumSoundEngine
     {
         if (_chantLabelIndexLoaded) return;
         _chantLabelIndexLoaded = true;
+        LoadChantLabelIndex(_chantsDir);
+    }
+
+    private void LoadChantLabelIndex(string chantsDirectory)
+    {
         try
         {
-            string mapPath = Path.Combine(_chantsDir, "chants_index.json");
+            string mapPath = Path.Combine(chantsDirectory, "chants_index.json");
             if (!File.Exists(mapPath)) return;
             using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(mapPath));
             var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -159,14 +164,27 @@ public class StadiumSoundEngine
     {
         EnsureChantLabelIndexLoaded();
         if (_chantLabelIndex == null) return null;
+        var candidates = ResolveIndexedChantFiles(_chantsDir, pool, _chantLabelIndex);
+        return candidates.Count == 0 ? null : candidates[Random.Shared.Next(candidates.Count)];
+    }
+    public static IReadOnlyList<string> ResolveLinkedChantFiles(string chantsDirectory, TeamChantPool pool)
+    {
+        var engine = new StadiumSoundEngine();
+        engine._chantLabelIndexLoaded = false;
+        engine.LoadChantLabelIndex(chantsDirectory);
+        if (engine._chantLabelIndex == null) throw new InvalidDataException("Chant index is missing or invalid");
+        return ResolveIndexedChantFiles(chantsDirectory, pool, engine._chantLabelIndex);
+    }
+    private static IReadOnlyList<string> ResolveIndexedChantFiles(string chantsDirectory, TeamChantPool pool, Dictionary<string,int> index)
+    {
         var candidates = new List<string>();
-        foreach (var pair in _chantLabelIndex)
+        foreach (var pair in index)
         {
             // Exact user-identified Egypt recording takes precedence over the conflicting historical Juventus slot.
             if (pair.Value == 600 && pool.TeamName != "Egypt") continue;
             if (pair.Value < pool.FirstIndex || pair.Value > pool.LastIndex ||
                 !pair.Key.StartsWith(pool.LabelPrefix, StringComparison.OrdinalIgnoreCase)) continue;
-            foreach (string dir in new[] { _chantsDir, Path.Combine(_chantsDir, "SP_R"), Path.Combine(_chantsDir, "Clubs") })
+            foreach (string dir in new[] { chantsDirectory, Path.Combine(chantsDirectory, "SP_R"), Path.Combine(chantsDirectory, "Clubs") })
             {
                 string candidate = Path.Combine(dir, $"Chant_{pair.Value}.wav");
                 if (File.Exists(candidate))
@@ -180,6 +198,7 @@ public class StadiumSoundEngine
                 }
             }
         }
-        return candidates.Count == 0 ? null : candidates[Random.Shared.Next(candidates.Count)];
+        return candidates;
     }
+
 }
