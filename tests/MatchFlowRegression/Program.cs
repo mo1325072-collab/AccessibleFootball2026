@@ -629,20 +629,142 @@ if(dbArgument >= 0)
  var restoredDatabaseType=typeof(JsonDatabaseProvider);
  restoredDatabaseType.GetMethod("LoadDatabaseFromFile",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{args[dbArgument+1]});
  restoredDatabaseType.GetField("_isInitialized",BindingFlags.Static|BindingFlags.NonPublic)!.SetValue(null,true);
-var sourcedAdditions = new[]{("FC Aiglons (Tchad)","Biwé Mangana"),("FC Aiglons (Tchad)","Abderamane Ahmat"),("Panthère Sportive du Ndé","Njoya Mohamed Malik"),("Panthère Sportive du Ndé","Mouen Adolphe Phillipe"),("AS ZAM","Harouna Doulla Younoussa"),("DC Virunga","Djodjo Mushila")};
-foreach(var (teamName,playerName) in sourcedAdditions)
+var sourcedAdditions = new (string Team,string Name,int Age,bool PositionKnown)[]{
+("FC Aiglons (Tchad)","Biwé Mangana",0,true),
+("FC Aiglons (Tchad)","Abderamane Ahmat",33,true),
+("Panthère Sportive du Ndé","Njoya Mohamed Malik",0,true),
+("Panthère Sportive du Ndé","Mouen Adolphe Phillipe",0,true),
+("AS ZAM","Harouna Doulla Younoussa",0,true),
+("DC Virunga","Djodjo Mushila",0,true),
+("AS ZAM","Soumaila Moussa Mouslim",0,false),
+("AS ZAM","Maman Bachir Moussa Oumarou",0,false),
+("AS ZAM","Garba Hassane Ibrahim",0,false),
+("AS ZAM","Abdoul Karim Moumouni",0,false),
+("AS ZAM","Abdoulaye Garba Ali",0,false),
+("AS ZAM","Mahamadou Nouridine Issoufou Tinni",0,false),
+("AS ZAM","Ali Saibou Moumouni",0,false),
+("AS ZAM","Mahamat Sanoussi",0,false),
+("AS ZAM","Seydou Bartche Hamani",0,false),
+("AS ZAM","Souman Abdoulaye Abdoul Wahabou",0,false),
+("DC Virunga","Artivie Mananga Umba",0,false),
+("DC Virunga","Jacques Nkunku Kumbundu",0,false),
+("DC Virunga","Grace Gaga Yenga",0,false),
+("DC Virunga","Josue Nsimba Mbabu",0,false),
+("DC Virunga","Moise Bedi Mokonzo",0,false),
+("DC Virunga","Michee Bafumba Isono",0,true),
+("DC Virunga","Gedeon Nseka Mambu",0,false),
+("DC Virunga","Blanchard Kakese Ntumba",0,false),
+("DC Virunga","Elie Mbuyulu Bozana",0,true),
+("AS Port-Louis 2000","Frederic Shane Arékion",0,true),
+("AS Port-Louis 2000","Cyrille Ondoa",0,true),
+("AS Port-Louis 2000","Julien Pellegrin",0,true),
+("AS Port-Louis 2000","Wayne Parsooramen",0,true),
+("AS Port-Louis 2000","Jovanni Vincent",0,true),
+("AS Port-Louis 2000","Jeremie David",0,true),
+("AS Port-Louis 2000","Aurelien Kawoa",0,true),
+("AS Port-Louis 2000","Darel Arthée",0,true),
+("AS Port-Louis 2000","Stéphane Mape",0,true),
+("AS Port-Louis 2000","Hanshen Manaroo",0,true),
+("AS Port-Louis 2000","Donovan Hortense",0,true),
+("AS Port-Louis 2000","Azhar Beegun",0,true),
+("AS Port-Louis 2000","Leroy Juliette",0,true),
+("AS Port-Louis 2000","Peniel Yoboukoua",0,true),
+("AS Port-Louis 2000","Didier Moundoubou",0,true),
+("AS Port-Louis 2000","Jean Denis Desrougere",0,true),
+("AS Port-Louis 2000","Mohamed Mountala",0,true),
+("União Bissau","Hélder Martinho Có",0,true),
+("União Bissau","Renickson Djassi",19,true),
+("União Bissau","Etivaldo Mendes",23,true),
+("União Bissau","Erikson",31,true),
+("União Bissau","Lassana Aidará",20,true),
+("União Bissau","Rachido Banora",0,true),
+("União Bissau","Desiré Mendes",0,true),
+("União Bissau","Sada Djop",0,true),
+("União Bissau","Idrissa Embaló",0,true)};
+foreach(var (teamName,playerName,knownAge,positionKnown) in sourcedAdditions)
 {
- var st=JsonDatabaseProvider.GetTeamByName(teamName)!;
- var sp=st.Players.Concat(st.Bench).Single(p=>p.Name==playerName);
- Check(sp.RatingIsEstimated&&sp.RatingProvenance.Contains("55")&&sp.DataSourceUrls.Length>0,"sourced addition carries explicit balance55provenance: "+playerName);
- Check(sp.HasKnownSourcePosition,"new addition has a documented position: "+playerName);
- if(playerName!="Abderamane Ahmat")Check(sp.Age==0&&!sp.HasKnownAge&&sp.SimulationAge==25,"unknown age remains unknown with explicit neutral simulation band: "+playerName);
- var copy=sp.Clone();Check(copy.RatingIsEstimated&&copy.DataSourceUrls.SequenceEqual(sp.DataSourceUrls)&&copy.Age==sp.Age,"provenance survives match clone: "+playerName);
+ var st=JsonDatabaseProvider.GetTeamByName(teamName)!;var sp=st.Players.Concat(st.Bench).Single(p=>p.Name==playerName);
+ Check(sp.RatingIsEstimated&&sp.DataSourceUrls.Length>0&&(sp.RatingProvenance.Contains("baseline55")||sp.RatingProvenance.Contains("User-approved random")),"sourced addition carries explicit estimated rating provenance: "+playerName);
+ Check(sp.HasKnownSourcePosition==positionKnown && (positionKnown||sp.PrimaryPosition==SpecificPosition.Unknown),"source position certainty preserved: "+playerName);
+ Check(knownAge>0?sp.Age==knownAge&&sp.HasKnownAge:sp.Age==0&&!sp.HasKnownAge&&sp.SimulationAge==25,"source age certainty preserved: "+playerName);
+ var copy=sp.Clone();Check(copy.RatingIsEstimated&&copy.DataSourceUrls.SequenceEqual(sp.DataSourceUrls)&&copy.Age==sp.Age&&copy.PrimaryPosition==sp.PrimaryPosition,"source and uncertainty survive clone: "+playerName);
  foreach(var language in new[]{UiLanguage.Arabic,UiLanguage.English})
  { LocalizationService.CurrentLanguage=language;Check(sp.DataProvenanceSummary.Contains(language==UiLanguage.English?"estimated":"تقديرية"),"estimate disclosed in accessible attributes: "+playerName+language); }
 }
-foreach(var n in new[]{"FC Aiglons (Tchad)","Panthère Sportive du Ndé"})Check(JsonDatabaseProvider.GetTeamByName(n)!.GetMatchStartIssue()==null,"sourced seven-player squad now passes real start guard: "+n);
-foreach(var n in new[]{"AS ZAM","DC Virunga"})Check(JsonDatabaseProvider.GetTeamByName(n)!.GetMatchStartIssue()!=null,"incomplete sourced squad remains honestly blocked: "+n);
+var approvedRandomRatings=new Dictionary<string,int>{
+["Soumaila Moussa Mouslim"]=53,
+["Maman Bachir Moussa Oumarou"]=50,
+["Garba Hassane Ibrahim"]=58,
+["Abdoul Karim Moumouni"]=57,
+["Abdoulaye Garba Ali"]=59,
+["Mahamadou Nouridine Issoufou Tinni"]=54,
+["Ali Saibou Moumouni"]=54,
+["Mahamat Sanoussi"]=59,
+["Seydou Bartche Hamani"]=58,
+["Souman Abdoulaye Abdoul Wahabou"]=57,
+["Artivie Mananga Umba"]=58,
+["Jacques Nkunku Kumbundu"]=58,
+["Grace Gaga Yenga"]=55,
+["Josue Nsimba Mbabu"]=57,
+["Moise Bedi Mokonzo"]=54,
+["Michee Bafumba Isono"]=58,
+["Gedeon Nseka Mambu"]=58,
+["Blanchard Kakese Ntumba"]=56,
+["Elie Mbuyulu Bozana"]=58,
+["Frederic Shane Arékion"]=55,
+["Cyrille Ondoa"]=56,
+["Julien Pellegrin"]=59,
+["Wayne Parsooramen"]=54,
+["Jovanni Vincent"]=50,
+["Jeremie David"]=55,
+["Aurelien Kawoa"]=53,
+["Darel Arthée"]=51,
+["Stéphane Mape"]=50,
+["Hanshen Manaroo"]=57,
+["Donovan Hortense"]=52,
+["Azhar Beegun"]=55,
+["Leroy Juliette"]=57,
+["Peniel Yoboukoua"]=51,
+["Didier Moundoubou"]=59,
+["Jean Denis Desrougere"]=53,
+["Mohamed Mountala"]=51,
+["Hélder Martinho Có"]=50,
+["Renickson Djassi"]=56,
+["Etivaldo Mendes"]=56,
+["Erikson"]=53,
+["Lassana Aidará"]=57,
+["Rachido Banora"]=59,
+["Desiré Mendes"]=58,
+["Sada Djop"]=57,
+["Idrissa Embaló"]=54};
+foreach(var pair in approvedRandomRatings)
+{
+ var sp=JsonDatabaseProvider.AllTeams.SelectMany(t=>t.Players.Concat(t.Bench)).Single(p=>p.Name==pair.Key);
+ Check(pair.Value>=50&&pair.Value<=59&&sp.RatingProvenance.Contains("estimate "+pair.Value+" in range50-59"),"new rating stays in approved inclusive range: "+pair.Key);
+}
+var firstRatingSnapshot=JsonDatabaseProvider.AllTeams.SelectMany(t=>t.Players.Concat(t.Bench)).Where(p=>approvedRandomRatings.ContainsKey(p.Name)).ToDictionary(p=>p.Name,p=>p.RatingProvenance);
+restoredDatabaseType.GetMethod("LoadDatabaseFromFile",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{args[dbArgument+1]});
+Check(JsonDatabaseProvider.AllTeams.SelectMany(t=>t.Players.Concat(t.Bench)).Where(p=>approvedRandomRatings.ContainsKey(p.Name)).All(p=>firstRatingSnapshot[p.Name]==p.RatingProvenance),"random estimates are assigned in source once, never rerolled by database reload");
+foreach(var (n,total) in new[]{("AS ZAM",12),("DC Virunga",14),("AS Port-Louis 2000",22),("União Bissau",11)})
+{
+ var st=JsonDatabaseProvider.GetTeamByName(n)!;
+ Check(st.Players.Count+st.Bench.Count==total&&st.GetMatchStartIssue()==null,"sourced roster count and real start guard: "+n);
+ Check(st.Players.Concat(st.Bench).Select(p=>p.Name).Distinct().Count()==total,"no duplicate player names in restored roster: "+n);
+ var opponent=TeamDatabase.CreateRealMadrid();var played=new MatchEngine(st.Clone(TeamSide.Home),opponent.Clone(TeamSide.Away),new MatchEventBus(),new Input());
+ played.SetStoppageMinutes(0,0);
+ var savedDuration=MatchSettings.Current.MatchDurationMinutes;MatchSettings.Current.MatchDurationMinutes=1;
+ for(int f=0;f<12000&&played.State is not MatchState.GameOver and not MatchState.PenaltyShootout;f++)
+ {
+     if(played.State==MatchState.HalfTime)played.ResumeMatch();
+     if(played.AwaitingStoppageConfirmation||played.AnalysisReplayPending||played.State==MatchState.GoalCelebration)played.DismissStoppageReplay();
+     if(played.PendingInjuryPlayer!=null)played.ResolveInjurySubstitution(played.PendingInjuryPlayer,null);
+     played.Update(.2f);
+ }
+ MatchSettings.Current.MatchDurationMinutes=savedDuration;
+ Check(played.HomeTeam.Players.All(p=>float.IsFinite(p.Position2D.X)&&float.IsFinite(p.Position2D.Y))&&played.State is MatchState.GameOver or MatchState.PenaltyShootout,"full real-roster match completes without inventing unknown source identity: "+n);
+}
+foreach(var n in new[]{"FC Aiglons (Tchad)","Panthère Sportive du Ndé"})Check(JsonDatabaseProvider.GetTeamByName(n)!.GetMatchStartIssue()==null,"existing legal sourced squad remains playable: "+n);
+Check(JsonDatabaseProvider.GetTeamByName("Medina United FA")!.GetMatchStartIssue()!=null,"Medina without a verified keeper remains honestly blocked");
 var unknownSource=JsonDatabaseProvider.GetTeamByName("FC Canchungo")!.Players.Concat(JsonDatabaseProvider.GetTeamByName("FC Canchungo")!.Bench).Where(p=>p.SourcePosition=="Unknown").ToList();
 Check(unknownSource.Count==5&&unknownSource.All(p=>p.PrimaryPosition==SpecificPosition.Unknown&&!p.HasKnownSourcePosition),"five existing unknown source positions are not silently rewritten asCM");
 Check(unknownSource.All(p=>p.Clone().PrimaryPosition==SpecificPosition.Unknown),"unknown source position survives clone");
