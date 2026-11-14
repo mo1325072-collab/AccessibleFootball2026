@@ -37,10 +37,11 @@ internal static class Program
 
         // Distribution owns all assets. Never search another PC's Desktop, Downloads, D drive or source tree.
         string baseAudioDir = Path.Combine(AppContext.BaseDirectory,"Assets","Audio");
-        if(!File.Exists(Path.Combine(baseAudioDir,"Commentary","FaresAwad","commentary_context.json")) ||
+        var missingAudio=PackageAudioGuard.FindMissing(baseAudioDir);
+        if(missingAudio.Count>0 ||
             !File.Exists(Path.Combine(AppContext.BaseDirectory,"players_database.json")))
         {
-            MessageBox.Show("ملفات اللعبة المرفقة غير مكتملة. شغّل ملف اللعبة الكامل بدلاً من نسخ ملف التشغيل الداخلي وحده.\nGame content is incomplete. Run the full game package, not a copied internal executable.","AccessibleFootball2026");
+            MessageBox.Show(string.Join(Environment.NewLine,missingAudio.Take(5)) + Environment.NewLine + "ملفات اللعبة المرفقة غير مكتملة. شغّل ملف اللعبة الكامل بدلاً من نسخ ملف التشغيل الداخلي وحده.\nGame content is incomplete. Run the full game package, not a copied internal executable.","AccessibleFootball2026");
             return 2;
         }
 
