@@ -9,9 +9,11 @@ VERSION='2026.1'
 RELEASE_TITLE='Accessible Football 2026.1'
 # Installed version this build's code patch was built on. The in-game updater applies the patch
 # only to that exact baseline (and unchanged assets); every older or different install takes the
-# full installer instead. Set to the previous release's VERSION on each release. The 2026.1 patch
-# bases on the last legacy date-scheme build, so legacy installs are migrated by full installer.
-PATCH_BASE_VERSION='2026.11.14'
+# full installer instead. For 2026.1 no existing install is asset-compatible: the current package
+# pruned 366 unlinked chants and reshaped content versus 2026.11.14, so this build's patch carries
+# base_version null and is never offered; publish installer + installer JSON only for this release.
+# Starting with the next content-unchanged release, set this to the previous release's VERSION.
+PATCH_BASE_VERSION=None
 TAG='build-inputs-2ef5d009'
 SHA='689d01ed08e3328171e11947371354e92553702374e065b586191a1e911371aa'
 SIZE=38970719
@@ -144,7 +146,7 @@ def main():
  built_exe=game/'AccessibleFootball2026.exe'
  patch=work/'output'/'AccessibleFootball2026-CodePatch.zip'
  with zipfile.ZipFile(patch,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:z.write(built_exe,built_exe.name)
- patch_record={'artifact':patch.name,'bytes':patch.stat().st_size,'sha256':digest(patch),'exe_bytes':built_exe.stat().st_size,'exe_sha256':digest(built_exe),'assets_changed':False,'base_version':PATCH_BASE_VERSION,'version':VERSION}
+ patch_record={'artifact':patch.name,'bytes':patch.stat().st_size,'sha256':digest(patch),'exe_bytes':built_exe.stat().st_size,'exe_sha256':digest(built_exe),'assets_changed':PATCH_BASE_VERSION is None,'base_version':PATCH_BASE_VERSION,'version':VERSION}
  (work/'output'/'AccessibleFootball2026-CodePatch.json').write_text(json.dumps(patch_record,indent=2))
  print('Release assets ready in build-complete/output: installer, installer JSON, code patch, patch JSON.')
  print('Publish them as release "'+RELEASE_TITLE+'" (tag game-v'+VERSION+') on https://github.com/'+RELEASES_REPO+'/releases so the in-game updater can find and verify them.')
