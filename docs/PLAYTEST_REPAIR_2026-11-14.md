@@ -89,3 +89,10 @@ The Windows-only test harness still passed four reflected arguments to the now-f
 
 ## Added-time whistle timing correction
 Announcing the added-time board no longer emits a referee whistle while play continues. Actual foul, offside, penalty and half/full-time whistle routes remain intact. Separate negative event-routing tests cover the added-time announcement and ordinary pass, shot and reception events. This is a specific timing repair, not a claim that every user-reported wrong-time sound has been reproduced or that Windows playback was heard.
+
+## Whole-SFX silence remains unresolved, diagnostic correction
+The user clarified that all whistles, ball impacts and semantic cues were silent, not simply mistimed. The added-time whistle repair does not close that report. The supplied nine cues, pass/shot/cross and whistle files contain nonzero PCM audio, and the retained content plan includes their folders. This excludes silent file bytes in the checked input, not an output-device failure.
+
+The shared one-shot player previously wrote LastPlayed/TotalSoundsPlayed telemetry before mute, file, pause and native open/volume/play checks. Failed starts could therefore look successful. Success telemetry now follows accepted native playback commands only. LastPlaybackFailure records the exact stage, alias, filename and native error; intentional mute and pause are distinct reasons. Native start errors are written to a bounded private LocalApplicationData/AccessibleFootball2026/audio-failures.log, without full file paths. Academy failures speak their stage/code rather than silently claiming a successful preview. Normal muted/paused requests do not spam the disk log.
+
+Fault-injection checks separately reject open, volume and play, assert no successful playback, and preserve each native failure. They also distinguish mute, pause and later recovery. These are diagnostic correctness tests, not audible/native acceptance or proof the user's whole-SFX silence is fixed. No settings, approved sound files or output device are changed, and no speculative audio backend fallback is added.
