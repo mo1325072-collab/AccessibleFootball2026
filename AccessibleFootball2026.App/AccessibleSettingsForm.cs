@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Net.Http;
 using System.Windows.Forms;
 using System.Text.Json;
 using AccessibleFootball2026.Audio;
@@ -276,21 +277,31 @@ public class AccessibleSettingsForm : Form
             var result = await GameUpdateChecker.CheckAsync();
             if (IsDisposed) return;
             updateButton.Enabled = true;
-            string message = result.State switch
+            string updateTitle = LocalizationService.Text("تحديث اللعبة", "Game update");
+            if (result.State == GameUpdateState.Available && result.Offer != null)
             {
-                GameUpdateState.Available => LocalizationService.Text($"يتوفر إصدار جديد {result.Version}. افتح صفحة الإصدار من المتصفح؟ لا يتم تنزيل أو تثبيت شيء تلقائياً.", $"Version {result.Version} is available. Open its release page in your browser? Nothing will be downloaded or installed automatically."),
+                var offer = result.Offer;
+                long megabytes = (offer.Asset.Size + 1024 * 1024 - 1) / (1024 * 1024);
+                string message = offer.Kind == GameUpdateDownloadKind.CodePatch
+                    ? LocalizationService.Text(
+                        $"يتوفر إصدار جديد {result.Version}. حجم التحديث {megabytes} ميجابايت فقط، لأن الأصوات والبيانات لم تتغير وستبقى كما هي. هل تريد تنزيله وتثبيته الآن؟",
+                        $"Version {result.Version} is available. The update is only {megabytes} MB, because sounds and data are unchanged and will stay in place. Download and install it now?")
+                    : LocalizationService.Text(
+                        $"يتوفر إصدار جديد {result.Version}. هذا تحديث كامل بحجم {megabytes} ميجابايت لأن محتوى اللعبة تغير. إعداداتك محفوظة ولن تتأثر. هل تريد تنزيله وتثبيته الآن؟",
+                        $"Version {result.Version} is available. This is a full {megabytes} MB update because game content changed. Your settings are preserved and will not be affected. Download and install it now?");
+                _screenReader.Speak(message);
+                var answer = MessageBox.Show(this, message, updateTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (answer == DialogResult.Yes) await DownloadAndInstallAsync(offer, updateTitle);
+                return;
+            }
+            string status = result.State switch
+            {
                 GameUpdateState.Current => LocalizationService.Text("نسختك هي الأحدث بين إصدارات اللعبة المنشورة القابلة للتثبيت.", "Your version is current among published installable game releases."),
                 GameUpdateState.NoPublishedGame => LocalizationService.Text("لا يوجد إصدار لعبة رسمي قابل للتثبيت منشور حالياً. ملفات البناء ليست تحديثاً للعبة.", "No official installable game release has been published yet. Build inputs are not a game update."),
                 _ => LocalizationService.Text("تعذر التحقق من التحديثات. تحقق من الاتصال وحاول مرة أخرى؛ لم يتم التأكد من حالة نسختك.", "Could not check for updates. Check your connection and retry; your version status is not confirmed.")
             };
-            _screenReader.Speak(message);
-            var answer = MessageBox.Show(this, message, LocalizationService.Text("تحديث اللعبة", "Game update"),
-                result.State == GameUpdateState.Available ? MessageBoxButtons.YesNo : MessageBoxButtons.OK, MessageBoxIcon.Information);
-            if (answer == DialogResult.Yes && result.ReleaseUrl != null)
-            {
-                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(result.ReleaseUrl) { UseShellExecute = true }); }
-                catch { _screenReader.Speak(result.ReleaseUrl); }
-            }
+            _screenReader.Speak(status);
+            MessageBox.Show(this, status, updateTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
         mainPanel.Controls.Add(updateButton, 0, row);
         mainPanel.SetColumnSpan(updateButton, 2);
@@ -596,5 +607,135 @@ public class AccessibleSettingsForm : Form
             : "Settings successfully saved to settings.json.");
 
         Close();
+    }
+
+    /// <summary>
+    /// Downloads a confirmed update with an accessible cancellable progress dialog, verifies its
+    /// published hash, then either restarts the game to apply a code patch or hands over to the
+    /// full setup wizard. Settings, sounds and data are never removed by this flow.
+    /// </summary>
+    private async System.Threading.Tasks.Task DownloadAndInstallAsync(GameUpdateOffer offer, string updateTitle)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var progressForm = new UpdateDownloadProgressForm(_screenReader, offer, cancellation);
+        progressForm.Show(this);
+        string? downloadedPath = null;
+        string? failure = null;
+        var progress = new Progress<int>(percent => progressForm.ReportPercent(percent));
+        try
+        {
+            downloadedPath = await GameUpdateDownloader.DownloadAsync(offer, progress, cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            failure = LocalizationService.Text("ألغيت التنزيل. لم يتغير شيء في اللعبة، ويمكنك المحاولة لاحقاً وسيكمل التنزيل من حيث توقف.", "Download cancelled. Nothing in the game changed; when you try again the download resumes where it stopped.");
+        }
+        catch (Exception error) when (error is HttpRequestException or InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            failure = LocalizationService.Text("فشل التنزيل أو التحقق من التحديث. لم يتم تثبيت أي شيء ولم تتغير نسختك. تحقق من الاتصال وحاول مرة أخرى.", "The download or its verification failed. Nothing was installed and your version is unchanged. Check your connection and try again.");
+        }
+        progressForm.Close();
+        if (failure != null)
+        {
+            _screenReader.Speak(failure);
+            MessageBox.Show(this, failure, updateTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (offer.Kind == GameUpdateDownloadKind.CodePatch)
+        {
+            try { await GameUpdateDownloader.StagePatchAsync(downloadedPath!, offer, CancellationToken.None); }
+            catch (Exception error) when (error is HttpRequestException or InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                string stageFailure = LocalizationService.Text("تم تنزيل التحديث لكن فشل تجهيزه للتثبيت. لم تتغير نسختك الحالية.", "The update downloaded but could not be prepared for installation. Your current version is unchanged.");
+                _screenReader.Speak(stageFailure);
+                MessageBox.Show(this, stageFailure, updateTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            string ready = LocalizationService.Text(
+                "اكتمل التنزيل والتحقق منه. تثبيته الآن يعيد تشغيل اللعبة فوراً ويستغرق لحظات. لو اخترت لا، سيثبت تلقائياً عند فتح اللعبة في المرة القادمة. تثبيت الآن؟",
+                "Download complete and verified. Installing now restarts the game and takes moments. If you choose No, it installs automatically the next time the game opens. Install now?");
+            _screenReader.Speak(ready);
+            if (MessageBox.Show(this, ready, updateTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                _screenReader.Speak(LocalizationService.Text("جار تثبيت التحديث وإعادة تشغيل اللعبة.", "Installing the update and restarting the game."));
+                GameUpdateDownloader.RestartAndApplyPendingUpdate();
+                Application.Exit();
+            }
+            return;
+        }
+
+        string setup = LocalizationService.Text(
+            "اكتمل تنزيل حزمة التثبيت الكاملة والتحقق منها. سيغلق اللعبة ويفتح معالج التثبيت المعتاد، ويثبت فوق نسختك مع الحفاظ على إعداداتك. ابدأ التثبيت الآن؟",
+            "The full setup package finished downloading and was verified. It closes the game and opens the usual setup wizard, installing over your copy while preserving your settings. Start setup now?");
+        _screenReader.Speak(setup);
+        if (MessageBox.Show(this, setup, updateTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+        {
+            GameUpdateDownloader.LaunchInstaller(downloadedPath!, AppContext.BaseDirectory);
+            Application.Exit();
+        }
+        else
+        {
+            _screenReader.Speak(LocalizationService.Text("احتُفظ بحزمة التثبيت في مجلد Updates داخل مجلد اللعبة ويمكنك تشغيلها في أي وقت.", "The setup package was kept in the Updates folder inside the game folder and can be run at any time."));
+        }
+    }
+}
+
+/// <summary>
+/// Small accessible progress dialog for an update download: a labelled progress bar and a cancel
+/// button, with spoken percentage milestones so a screen-reader user can follow without staring.
+/// </summary>
+public sealed class UpdateDownloadProgressForm : Form
+{
+    private readonly IScreenReader _screenReader;
+    private readonly CancellationTokenSource _cancellation;
+    private readonly ProgressBar _bar;
+    private readonly Label _label;
+    private int _lastSpoken = -1;
+
+    public UpdateDownloadProgressForm(IScreenReader screenReader, GameUpdateOffer offer, CancellationTokenSource cancellation)
+    {
+        _screenReader = screenReader;
+        _cancellation = cancellation;
+        bool isArabic = MatchSettings.Current.Language == UiLanguage.Arabic;
+        Text = isArabic ? "تنزيل التحديث" : "Downloading update";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false; MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterParent;
+        Width = 420; Height = 180;
+        _label = new Label
+        {
+            Dock = DockStyle.Top,
+            Height = 40,
+            TextAlign = ContentAlignment.MiddleCenter,
+            AccessibleName = isArabic ? "حالة التنزيل" : "Download status",
+            Text = isArabic ? $"جار تنزيل الإصدار {offer.Version}... 0%" : $"Downloading version {offer.Version}... 0%"
+        };
+        _bar = new ProgressBar { Dock = DockStyle.Top, Height = 30, Minimum = 0, Maximum = 100, AccessibleName = Text };
+        var cancel = new Button
+        {
+            Dock = DockStyle.Bottom,
+            Height = 40,
+            Text = isArabic ? "إلغاء التنزيل" : "Cancel download",
+            AccessibleName = isArabic ? "إلغاء التنزيل" : "Cancel download"
+        };
+        cancel.Click += (_, _) => { cancel.Enabled = false; _cancellation.Cancel(); };
+        Controls.Add(_bar);
+        Controls.Add(_label);
+        Controls.Add(cancel);
+    }
+
+    public void ReportPercent(int percent)
+    {
+        if (IsDisposed) return;
+        _bar.Value = Math.Clamp(percent, 0, 100);
+        bool isArabic = MatchSettings.Current.Language == UiLanguage.Arabic;
+        _label.Text = isArabic ? $"جار تنزيل التحديث... {percent}%" : $"Downloading update... {percent}%";
+        int milestone = percent / 10 * 10;
+        if (milestone != _lastSpoken && milestone % 20 == 0)
+        {
+            _lastSpoken = milestone;
+            _screenReader.Speak(isArabic ? $"تم تنزيل {milestone} بالمئة" : $"{milestone} percent downloaded", interrupt: false);
+        }
     }
 }
