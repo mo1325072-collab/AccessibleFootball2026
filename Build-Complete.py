@@ -4,6 +4,9 @@ import argparse,hashlib,json,os,shutil,subprocess,sys,urllib.request,zipfile,con
 ROOT=Path(__file__).resolve().parent
 if not (ROOT/'AccessibleFootball2026.sln').exists():ROOT=ROOT.parent
 REPO='mo1325072-collab/AccessibleFootball2026'
+RELEASES_REPO='mo1325072-collab/Accessible-Football-Releases'
+VERSION='2026.1'
+RELEASE_TITLE='Accessible Football 2026.1'
 TAG='build-inputs-2ef5d009'
 SHA='689d01ed08e3328171e11947371354e92553702374e065b586191a1e911371aa'
 SIZE=38970719
@@ -28,7 +31,7 @@ def main():
   if not exe.is_file():raise SystemExit('No rebuilt executable produced')
   patch=work/'AccessibleFootball2026-CodePatch.zip'
   with zipfile.ZipFile(patch,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:z.write(exe,exe.name)
-  record={'artifact':patch.name,'bytes':patch.stat().st_size,'sha256':digest(patch),'exe_bytes':exe.stat().st_size,'exe_sha256':digest(exe),'assets_changed':False,'native_windows_acceptance':False}
+  record={'artifact':patch.name,'bytes':patch.stat().st_size,'sha256':digest(patch),'exe_bytes':exe.stat().st_size,'exe_sha256':digest(exe),'assets_changed':False,'version':VERSION,'native_windows_acceptance':False}
   patch.with_suffix('.json').write_text(json.dumps(record,indent=2))
   print(json.dumps(record,indent=2));print('Close the existing game, back up its EXE, and replace only AccessibleFootball2026.exe in the installed game folder. Keep Assets, database, DLLs and settings. This is not an automatic updater or completed native acceptance test.')
   return
@@ -121,12 +124,25 @@ def main():
   iscc=next((str(p) for p in candidates if p.is_file()),None)
  if not iscc:raise SystemExit('Game rebuilt with all assets. Install official Inno Setup6.5.0+ or supply --iscc ISCC.exe.')
  if not (Path(iscc).resolve().parent/'Languages'/'Arabic.isl').is_file():raise SystemExit('Arabic installer messages missing. Install official Inno Setup6.5.0 or newer, then retry.')
- iss=work/'complete.iss';iss.write_text('[Setup]\nAppId=AccessibleFootball2026-Full\nAppName=Accessible Football 2026\nAppVersion=2026.11.14\nDefaultDirName={localappdata}\\AccessibleFootball2026\nDefaultGroupName=Accessible Football 2026\nPrivilegesRequired=lowest\nOutputDir=output\nOutputBaseFilename=AccessibleFootball2026-Full-Setup\nCompression=lzma2/fast\nSolidCompression=no\nDiskSpanning=no\nDisableDirPage=no\nDisableProgramGroupPage=no\nDisableWelcomePage=no\nShowLanguageDialog=yes\nUsePreviousLanguage=no\n[Languages]\nName: "ar"; MessagesFile: "compiler:Languages\\Arabic.isl"\nName: "en"; MessagesFile: "compiler:Default.isl"\n[Files]\nSource: "'+str(game)+'\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs\n[Icons]\nName: "{group}\\Accessible Football 2026"; Filename: "{app}\\AccessibleFootball2026.exe"; WorkingDir: "{app}"\n',encoding='utf-8')
+ iss=work/'complete.iss';iss.write_text('[Setup]\nAppId=AccessibleFootball2026-Full\nAppName=Accessible Football 2026\nAppVersion='+VERSION+'\nDefaultDirName={localappdata}\\AccessibleFootball2026\nDefaultGroupName=Accessible Football 2026\nPrivilegesRequired=lowest\nOutputDir=output\nOutputBaseFilename=AccessibleFootball2026-Full-Setup\nCompression=lzma2/fast\nSolidCompression=no\nDiskSpanning=no\nDisableDirPage=no\nDisableProgramGroupPage=no\nDisableWelcomePage=no\nShowLanguageDialog=yes\nUsePreviousLanguage=no\n[Languages]\nName: "ar"; MessagesFile: "compiler:Languages\\Arabic.isl"\nName: "en"; MessagesFile: "compiler:Default.isl"\n[Files]\nSource: "'+str(game)+'\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs\n[Icons]\nName: "{group}\\Accessible Football 2026"; Filename: "{app}\\AccessibleFootball2026.exe"; WorkingDir: "{app}"\n',encoding='utf-8')
  subprocess.run([iscc,str(iss)],check=True)
  exe=work/'output'/'AccessibleFootball2026-Full-Setup.exe'
  if not exe.is_file() or list(exe.parent.glob('*.bin')):raise SystemExit('Not a complete one-file installer')
  reduction['installer_compiled']=True;reduction['installer_bytes']=exe.stat().st_size;reduction['installer_sha256']=digest(exe)
  (work/'package-verification.json').write_text(json.dumps(reduction,indent=2))
  print('BUILT',exe,'bytes',exe.stat().st_size,'SHA256',digest(exe))
+
+ # Emit the in-game updater's release assets next to the installer: its hash record, plus the
+ # code-only patch (fresh EXE from this exact build) for players whose audio/data is unchanged.
+ setup_record={'artifact':exe.name,'bytes':exe.stat().st_size,'sha256':digest(exe),'assets_changed':True,'version':VERSION}
+ (work/'output'/'AccessibleFootball2026-Full-Setup.json').write_text(json.dumps(setup_record,indent=2))
+ built_exe=game/'AccessibleFootball2026.exe'
+ patch=work/'output'/'AccessibleFootball2026-CodePatch.zip'
+ with zipfile.ZipFile(patch,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:z.write(built_exe,built_exe.name)
+ patch_record={'artifact':patch.name,'bytes':patch.stat().st_size,'sha256':digest(patch),'exe_bytes':built_exe.stat().st_size,'exe_sha256':digest(built_exe),'assets_changed':False,'version':VERSION}
+ (work/'output'/'AccessibleFootball2026-CodePatch.json').write_text(json.dumps(patch_record,indent=2))
+ print('Release assets ready in build-complete/output: installer, installer JSON, code patch, patch JSON.')
+ print('Publish them as release "'+RELEASE_TITLE+'" (tag game-v'+VERSION+') on https://github.com/'+RELEASES_REPO+'/releases so the in-game updater can find and verify them.')
+ print('Include the code patch assets only when audio/data content is unchanged since the previous release; otherwise publish installer + installer JSON only.')
  print('Still requires clean offline Windows/NVDA/audio/controls acceptance. No game was launched.')
 if __name__=='__main__':main()
