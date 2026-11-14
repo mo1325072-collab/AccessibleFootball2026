@@ -129,6 +129,14 @@ foreach(var (kind,alias) in new (AccessibleFootball2026.Core.MatchEventType,stri
  (AccessibleFootball2026.Core.MatchEventType.PenaltyAwarded,"whistle"),
  (AccessibleFootball2026.Core.MatchEventType.OpponentTackleSuccessful,"earcon_ch")})
  RouteCheck(new AccessibleFootball2026.Core.MatchEvent(kind,"event"),alias,"match event reaches its production effect path: "+kind);
+// Added-time board is an announcement while play continues, not a referee whistle.
+anthemCommands.Clear();effectsCoordinator.HandleMatchEvent(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.StoppageTimeAnnounced,"added time"));
+Check(!anthemCommands.Any(c=>c=="play whistle from 0"),"added-time announcement cannot whistle over continuing play");
+foreach(var ongoing in new[]{AccessibleFootball2026.Core.MatchEventType.BallKicked,AccessibleFootball2026.Core.MatchEventType.ShotTaken,AccessibleFootball2026.Core.MatchEventType.BallTrapped})
+{
+ anthemCommands.Clear();effectsCoordinator.HandleMatchEvent(new AccessibleFootball2026.Core.MatchEvent(ongoing,"ongoing play"));
+ Check(!anthemCommands.Any(c=>c=="play whistle from 0"),"ordinary play cannot emit a referee whistle: "+ongoing);
+}
 var videoReader=new ControlledReader();var videoAudio=new SmartAudioCoordinator(videoReader);SmartAudioCoordinator.SilenceLiveMatchSpeech=true;
 videoAudio.HandleMatchEvent(new AccessibleFootball2026.Core.MatchEvent(AccessibleFootball2026.Core.MatchEventType.VideoReviewStarted,"VAR checking"));
 Check(videoReader.Pending.Count==1&&videoAudio.HasPendingVideoAnnouncement,"VAR checking bypasses live silence and waits for actual reader completion");
