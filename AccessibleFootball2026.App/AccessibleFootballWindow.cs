@@ -281,8 +281,8 @@ public class AccessibleFootballWindow : Form
     {
         // Never speak or display a dialog over the exclusive intro or a match.
         if (_startupUpdate == null || _isInStartupIntro || _activeMatch != null || _currentMenu == null || !ContainsFocus) return;
-        _screenReader.Speak(T($"يتوفر تحديث للعبة {_startupUpdate.Version}. افتح الإعدادات ثم التحقق من وجود تحديثات للتفاصيل.",
-            $"Game update {_startupUpdate.Version} is available. Open Settings, then Check for updates, for details."), interrupt: false);
+        _screenReader.Speak(T($"يتوفر تحديث للعبة {_startupUpdate.Version}. افتح الإعدادات ثم التحقق من وجود تحديثات لتنزيله وتثبيته من داخل اللعبة.",
+            $"Game update {_startupUpdate.Version} is available. Open Settings, then Check for updates, to download and install it inside the game."), interrupt: false);
         _startupUpdate = null;
     }
 
