@@ -36,6 +36,8 @@ public static class SoundAcademyMenuBuilder
                 StopPreview(anthemEngine);
                 bool played = TryPlayPreview(item.Id, anthemEngine);
                 string status = played ? "" : LocalizationService.Text(" العينة غير متاحة أو تعذر تشغيلها بالمستوى الصوتي الحالي.", " Sample unavailable or could not play at the current volume.");
+                if (!played && SoundEffectsPlayer.LastPlaybackFailure is { } failure && item.Id.StartsWith("Beacon", StringComparison.Ordinal) == false)
+                    status += LocalizationService.Text($" سبب فشل الصوت: {failure.Stage}، رمز {failure.ErrorCode}.", $" Audio failure: {failure.Stage}, code {failure.ErrorCode}.");
                 screenReader.Speak($"{itemName}. {itemDesc}{status}", interrupt: true);
             }, description: itemDesc, suppressSelectionSound: true);
         }
