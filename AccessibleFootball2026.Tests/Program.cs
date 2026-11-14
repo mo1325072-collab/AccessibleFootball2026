@@ -35,7 +35,23 @@ public static class Program
     private const uint MAPVK_VK_TO_CHAR = 2;
     private const uint MAPVK_VSC_TO_VK_EX = 3;
 
-    private static AccessibleFootballWindow CreateTestWindow(out KeyboardInputHandler inputHandler)
+    private static void TestStartupRequiresExplicitKey()
+    {
+        foreach(var key in new[]{Keys.Enter,Keys.Space})
+        {
+            using var window=CreateTestWindow(out _,skipStartup:false);
+            window.Show();Application.DoEvents();
+            object? Field(string name)=>typeof(AccessibleFootballWindow).GetField(name,BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(window);
+            void Down(Keys value)=>typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyDown",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(window,new object?[]{window,new KeyEventArgs(value)});
+            Assert(Field("_currentMenu")==null&&Field("_isInStartupIntro") is true,"startup exposes no menu before explicit Enter/Space even if audio unavailable");
+            Down(Keys.Down);Assert(Field("_currentMenu")==null,"startup arrows cannot expose a menu");
+            Down(key);Assert(Field("_currentMenu")!=null&&Field("_isInStartupIntro") is false,"explicit startup key opens main menu");
+            var menu=Field("_currentMenu");Down(key);Assert(ReferenceEquals(menu,Field("_currentMenu")),"held startup key cannot activate the newly opened menu");
+            typeof(AccessibleFootballWindow).GetMethod("OnWindowKeyUp",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(window,new object?[]{window,new KeyEventArgs(key)});
+        }
+    }
+
+    private static AccessibleFootballWindow CreateTestWindow(out KeyboardInputHandler inputHandler, bool skipStartup = true)
     {
         string baseAudioDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio");
         Directory.CreateDirectory(baseAudioDir);
@@ -54,7 +70,10 @@ public static class Program
         typeof(AccessibleFootballWindow).GetField("_isInStartupIntro", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, false);
         window.Shown += (_, _) =>
         {
+            if (!skipStartup) return;
             typeof(AccessibleFootballWindow).GetField("_isInStartupIntro", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, false);
+            var startup=(MatchLineupInput)typeof(AccessibleFootballWindow).GetField("_startupInput", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(window)!;
+            startup.Complete();startup.ReleaseAll();
             window.OpenMainMenu();
         };
         window.Disposed += (_, _) =>
@@ -76,6 +95,7 @@ public static class Program
 
         try
         {
+            TestStartupRequiresExplicitKey();
             TestPreMatchLineupGate();
             TestBilingualSettingsPreserveControls();
             TestSettingsSaveReloadCancelAndFailure();
