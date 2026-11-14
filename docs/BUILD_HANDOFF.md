@@ -68,5 +68,8 @@ Startup hides menus while its theme is active; natural completion opens the main
 
 Staged payload verification also ran after relocation to a separate installed-style folder. The nine semantic previews, Move/Select, pass/shot/cross/whistle and GoalBeacon resolved from that folder and reached their recorded command routes. Removing TackleWon from the relocated package caused a hard pre-initialization failure without regenerating it. Existing pause/exit/commentary and live-match menu-music contract tests remain passing. These checks do not replace compiling/running Inno or listening on Windows.
 
+## In-game updates, November 15
+The game now downloads and installs official updates itself from the separate releases repository `Accessible-Football-Releases`, with resumable downloads, SHA256 verification and a bandwidth-saving code-patch path. The full build additionally emits the four release assets (installer + hash record, code patch + patch record) into `build-complete/output`. Publishing steps, safety rules and the public-visibility requirement: `docs/GAME_UPDATES.md`. Game version is now 2026.1 across `Build-Complete.py`, the app project and the update checker.
+
 ## Startup completion clarification
 Latest user clarification supersedes the earlier explicit-key-only interpretation: while the startup theme is active no menu is exposed; natural completion automatically opens the main menu. Enter or Space skips early, with the existing release latch preventing held-key activation of the newly opened menu. A failed intro start also goes to the menu rather than leaving an indefinite silent gate. Pre-match opening music already completes naturally into gameplay and remains early-skippable. Replay timing and Enter confirmation are unchanged.
