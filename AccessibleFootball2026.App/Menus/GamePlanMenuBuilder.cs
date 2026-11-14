@@ -58,6 +58,44 @@ public static class GamePlanMenuBuilder
         return menu;
     }
 
+    private static readonly string[] OrdinalAr = ["الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة"];
+    private static readonly string[] OrdinalEn = ["first", "second", "third", "fourth", "fifth"];
+
+    /// <summary>
+    /// One step of the pre-shootout taker choice: the player picks who shoots next from the
+    /// remaining eligible players, five picks in order. Each pick is spoken and advances to the
+    /// next menu; an escape item keeps the squad's default order instead. Keyboard and
+    /// screen-reader flow only; it never touches the direct kick controls that follow.
+    /// </summary>
+    public static AccessibleMenu CreateShootoutTakerOrderMenu(
+        ShootoutRoster roster, int totalPicks, List<Player> chosen, IScreenReader reader,
+        Action<AccessibleMenu> pushMenu, Action onComplete)
+    {
+        int pick = chosen.Count;
+        var menu = new AccessibleMenu(T($"اختر مسدد الضربة {OrdinalAr[pick]}",
+            $"Choose the {OrdinalEn[pick]} taker"), reader);
+        foreach (var player in roster.Players.Where(p => !chosen.Contains(p)).ToArray())
+        {
+            var candidate = player;
+            menu.AddItem(T($"{candidate.Name}، تسديد {candidate.Shooting}", $"{candidate.Name}, shooting {candidate.Shooting}"), () =>
+            {
+                chosen.Add(candidate);
+                if (chosen.Count >= totalPicks)
+                {
+                    if (roster.OrderTakers(chosen))
+                        reader.Speak(T($"تم اعتماد الترتيب: {string.Join("، ", chosen.Select(p => p.Name))}.",
+                            $"Order set: {string.Join(", ", chosen.Select(p => p.Name))}."));
+                    onComplete();
+                    return;
+                }
+                pushMenu(CreateShootoutTakerOrderMenu(roster, totalPicks, chosen, reader, pushMenu, onComplete));
+            });
+        }
+        if (pick == 0)
+            menu.AddItem(T("الترتيب الافتراضي للتشكيلة دون اختيار", "Keep the squad's default order without choosing"), onComplete);
+        return menu;
+    }
+
     public static AccessibleMenu CreatePreMatchMenu(
         Team userTeam, 
         IScreenReader screenReader, 
