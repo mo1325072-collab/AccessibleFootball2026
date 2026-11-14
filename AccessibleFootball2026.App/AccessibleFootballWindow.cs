@@ -40,6 +40,7 @@ public class AccessibleFootballWindow : Form
     private readonly Stack<AccessibleMenu> _menuHistory = new();
     private AccessibleMenu? _currentMenu = null;
     private bool _isInStartupIntro = true;
+    private readonly MatchLineupInput _startupInput = new();
     private readonly AccessibleFootball2026.Core.Input.MatchLineupInput _matchLineup = new();
     private System.Windows.Forms.Timer? _startupIntroTimer;
     private GameUpdateResult? _startupUpdate;
@@ -144,7 +145,7 @@ public class AccessibleFootballWindow : Form
         KeyPress += (_, key) =>
         {
             // Consume characters without suppressing KeyUp. KeyUp is needed to release/re-arm game controls.
-            if (!_isInStartupIntro && _currentMenu == null && _activeMatch != null) key.Handled = true;
+            if (_isInStartupIntro || _startupInput.IsDismissKeyHeld || (_currentMenu == null && _activeMatch != null)) key.Handled = true;
         };
         _displayListBox.PreviewKeyDown += (_, key) =>
         {
@@ -236,6 +237,7 @@ public class AccessibleFootballWindow : Form
 
         // The intro is its own state, not a main menu with music over it.
         _isInStartupIntro = true;
+        _startupInput.Begin();
         _currentMenu = null;
         _menuHistory.Clear();
         _displayListBox.Items.Clear();
@@ -245,11 +247,15 @@ public class AccessibleFootballWindow : Form
         SoundEffectsPlayer.StopMenuMusic();
         _statusLabel.Text = T("الافتتاحية", "Introduction");
         _hintLabel.Text = T("Enter أو Space لتخطي الافتتاحية", "Enter or Space skips the introduction");
-        if (!_anthemEngine.PlayChampionsLeagueSample()) { CompleteStartupIntro(); return; }
+        if (!_anthemEngine.PlayChampionsLeagueSample()) return; // Still wait for the user's Enter/Space.
         _startupIntroTimer = new System.Windows.Forms.Timer { Interval = 100 };
         _startupIntroTimer.Tick += (_, _) =>
         {
-            if (_isInStartupIntro && _anthemEngine.HasPlaybackCompleted) CompleteStartupIntro();
+            if (_isInStartupIntro && _anthemEngine.HasPlaybackCompleted)
+            {
+                _startupIntroTimer?.Stop();
+                // Audio completion never exposes menus. Only explicit Enter/Space ends startup.
+            }
         };
         _startupIntroTimer.Start();
     }
@@ -262,6 +268,7 @@ public class AccessibleFootballWindow : Form
         _startupIntroTimer = null;
         _anthemEngine.StopAllSounds();
         _isInStartupIntro = false;
+        _startupInput.Complete();
         OpenMainMenu();
         if (MatchSettings.Current.CheckForUpdatesOnStartup) _ = CheckStartupUpdatesAsync();
     }
@@ -298,6 +305,7 @@ public class AccessibleFootballWindow : Form
         base.OnDeactivate(e);
         _inputHandler.Reset();
         _matchLineup.ReleaseAll();
+        _startupInput.ReleaseAll();
         _shootoutInput?.ReleaseAll();
         _shootoutHeld.Clear();
     }
@@ -399,6 +407,12 @@ public class AccessibleFootballWindow : Form
     public void OpenMainMenu()
     {
         if (_isInStartupIntro) return;
+        _matchLineup.Complete();
+        _matchLineup.ReleaseAll();
+        _shootoutAimTimer?.Stop();
+        _submitShootoutInput = null;
+        _shootoutInput = null;
+        _activeMatch = null;
         _commentaryEngine.EndPlaybackScope();
         SoundEffectsPlayer.StopAll();
         SoundEffectsPlayer.SetMatchAudioContext(false);
@@ -1384,12 +1398,11 @@ public class AccessibleFootballWindow : Form
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_isInStartupIntro)
+        if (_startupInput.KeyDown((int)e.KeyCode, out bool finishStartup) || _isInStartupIntro)
         {
-            // Suppress all control navigation during the exclusive intro, including the ListBox's defaults.
             e.Handled = true;
-            e.SuppressKeyPress = true;
-            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) CompleteStartupIntro();
+            e.SuppressKeyPress = false; // KeyPress is consumed separately; keep KeyUp for the dismiss latch.
+            if (finishStartup) CompleteStartupIntro();
             return;
         }
         if (_matchLineup.KeyDown((int)e.KeyCode,out bool skipLineup))
@@ -1593,6 +1606,7 @@ public class AccessibleFootballWindow : Form
 
     private void OnWindowKeyUp(object? sender, KeyEventArgs e)
     {
+        if (_startupInput.KeyUp((int)e.KeyCode)) { e.Handled=true; return; }
         if (_matchLineup.KeyUp((int)e.KeyCode)) { e.Handled=true; return; }
         _shootoutHeld.Remove(e.KeyCode);
         _shootoutInput?.KeyUp((int)e.KeyCode);
