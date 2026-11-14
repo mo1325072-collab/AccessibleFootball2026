@@ -658,9 +658,19 @@ public class AccessibleSettingsForm : Form
             _screenReader.Speak(ready);
             if (MessageBox.Show(this, ready, updateTitle, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
-                _screenReader.Speak(LocalizationService.Text("جار تثبيت التحديث وإعادة تشغيل اللعبة.", "Installing the update and restarting the game."));
-                GameUpdateDownloader.RestartAndApplyPendingUpdate();
-                Application.Exit();
+                if (GameUpdateDownloader.TryStartApplier())
+                {
+                    _screenReader.Speak(LocalizationService.Text("جار تثبيت التحديث وإعادة تشغيل اللعبة.", "Installing the update and restarting the game."));
+                    Application.Exit();
+                }
+                else
+                {
+                    string applierFailure = LocalizationService.Text(
+                        "تعذر بدء تثبيت التحديث الآن. سيبقى محفوظاً وسيثبت عند فتح اللعبة في المرة القادمة.",
+                        "The update could not start installing now. It stays downloaded and installs the next time the game opens.");
+                    _screenReader.Speak(applierFailure);
+                    MessageBox.Show(this, applierFailure, updateTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
             return;
         }
