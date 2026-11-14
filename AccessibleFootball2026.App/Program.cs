@@ -27,8 +27,14 @@ internal static class Program
         // Temporary applier copy: wait for the game to exit, swap in the staged update, relaunch.
         if (args.Length >= 4 && args[0] == "--apply-update") return GameUpdateDownloader.ApplyUpdateEntry(args);
 
-        // A staged code patch is applied before anything else starts, never during a match.
-        GameUpdateDownloader.ApplyPendingUpdateIfAny(AppContext.BaseDirectory);
+        // A staged code patch can never be swapped over this running process's own locked
+        // executable, so before anything else loads, hand off to the applier copy: it waits
+        // for this process to exit, swaps the staged build in, and relaunches the game with
+        // --after-update-attempt, which marks the relaunch so a failed swap cannot loop.
+        if (GameUpdateDownloader.HasPendingUpdate(AppContext.BaseDirectory) &&
+            !args.Contains("--after-update-attempt") &&
+            GameUpdateDownloader.TryStartApplier())
+            return 0;
 
         bool runOnlyTest = args.Contains("--test") || args.Contains("-t");
 
