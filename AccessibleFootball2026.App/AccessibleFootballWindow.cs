@@ -247,15 +247,11 @@ public class AccessibleFootballWindow : Form
         SoundEffectsPlayer.StopMenuMusic();
         _statusLabel.Text = T("الافتتاحية", "Introduction");
         _hintLabel.Text = T("Enter أو Space لتخطي الافتتاحية", "Enter or Space skips the introduction");
-        if (!_anthemEngine.PlayChampionsLeagueSample()) return; // Still wait for the user's Enter/Space.
+        if (!_anthemEngine.PlayChampionsLeagueSample()) { CompleteStartupIntro(); return; }
         _startupIntroTimer = new System.Windows.Forms.Timer { Interval = 100 };
         _startupIntroTimer.Tick += (_, _) =>
         {
-            if (_isInStartupIntro && _anthemEngine.HasPlaybackCompleted)
-            {
-                _startupIntroTimer?.Stop();
-                // Audio completion never exposes menus. Only explicit Enter/Space ends startup.
-            }
+            if (_isInStartupIntro && _anthemEngine.HasPlaybackCompleted) CompleteStartupIntro();
         };
         _startupIntroTimer.Start();
     }
