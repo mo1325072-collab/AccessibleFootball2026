@@ -44,6 +44,19 @@ foreach(int skipKey in new[]{13,32})
     if(lineupGate.IsActive||lineupGate.KeyDown(87,out skip))throw new Exception("natural completion enables gameplay without a key");
 }
 Console.WriteLine("PASS lineup gate consumes controls, Enter/Space skips, held skip repeats cannot trigger radar, natural completion unlocks play");
+// Startup uses the same gate but NEVER calls Complete merely because the audio ended.
+foreach(int startKey in new[]{13,32})
+{
+ var startupGate=new MatchLineupInput();startupGate.Begin();
+ if(!startupGate.IsActive||startupGate.KeyDown(40,out var enterRequested)==false||enterRequested)throw new Exception("startup arrow must remain gated");
+ // No completion call on elapsed media time or failed playback: only explicit key requests completion.
+ if(!startupGate.IsActive)throw new Exception("startup cannot expose menu on elapsed audio time");
+ startupGate.KeyDown(startKey,out enterRequested);if(!enterRequested)throw new Exception("startup Enter/Space required");startupGate.Complete();
+ if(!startupGate.IsDismissKeyHeld||!startupGate.KeyDown(startKey,out enterRequested)||enterRequested)throw new Exception("startup held key must not activate menu");
+ startupGate.KeyUp(startKey);if(startupGate.IsDismissKeyHeld)throw new Exception("startup release must clear latch");
+}
+Console.WriteLine("PASS startup explicit-key gate and held-key release without menu fallthrough");
+
 
 var direct = new DirectShootoutInput();
 direct.KeyDown(0x26);direct.Tick(.2f);direct.KeyUp(0x26);
