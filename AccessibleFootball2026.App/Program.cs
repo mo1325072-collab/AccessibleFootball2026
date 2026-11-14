@@ -24,6 +24,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // Temporary applier copy: wait for the game to exit, swap in the staged update, relaunch.
+        if (args.Length >= 4 && args[0] == "--apply-update") return GameUpdateDownloader.ApplyUpdateEntry(args);
+
+        // A staged code patch is applied before anything else starts, never during a match.
+        GameUpdateDownloader.ApplyPendingUpdateIfAny(AppContext.BaseDirectory);
+
         bool runOnlyTest = args.Contains("--test") || args.Contains("-t");
 
         if (runOnlyTest)
