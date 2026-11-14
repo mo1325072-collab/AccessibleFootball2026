@@ -291,12 +291,28 @@ Check(parsed.State==AccessibleFootball2026.App.GameUpdateState.Available,"a publ
 Check(parsed.Offer!=null&&parsed.Offer.Kind==AccessibleFootball2026.App.GameUpdateDownloadKind.CodePatch&&parsed.Offer.Asset.Name=="AccessibleFootball2026-CodePatch.zip","updater prefers the small code patch when the release ships one");
 Check(parsed.Offer!=null&&parsed.Offer.HashRecordAsset.Name=="AccessibleFootball2026-CodePatch.json"&&parsed.Offer.InstallerAsset.Name=="AccessibleFootball2026-Full-Setup.exe","offer carries its hash record and the full installer fallback");
 Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.2","2026-11-20T12:00:00Z",fullAssets)})).Offer!.Kind==AccessibleFootball2026.App.GameUpdateDownloadKind.FullInstaller,"a release without patch assets offers the full installer");
-Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.2","2026-11-18T12:00:00Z",fullAssets),Release("game-v2026.1","2026-11-20T12:00:00Z",fullAssets)})).Offer!.Version=="2026.1","newest published release wins even with a lower version number");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.2","2026-11-18T12:00:00Z",fullAssets),Release("game-v2026.1","2026-11-20T12:00:00Z",fullAssets)})).Offer!.Version=="2026.2","the higher version wins even when an older version was published later");
 Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.1","2026-11-20T12:00:00Z",allAssets)})).State==AccessibleFootball2026.App.GameUpdateState.Current,"installed tag confirms current only against the same release tag");
+// Version ordering, downgrade protection and legacy migration.
+Check(AccessibleFootball2026.App.GameUpdateChecker.CompareVersions(new Version(2026,11,14),new Version(2026,1))<0,"a legacy date-scheme version orders before the current scheme");
+Check(AccessibleFootball2026.App.GameUpdateChecker.CompareVersions(new Version(2026,1),new Version(2026,11,14))>0,"the current scheme outranks every legacy date-scheme version");
+Check(AccessibleFootball2026.App.GameUpdateChecker.CompareVersions(new Version(2026,2),new Version(2026,1))>0&&AccessibleFootball2026.App.GameUpdateChecker.CompareVersions(new Version(2026,1),new Version(2026,1))==0,"same-scheme versions compare numerically");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.0","2026-11-25T12:00:00Z",allAssets)})).State==AccessibleFootball2026.App.GameUpdateState.Current,"an older release published later is never offered as an update");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.11.20","2026-11-26T12:00:00Z",allAssets)})).State==AccessibleFootball2026.App.GameUpdateState.Current,"a legacy-scheme tag published later cannot pull a current install backwards");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.1.0","2026-11-26T12:00:00Z",allAssets)})).State==AccessibleFootball2026.App.GameUpdateState.Current,"an aliased three-part tag of the installed version is not a reinstall prompt");
+var migration=AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.1","2026-11-20T12:00:00Z",allAssets)}),"2026.11.14");
+Check(migration.State==AccessibleFootball2026.App.GameUpdateState.Available&&migration.Version=="2026.1","a legacy date-scheme install is migrated to the first current-scheme release");
+Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(JsonSerializer.Serialize(new[]{Release("game-v2026.1","2026-11-20T12:00:00Z",allAssets),Release("game-v2026.2","2026-11-21T12:00:00Z",allAssets)}),"2026.11.14").Version=="2026.2","a legacy install is offered the highest current-scheme release");
 foreach(var invalid in new[]{updateJson.Replace("game-v","build-inputs-"),updateJson.Replace("Full-Setup.exe","ExtraAudio.bin"),updateJson.Replace("Full-Setup.json","ExtraAudio.json"),updateJson.Replace("\"prerelease\":false","\"prerelease\":true"),updateJson.Replace("\"draft\":false","\"draft\":true"),updateJson.Replace("Accessible-Football-Releases","AccessibleFootball2026"),"[]"})Check(AccessibleFootball2026.App.GameUpdateChecker.Parse(invalid).State==AccessibleFootball2026.App.GameUpdateState.NoPublishedGame,"build inputs, other repos, pre-releases, drafts and missing installer/hash assets are not game updates");
 Check(AccessibleFootball2026.App.GameUpdateChecker.Parse("{}").State==AccessibleFootball2026.App.GameUpdateState.Failed,"unexpected API response is failure, not up-to-date");
-var goodRecord=AccessibleFootball2026.App.GameUpdateDownloader.ParseHashRecord("{\"artifact\":\"AccessibleFootball2026-CodePatch.zip\",\"bytes\":90000000,\"sha256\":\""+new string('a',64)+"\",\"exe_bytes\":85000000,\"exe_sha256\":\""+new string('b',64)+"\",\"assets_changed\":false}","AccessibleFootball2026-CodePatch.zip");
-Check(goodRecord!=null&&goodRecord.Bytes==90000000&&goodRecord.ExeSha256==new string('b',64)&&!goodRecord.AssetsChanged,"published patch hash record parses with exe verification fields");
+var goodRecord=AccessibleFootball2026.App.GameUpdateDownloader.ParseHashRecord("{\"artifact\":\"AccessibleFootball2026-CodePatch.zip\",\"bytes\":90000000,\"sha256\":\""+new string('a',64)+"\",\"exe_bytes\":85000000,\"exe_sha256\":\""+new string('b',64)+"\",\"assets_changed\":false,\"base_version\":\"2026.1\"}","AccessibleFootball2026-CodePatch.zip");
+Check(goodRecord!=null&&goodRecord.Bytes==90000000&&goodRecord.ExeSha256==new string('b',64)&&!goodRecord.AssetsChanged&&goodRecord.BaseVersion=="2026.1","published patch hash record parses with exe verification and baseline fields");
+// A code patch is safe only on its exact baseline; anything else needs the full installer.
+Check(AccessibleFootball2026.App.GameUpdateDownloader.IsPatchCompatible(goodRecord!,90000000,"2026.1"),"a patch record matching the installed baseline is compatible");
+Check(!AccessibleFootball2026.App.GameUpdateDownloader.IsPatchCompatible(goodRecord!,90000000,"2026.11.14"),"a patch is never applied to an older baseline than it was built from");
+Check(!AccessibleFootball2026.App.GameUpdateDownloader.IsPatchCompatible(goodRecord! with{BaseVersion=null},90000000,"2026.1"),"a patch record without an explicit baseline is refused");
+Check(!AccessibleFootball2026.App.GameUpdateDownloader.IsPatchCompatible(goodRecord! with{AssetsChanged=true},90000000,"2026.1"),"assets_changed=true always forces the full installer");
+Check(!AccessibleFootball2026.App.GameUpdateDownloader.IsPatchCompatible(goodRecord!,90000001,"2026.1"),"a size mismatch between record and published asset forces the full installer");
 Check(AccessibleFootball2026.App.GameUpdateDownloader.ParseHashRecord(goodRecord!=null?"{\"artifact\":\"Other.zip\",\"bytes\":1,\"sha256\":\""+new string('a',64)+"\"}":"{}","AccessibleFootball2026-CodePatch.zip")==null,"a hash record for a different artifact is rejected");
 Check(AccessibleFootball2026.App.GameUpdateDownloader.ParseHashRecord("{\"artifact\":\"AccessibleFootball2026-CodePatch.zip\",\"bytes\":90000000,\"sha256\":\"not-a-hash\"}","AccessibleFootball2026-CodePatch.zip")==null,"a hash record without a real SHA256 is rejected");
 // Staged patch application swaps only the executable and preserves every other file.
@@ -309,6 +325,24 @@ AccessibleFootball2026.App.GameUpdateDownloader.ApplyPendingUpdateIfAny(fakeInst
 Check(File.ReadAllText(Path.Combine(fakeInstall,"AccessibleFootball2026.exe"))=="new-exe","pending patch replaces the executable");
 Check(File.ReadAllText(Path.Combine(fakeInstall,"players_database.json"))=="database"&&File.ReadAllText(Path.Combine(fakeInstall,"Assets","audio.wav"))=="audio","patch application preserves database and audio");
 Check(!AccessibleFootball2026.App.GameUpdateDownloader.HasPendingUpdate(fakeInstall)&&File.Exists(Path.Combine(fakeInstall,"Updates","AccessibleFootball2026.previous.exe")),"applied patch clears staging and keeps a rollback copy");
+// A locked executable (the running game on Windows) can never be swapped: staging survives untouched.
+var lockedExe=Path.Combine(fakeInstall,"AccessibleFootball2026.exe");File.WriteAllText(lockedExe,"old-exe");Directory.CreateDirectory(pending);File.WriteAllText(Path.Combine(pending,"AccessibleFootball2026.exe"),"new-exe");
+using(var lockStream=new FileStream(lockedExe,FileMode.Open,FileAccess.ReadWrite,FileShare.None))
+{
+    AccessibleFootball2026.App.GameUpdateDownloader.ApplyPendingUpdateIfAny(fakeInstall);
+    Check(AccessibleFootball2026.App.GameUpdateDownloader.HasPendingUpdate(fakeInstall),"a locked executable refuses the swap and the staged update survives for the next launch");
+    lockStream.Position=0;Check(new StreamReader(lockStream,leaveOpen:true).ReadToEnd()=="old-exe","the locked executable is left byte-for-byte intact");
+}
+AccessibleFootball2026.App.GameUpdateDownloader.ApplyPendingUpdateIfAny(fakeInstall);
+Check(File.ReadAllText(Path.Combine(fakeInstall,"AccessibleFootball2026.exe"))=="new-exe","once unlocked, the surviving staged update applies cleanly");
+// The applier waits for the game process to be fully gone before any swap.
+Check(AccessibleFootball2026.App.GameUpdateDownloader.WaitForProcessExit(int.MaxValue,TimeSpan.FromMilliseconds(500)),"a vanished game process counts as exited so the applier proceeds");
+{
+    var sleeper=OperatingSystem.IsLinux()?Process.Start("/bin/sleep","30")!:Process.Start(new ProcessStartInfo("cmd.exe","/c ping 127.0.0.1 -n 30 > nul"){CreateNoWindow=true})!;
+    Check(!AccessibleFootball2026.App.GameUpdateDownloader.WaitForProcessExit(sleeper.Id,TimeSpan.FromMilliseconds(600)),"the applier keeps waiting while the game process is alive instead of swapping over it");
+    sleeper.Kill();sleeper.WaitForExit();
+    Check(AccessibleFootball2026.App.GameUpdateDownloader.WaitForProcessExit(sleeper.Id,TimeSpan.FromSeconds(5)),"the applier proceeds once the game process has really exited");
+}
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
 sealed class Input:IInputHandler{public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>new();public bool IsActionTriggered(GameAction action,bool possession)=>false;}
