@@ -86,3 +86,6 @@ After removing the false continuous bed, crowd.active must still reflect actuall
 
 ### Native acceptance fixture refresh
 The Windows-only test harness still passed four reflected arguments to the now-five-argument match start and assumed no pre-match state. Its fixtures now explicitly select a ground and complete lineup before legacy gameplay checks; added native timer/skip/focus checks cover the new lineup. KeyUp and skip-latch checks expect Handled without SuppressKeyPress so WinForms can deliver releases. Focus loss clears a held lineup dismissal key. Lineup completion explicitly restores ListBox focus. Cross-compiling this test harness is not native Windows execution.
+
+## Added-time whistle timing correction
+Announcing the added-time board no longer emits a referee whistle while play continues. Actual foul, offside, penalty and half/full-time whistle routes remain intact. Separate negative event-routing tests cover the added-time announcement and ordinary pass, shot and reception events. This is a specific timing repair, not a claim that every user-reported wrong-time sound has been reproduced or that Windows playback was heard.
