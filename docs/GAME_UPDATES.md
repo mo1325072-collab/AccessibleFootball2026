@@ -61,9 +61,15 @@ full installer, which can bring any older copy up to date.
    - `AccessibleFootball2026-CodePatch.zip` + `AccessibleFootball2026-CodePatch.json`
 2. Create a release on the releases repository, e.g. tag `game-v2026.1`, title
    "Accessible Football 2026.1", stable (not draft, not prerelease).
-3. Upload all four files as release assets. Include the code patch pair only when audio/data
-   content is unchanged since the previous release; otherwise upload installer + installer JSON
-   only, and players receive the full installer.
+3. Upload the release assets. Include the code patch pair only when audio/data content is
+   unchanged since the previous release AND its record's `base_version` names that previous
+   version; otherwise upload installer + installer JSON only, and players receive the full
+   installer. For 2026.1 specifically: upload ONLY `AccessibleFootball2026-Full-Setup.exe` and
+   `AccessibleFootball2026-Full-Setup.json` - the current package pruned 366 unlinked chants and
+   reshaped content versus every older install, so no existing copy is asset-compatible with a
+   code patch this release, and this build's patch record deliberately carries
+   `"base_version": null` so the updater can never offer it. The patch pair returns with the
+   next content-unchanged release (`PATCH_BASE_VERSION` set to the previous version).
 4. Version numbers come from `VERSION` in `Build-Complete.py`,
    `<Version>` in `AccessibleFootball2026.App/AccessibleFootball2026.App.csproj` and
    `GameUpdateChecker.CurrentVersion`; bump all three together per release
