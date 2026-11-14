@@ -1274,12 +1274,26 @@ public class AccessibleFootballWindow : Form
 
         void PrepareEligiblePlayers()
         {
-            if(homeEligible.Players.Count <= eligibleCount) { PlayUserTurn(); return; }
+            if(homeEligible.Players.Count <= eligibleCount) { ChooseTakerOrder(); return; }
             var menu = GamePlanMenuBuilder.CreateShootoutEligibilityMenu(homeEligible, eligibleCount, _screenReader, () =>
             {
                 _currentMenu=null;_menuHistory.Clear();PrepareEligiblePlayers();
             });
             PushMenu(menu);
+        }
+
+        // Mohamed's choice: five takers picked one by one from the players on the pitch now
+        // (never the bench or substituted players), then the remaining on-pitch players follow
+        // and nobody repeats until every eligible player has taken a kick.
+        void ChooseTakerOrder()
+        {
+            int picks = Math.Min(PenaltyShootoutRules.RegulationRounds, homeEligible.Players.Count);
+            if (picks == 0) { PlayUserTurn(); return; }
+            var chosen = new List<Player>();
+            PushMenu(GamePlanMenuBuilder.CreateShootoutTakerOrderMenu(homeEligible, picks, chosen, _screenReader, PushMenu, () =>
+            {
+                _currentMenu=null;_menuHistory.Clear();PlayUserTurn();
+            }));
         }
 
         _commentaryEngine.RunAfterRecordedCommentaryAsync(async () =>
