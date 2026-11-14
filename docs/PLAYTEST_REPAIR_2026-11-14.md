@@ -9,8 +9,10 @@
 - Every recorded commentary caller shares an atomic non-preemption gate. Goals and penalties wait too. Full native/WAV duration protects long phrases; the old30-second cap is gone. Forced player callnames cannot interrupt a phrase.
 
 ## Settings update checks
+Superseded November 15: the checker-only flow below became a real in-game downloader/installer pointed at the separate releases repository; see `GAME_UPDATES.md`. The filtering rules below (build inputs are not updates, failure is not current) still hold there.
 
-The current application version is2026.11.14. Settings has a manual Check for updates button and a saved startup-check checkbox, off by default. Save Settings commits the checkbox; Cancel restores its old value. Startup checks run after the exclusive intro, never block it and never announce over a match. Only a newer available version produces a startup notice. Manual checks report current, no published game or failure distinctly.
+
+The application version at the time of that repair was2026.11.14 (now2026.1, see GAME_UPDATES.md). Settings has a manual Check for updates button and a saved startup-check checkbox, off by default. Save Settings commits the checkbox; Cancel restores its old value. Startup checks run after the exclusive intro, never block it and never announce over a match. Only a newer available version produces a startup notice. Manual checks report current, no published game or failure distinctly.
 
 This is a check and optional release-page link, not an automatic downloader/installer. GitHub release policy:
 
