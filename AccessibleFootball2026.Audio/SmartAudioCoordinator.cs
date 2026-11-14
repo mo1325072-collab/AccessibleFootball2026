@@ -207,8 +207,7 @@ public class SmartAudioCoordinator
         }
         else if (matchEvent.Type == MatchEventType.Offside 
                  || matchEvent.Type == MatchEventType.HalfTime 
-                 || matchEvent.Type == MatchEventType.FullTime 
-                 || matchEvent.Type == MatchEventType.StoppageTimeAnnounced)
+                 || matchEvent.Type == MatchEventType.FullTime)
         {
             SoundEffectsPlayer.PlayWhistle();
         }
