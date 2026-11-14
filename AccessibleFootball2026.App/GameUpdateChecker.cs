@@ -34,6 +34,7 @@ public sealed record GameUpdateResult(GameUpdateState State, string? Version = n
 public static class GameUpdateChecker
 {
     public const string CurrentVersion = "2026.1";
+    public const string LegacySchemeMarker = "2026.11.14"; // last date-scheme build; any three-part version is legacy
     public const string Repository = "mo1325072-collab/Accessible-Football-Releases";
     public const string InstalledTag = "game-v" + CurrentVersion;
     public const string InstallerName = "AccessibleFootball2026-Full-Setup.exe";
@@ -78,7 +79,7 @@ public static class GameUpdateChecker
             using var response = await Client.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
             var record = GameUpdateDownloader.ParseHashRecord(await response.Content.ReadAsStringAsync(cancellationToken), offer.Asset.Name);
-            if (record == null || record.AssetsChanged || record.Bytes != offer.Asset.Size)
+            if (record == null || !GameUpdateDownloader.IsPatchCompatible(record, offer.Asset.Size, CurrentVersion))
                 return result with { Offer = offer.AsFullInstaller() };
             return result;
         }
@@ -89,15 +90,41 @@ public static class GameUpdateChecker
     }
 
     /// <summary>
-    /// Pure release-list parse: returns the newest qualifying stable release and the preferred offer.
-    /// Qualifying means: not draft, not prerelease, a game-v tag, an uploaded full installer,
-    /// and its hash record. A code patch is offered only when both patch files are also uploaded.
+    /// Compares a candidate release version against an installed version across the scheme
+    /// change: three-part versions are the legacy date-based scheme (2026.11.14 is November 14),
+    /// two-part versions are the current scheme (2026.1). Every current-scheme version outranks
+    /// every legacy one, so the first current-scheme release reads as an upgrade for a legacy
+    /// install (explicit migration), and a legacy-scheme tag can never pull a current install
+    /// backwards, however recently it was published.
     /// </summary>
-    public static GameUpdateResult Parse(string json)
+    public static int CompareVersions(Version candidate, Version installed)
+    {
+        bool candidateLegacy = IsLegacyScheme(candidate), installedLegacy = IsLegacyScheme(installed);
+        if (candidateLegacy != installedLegacy) return candidateLegacy ? -1 : 1;
+        return candidate.CompareTo(installed);
+    }
+
+    /// <summary>Three or more version parts means the retired date-based scheme.</summary>
+    public static bool IsLegacyScheme(Version version) => version.Build >= 0;
+
+    public static GameUpdateResult Parse(string json) => Parse(json, CurrentVersion);
+
+    /// <summary>
+    /// Pure release-list parse: returns the highest-version qualifying stable release strictly
+    /// newer than the installed version, with the preferred offer. Qualifying means: not draft,
+    /// not prerelease, a game-v tag, an uploaded full installer, and its hash record. A release
+    /// whose version is equal to the installed one means Current; an older, legacy-scheme or
+    /// aliased release is never offered as an update, however recently it was published.
+    /// published_at is only the tie-breaker between two releases of the same version.
+    /// A code patch is offered only when both patch files are also uploaded; the patch record
+    /// itself is checked later against the installed baseline before any download starts.
+    /// </summary>
+    public static GameUpdateResult Parse(string json, string installedVersion)
     {
         using var document = JsonDocument.Parse(json);
         if (document.RootElement.ValueKind != JsonValueKind.Array) return new(GameUpdateState.Failed);
-        string? bestTag = null;
+        if (!Version.TryParse(installedVersion, out var installed)) return new(GameUpdateState.Failed);
+        bool anyQualifying = false;
         Version? bestVersion = null;
         DateTimeOffset bestPublished = DateTimeOffset.MinValue;
         string? releaseUrl = null;
@@ -115,20 +142,28 @@ public static class GameUpdateChecker
             var installer = FindAsset(assets, InstallerName);
             var installerRecord = FindAsset(assets, InstallerRecordName);
             if (installer == null || installerRecord == null) continue;
+            anyQualifying = true;
+            // Never offer what is already installed or anything older: no downgrades, no reinstalls.
+            if (CompareVersions(version, installed) <= 0) continue;
             var patch = FindAsset(assets, PatchName);
             var patchRecord = FindAsset(assets, PatchRecordName);
             DateTimeOffset published = release.TryGetProperty("published_at", out var publishedNode) &&
                 publishedNode.ValueKind == JsonValueKind.String &&
                 DateTimeOffset.TryParse(publishedNode.GetString(), out var parsed) ? parsed : DateTimeOffset.MinValue;
-            // Newest release wins; published_at is the primary order, version the tie-breaker.
-            if (bestTag != null && (published < bestPublished || published == bestPublished && version <= bestVersion)) continue;
-            bestTag = tag; bestVersion = version; bestPublished = published; releaseUrl = url;
+            // Highest version wins; published_at only breaks a same-version tie (re-tag).
+            if (bestVersion != null)
+            {
+                int againstBest = CompareVersions(version, bestVersion);
+                if (againstBest < 0 || againstBest == 0 && published <= bestPublished) continue;
+            }
+            bestVersion = version; bestPublished = published; releaseUrl = url;
             offer = patch != null && patchRecord != null
                 ? new(GameUpdateDownloadKind.CodePatch, version.ToString(), url!, patch, patchRecord, installer, installerRecord)
                 : new(GameUpdateDownloadKind.FullInstaller, version.ToString(), url!, installer, installerRecord, installer, installerRecord);
         }
-        if (bestTag == null) return new(GameUpdateState.NoPublishedGame);
-        return new(bestTag == InstalledTag ? GameUpdateState.Current : GameUpdateState.Available, bestVersion!.ToString(), releaseUrl, offer);
+        if (bestVersion == null)
+            return anyQualifying ? new(GameUpdateState.Current, installed.ToString()) : new(GameUpdateState.NoPublishedGame);
+        return new(GameUpdateState.Available, bestVersion.ToString(), releaseUrl, offer);
     }
 
     private static bool TryReadReleaseUrl(JsonElement release, out string? url)
