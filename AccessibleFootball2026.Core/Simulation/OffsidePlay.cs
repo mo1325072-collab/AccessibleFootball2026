@@ -53,6 +53,10 @@ public partial class MatchEngine
     private void PenaliseOffside(bool goalDisallowed)
     {
         if(_offsideOffence is not { } incident)return;
+        if (_attempts.Live is { } attempt)
+            Publish(new MatchEvent(MatchEventType.ShotAnnulled, "المحاولة ملغاة", CurrentZone, subjectPlayer: attempt.Shooter));
+        _isShotInProgress = false;
+        _shotContextValid = false;
         _offsideOffence=null;_offsidePositions.Clear();
         Publish(new MatchEvent(goalDisallowed?MatchEventType.GoalDisallowed:MatchEventType.Offside,
             goalDisallowed?"الهدف غير محتسب للتسلل":"تسلل بعد لمس الكرة",CurrentZone,subjectPlayer:incident.Player),
