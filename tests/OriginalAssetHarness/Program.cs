@@ -8,7 +8,8 @@ void Check(bool ok,string name){Console.WriteLine((ok?"PASS ":"FAIL ")+name);if(
 // Real files, recording transport only. This cannot certify native playback.
 var transport=typeof(SoundEffectsPlayer).Assembly.GetType("AccessibleFootball2026.Audio.MciPlayback")!.GetField("TestCommand",BindingFlags.Static|BindingFlags.NonPublic)!;
 Func<string,System.Text.StringBuilder?,int> recorder=(command,buffer)=>{buffer?.Append("stopped");return 0;};transport.SetValue(null,recorder);
-var music=File.ReadAllBytes(Path.Combine(root,"Menu","MenuMusic.mp3"));
+var musicPath=new[]{"MenuMusic.mp3","MenuMusic.wav"}.Select(f=>Path.Combine(root,"Menu",f)).First(File.Exists);
+var music=File.ReadAllBytes(musicPath);
 SoundEffectsPlayer.Initialize(root);
 // The runtime-selected root wins over legacy locations for every default consumer.
 string Field(object o,string n)=>(string)o.GetType().GetField(n,BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(o)!;
@@ -25,7 +26,7 @@ using(var commentary=new CommentaryEngine())Check(Field(commentary,"_baseComment
 int generatedBeforeFullPack=SoundEffectsPlayer.SyntheticAssetsGenerated.Count;
 SoundEffectsPlayer.Initialize(root);
 
-Check(music.SequenceEqual(File.ReadAllBytes(Path.Combine(root,"Menu","MenuMusic.mp3"))),"initialization preserves exact Gemini menu music");
+Check(music.SequenceEqual(File.ReadAllBytes(musicPath)),"initialization preserves exact shipped menu music");
 Check(SoundEffectsPlayer.SyntheticAssetsGenerated.Count==generatedBeforeFullPack,"complete original pack needs no generated match-impact fallback");
 foreach(var id in new[]{"BallKick","PowerfulShot","RefereeWhistle","WoodworkHit","CrowdAmbiance","GoalRoar","MissGasp"})
  Check(SoundEffectsPlayer.TryPlayAcademySample(id),"original recording reaches academy playback: "+id);
