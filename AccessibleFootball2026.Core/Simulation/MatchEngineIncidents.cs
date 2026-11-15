@@ -551,7 +551,7 @@ public partial class MatchEngine
     public void TriggerPenaltyAwarded(string desc = "ركلة جزاء!") =>
         Publish(new MatchEvent(MatchEventType.PenaltyAwarded, desc, CurrentZone, spatialPan: CalculateBallPan()));
 
-    private void CheckRefereeRules()
+    private void CheckRefereeRules(Vector3 previousBall)
     {
         // 0. فحص تصدي الحارس أو ارتطام الكرة بالقائم/العارضة أثناء التسديد
         if (_isShotInProgress)
@@ -639,6 +639,18 @@ public partial class MatchEngine
             }
             // لا إيقاف لمراجعة كل هدف: الفحص صامت والمراجعة فقط لوقائع حاسمة (تسلل/خطأ) — بناءً على ملاحظة اللاعب 15 نوفمبر 2026.
             // No VAR hold on routine goals: checks are silent; only decisive incidents (offside above) stop play.
+            // Goal provenance: reconstruct the goal-line crossing from the pre-integration ball position
+            // instead of recording only the post-integration overshoot position.
+            // A goal is the registered shot's own outcome only while that same shot is still live
+            // and untouched: any catch, carry or new touch since the shot starts a new attempt.
+            bool goalShotWasInProgress = _isShotInProgress && Ball.Owner == null
+                && LastKicker != null && LastKicker == _shotShooter;
+            Player? goalCarrier = Ball.Owner;
+            float goalPlaneX = forTeamAttackingRight ? Pitch.Length : 0.0f;
+            float goalDx = Ball.Position.X - previousBall.X;
+            float goalTCross = Math.Abs(goalDx) > 1e-6f ? Math.Clamp((goalPlaneX - previousBall.X) / goalDx, 0f, 1f) : 1f;
+            float goalCrossingY = previousBall.Y + goalTCross * (Ball.Position.Y - previousBall.Y);
+            float goalCrossingZ = previousBall.Z + goalTCross * (Ball.Position.Z - previousBall.Z);
             _isShotInProgress = false;
             if (ActivePassTransit != null)
             {
@@ -661,6 +673,11 @@ public partial class MatchEngine
 
             if (!isOwnGoal) scorer.MatchGoalsCount++;
 
+            string goalMechanism = isOwnGoal ? "ownGoal"
+                : goalShotWasInProgress ? "registeredShot"
+                : goalCarrier != null ? "carried"
+                : "loose";
+
             var goalDetails = new GoalDetails(
                 scorer: scorer,
                 assister: assister,
@@ -680,7 +697,13 @@ public partial class MatchEngine
                 $"هدف لصالح {scoringTeam.Name}!",
                 CurrentZone,
                 goalDetails
-            ));
+            ),
+                ("goal.mechanism", goalMechanism),
+                ("goal.registeredShot", goalShotWasInProgress && !isOwnGoal),
+                ("goal.crossingX", goalPlaneX),
+                ("goal.crossingY", Math.Round(goalCrossingY, 2)),
+                ("goal.crossingZ", Math.Round(goalCrossingZ, 2)),
+                ("goal.end", forTeamAttackingRight ? "right" : "left"));
 
             // 1. فحص الهاتريك (Hat-Trick)
             if (!isOwnGoal)
