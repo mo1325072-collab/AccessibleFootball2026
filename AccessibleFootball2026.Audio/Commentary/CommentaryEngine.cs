@@ -465,7 +465,7 @@ public class CommentaryEngine : IDisposable
 
     public bool TryCommentOnEvent(MatchEvent matchEvent, bool force = false)
     {
-        if (_scopeClosed || !CommentaryAudible || matchEvent.Type == MatchEventType.MatchAbandoned) return false;
+        if (_scopeClosed || !CommentaryAudible || matchEvent.Type is MatchEventType.MatchAbandoned or MatchEventType.ShotInterrupted) return false;
         // Even goals and penalties wait for the currently spoken phrase. New events never cut a recording.
         // Admission/throttling below drops routine stale events rather than overlapping sentences.
         bool isFinalAnalysis = matchEvent.Type == MatchEventType.MatchAnalysis && matchEvent.Context.TryGet("match.finished",out var finished) && finished=="true";
