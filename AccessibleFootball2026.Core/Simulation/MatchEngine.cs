@@ -510,6 +510,7 @@ public partial class MatchEngine
     {
         bool hasPossession = Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner);
         var actions = _inputHandler.PollCurrentActions(hasPossession);
+        PublishChargeCues();
 
         if (actions.Contains(GameAction.Pause))
         {
@@ -593,7 +594,7 @@ public partial class MatchEngine
             else if (actions.Contains(GameAction.FarPostCross)) ExecuteCross(actions.Contains(GameAction.Sprint)?CrossStyle.GroundFarPost:CrossStyle.FarPost);
             else if (actions.Contains(GameAction.ShortPass))
             {
-                ExecutePass(moveDir, isThroughBall: false);
+                ExecutePass(moveDir, isThroughBall: false, charge01: _inputHandler.ConsumeReleasedCharge01(GameAction.ShortPass));
             }
             else if(actions.Contains(GameAction.LoftedThroughBall))
             {
@@ -605,11 +606,11 @@ public partial class MatchEngine
             }
             else if (actions.Contains(GameAction.Cross))
             {
-                ExecuteCross();
+                ExecuteCross(charge01: _inputHandler.ConsumeReleasedCharge01(GameAction.Cross));
             }
             else if (actions.Contains(GameAction.Shoot))
             {
-                ExecuteShot();
+                ExecuteShot(_inputHandler.ConsumeReleasedCharge01(GameAction.Shoot));
             }
         }
         else
@@ -627,6 +628,30 @@ public partial class MatchEngine
             {
                 ExecuteSlideTackle();
             }
+        }
+    }
+
+    // Hold-to-charge tactile feedback: one earcon when a charge starts, one at full power; never spoken.
+    private bool _chargeCueActive, _chargeCueMaxed;
+    private void PublishChargeCues()
+    {
+        float strongest = Math.Max(_inputHandler.ActiveCharge01(GameAction.ShortPass),
+            Math.Max(_inputHandler.ActiveCharge01(GameAction.Cross), _inputHandler.ActiveCharge01(GameAction.Shoot)));
+        if (strongest < 0f)
+        {
+            _chargeCueActive = false;
+            _chargeCueMaxed = false;
+            return;
+        }
+        if (!_chargeCueActive)
+        {
+            _chargeCueActive = true;
+            Publish(new MatchEvent(MatchEventType.KickChargeCue, "شحن قوة اللعبة", CurrentZone), ("charge.stage", "start"));
+        }
+        if (strongest >= 1f && !_chargeCueMaxed)
+        {
+            _chargeCueMaxed = true;
+            Publish(new MatchEvent(MatchEventType.KickChargeCue, "اكتمل شحن القوة", CurrentZone), ("charge.stage", "max"));
         }
     }
 
@@ -653,7 +678,7 @@ public partial class MatchEngine
         ExecutePass(aimDir, isThroughBall: true);
     }
 
-    public void ExecutePass(Vector2 aimDir, bool isThroughBall = false, bool lofted = false)
+    public void ExecutePass(Vector2 aimDir, bool isThroughBall = false, bool lofted = false, float charge01 = 0f)
     {
         if(State!=MatchState.InPlay || Ball.Owner!=ActiveUserPlayer)return;
         _kickoffProtectionTimer = 0.0f;
@@ -728,6 +753,8 @@ public partial class MatchEngine
         }
 
         float passSpeed = (isThroughBall ? 22.0f : 18.0f) * (.90f + HomeTeam.Tactics.Tempo * .002f);
+        // تمريرة مشحونة بالضغط المطوّل: نفس الهدف بسرعة أعلى تصل إلى 150%
+        if (!isThroughBall && charge01 > 0f) passSpeed *= 1f + .5f * Math.Clamp(charge01, 0f, 1f);
 
         if (CheckOffsideTrap(HomeTeam, AwayTeam, bestTarget, targetPos))
         {
@@ -774,7 +801,7 @@ public partial class MatchEngine
         ActiveUserPlayer.FacingDirection = new Vector2(finalX, finalY);
     }
 
-    public void ExecuteCross(CrossStyle style = CrossStyle.Center)
+    public void ExecuteCross(CrossStyle style = CrossStyle.Center, float charge01 = 0f)
     {
         if(State!=MatchState.InPlay || Ball.Owner!=ActiveUserPlayer)return;
         _kickoffProtectionTimer = 0.0f;
@@ -794,13 +821,15 @@ public partial class MatchEngine
         crossDir = boxCenter - ActiveUserPlayer.Position2D;
         crossDir = crossDir.LengthSquared() > .000001f ? Vector2.Normalize(crossDir) : new Vector2(UserAttackingRight ? 1 : -1, 0);
         bool ground = style is CrossStyle.Ground or CrossStyle.GroundFarPost;
-        Ball.Kick(crossDir, horizontalSpeed: ground ? 23 : 19, verticalSpeed: ground ? .1f : 6.5f, ActiveUserPlayer);
+        // عرضية مشحونة بالضغط المطوّل: كلما طال الضغط ارتفعت العرضية حتى تسقيطة كاملة
+        float chargedVertical = 6.5f + 4.5f * Math.Clamp(charge01, 0f, 1f);
+        Ball.Kick(crossDir, horizontalSpeed: ground ? 23 : 19, verticalSpeed: ground ? .1f : chargedVertical, ActiveUserPlayer);
         BeginCommentaryPass(ActiveUserPlayer, null, boxCenter, "cross", ground ? "ground" : "high", true);
         if(_attackOrigin!="corner")_attackOrigin = "cross";
         Publish(new MatchEvent(MatchEventType.BallKicked, $"عرضية عالية من {ActiveUserPlayer.Name} داخل منطقة الجزاء!", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer), ("action.kind", "cross"), ("cross.height", ground ? "ground" : "high"), ("cross.target", style is CrossStyle.FarPost or CrossStyle.GroundFarPost ? "farPost" : "center"), ("cross.targetY", boxCenter.Y));
     }
 
-    public void ExecuteShot() => TryExecuteTechnique(ShotTechnique.Driven);
+    public void ExecuteShot(float charge01 = 0f) => TryExecuteTechnique(ShotTechnique.Driven, charge01);
 
     public static string GetArabicPositionName(SpecificPosition pos) => pos switch
     {
