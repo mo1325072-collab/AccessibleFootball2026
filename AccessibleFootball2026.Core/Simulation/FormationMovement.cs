@@ -79,7 +79,13 @@ public partial class MatchEngine
     private bool ShouldTacticalPress(Team team,Player player,float baseRange)
     {
         if(Ball.Owner!=null&&!OpponentHasBall(team))return false;
-        if(Ball.Owner==null && _commentaryPass is {} pass && TeamOf(pass.Sender)==team)return false;
+        if (Ball.Owner == null)
+        {
+            // One nearest chaser per team can always reach a stranded ball, without an extra movement step.
+            // The actively controlled human remains governed by held arrow keys.
+            return player != ActiveUserPlayer && team.Players.Where(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper && p != ActiveUserPlayer)
+                .OrderBy(p => Vector2.DistanceSquared(p.Position2D, Ball.Position2D)).ThenBy(p => p.Id).FirstOrDefault() == player;
+        }
         var ball=Ball.Position2D;
         int count=team.Tactics.PressingIntensity>75?4:team.Tactics.PressingIntensity>50?3:team.Tactics.PressingIntensity>25?2:1;
         float range=TacticalPressRange(baseRange,team)*FatigueMovementMultiplier(player);
