@@ -131,7 +131,7 @@ public class CommentaryEngine : IDisposable
     // يُطلق عند بدء تشغيل مقطع مسجل فعلياً (لإسكات قارئ الشاشة حتى لا يتداخل الصوتان)
     public event Action<string>? OnRecordedCommentaryStarted;
 
-    public CommentaryEngine(CommentatorId defaultCommentator = CommentatorId.RaoufKhlif, string? baseDir = null)
+    public CommentaryEngine(CommentatorId defaultCommentator = CommentatorId.FaresAwad, string? baseDir = null)
     {
         _availableCommentators = CommentatorBank.GetAllCommentators();
         ActiveCommentator = _availableCommentators.Find(c => c.Id == defaultCommentator)
