@@ -951,11 +951,21 @@ public partial class MatchEngine
         // إذا كان هناك حامل للكرة من الفريق المنافس
         if (carrier != null)
         {
-            // المعادلة الحتمية العادلة لاستخلاص الكرة: مقارنة القرب من الكرة والقرب من جسم الخصم
             var contactIncident = CaptureLiveFoulIncident(ActiveUserPlayer, carrier, effectiveBall2D, reach,
                 isSlideTackle ? _slideImpulseVelocity : Vector2.Zero);
             bool dangerousContact = distToOpponent < .6f && contactIncident.Severity == FoulContactSeverity.EndangersSafety;
-            if (distToBall < distToOpponent && !dangerousContact)
+            // تصنيف الالتحام هندسياً بمسار الانقضاض لا بمجرد مقارنة المسافات: إن لم يعترض جسم الحامل
+            // مسار الكرة فالالتحام على الكرة (صراع افتكاك)، وإن اعترضه فهو التحام بالجسم من الخلف (خطأ)،
+            // مع استثناء الالتحام قريب المدى بسرعة اقتراب عادية (خطف من عند القدمين) — الاندفاع السريع عبر الجسم يبقى خطأً.
+            // تبقى بوابة الاحتكاك الخطر كما اعتُمدت في معايرة التدخلات.
+            Vector2 tackleOrigin = ActiveUserPlayer.Position2D;
+            Vector2 lungePath = effectiveBall2D - tackleOrigin;
+            float lungeLenSq = Math.Max(lungePath.LengthSquared(), 1e-6f);
+            float bodyT = Math.Clamp(Vector2.Dot(carrier.Position2D - tackleOrigin, lungePath) / lungeLenSq, 0f, 1f);
+            float pathBodyGap = Vector2.Distance(carrier.Position2D, tackleOrigin + lungePath * bodyT);
+            bool bodyBlocked = pathBodyGap < .35f && bodyT < .999f;
+            bool closeQuarters = distToOpponent <= .75f && contactIncident.ClosingSpeed <= ActiveUserPlayer.Speed / 7.5f;
+            if ((!bodyBlocked || closeQuarters || distToBall < distToOpponent) && !dangerousContact)
             {
                 // The later tactical specification requires attributes on the human path too.
                 // Ball-first geometry avoids an automatic foul; it does not guarantee beating a stronger carrier.
@@ -1273,15 +1283,19 @@ public partial class MatchEngine
         bool tacklerWon = forcedRandomRoll.HasValue ? forcedRandomRoll.Value < winProbability : winProbability >= 50;
         float foulDanger = Math.Clamp(baseFoulRisk + (isFromBehind ? 25 : 0) - (tackler.Defending - 65) * .4f, 2, 85);
         bool bodyFirst = distToCarrier < distToBall;
+        // الخطأ يتطلب احتكاكاً جسدياً حقيقياً: ملامسة مسار الجسم من مسافة بعيدة محاولة مشروعة
+        // لم تصل، وليست عرقلة. عتبة 0.9م تمثل تماساً فعلياً بين جسمي اللاعبين (معامل لعبة).
         bool isFoul = forcedFoulRoll.HasValue
             ? (!tacklerWon && forcedFoulRoll.Value < foulDanger) || (isReckless && forcedFoulRoll.Value < 20)
-            : bodyFirst && (isReckless || foulDanger >= 35);
+            : bodyFirst && distToCarrier < 0.9f && (isReckless || foulDanger >= 35);
         if(!forcedFoulRoll.HasValue && tacklerTeam.Tactics.Tackling==TacklingAggression.Cautious) isFoul=false;
         bool dangerousContact = distToCarrier < .6f && CaptureFoulIncident(tackler,carrier,ballPos2D,
             tacklerMotion:tacklerContactMotion,carrierMotion:carrierContactMotion).Severity == FoulContactSeverity.EndangersSafety;
         isFoul |= dangerousContact;
         bool severeInjuryRisk = isFoul && dangerousContact;
-        if (isFoul || (!forcedRandomRoll.HasValue && bodyFirst)) tacklerWon = false;
+        // حسم الصراع: الخطأ يمنع الفوز بالطبع، لكن مجرد ملامسة الجسم أولاً لم تعد خسارة آلية —
+        // الوصول الفعلي للكرة والزاوية والمهارات هما ما يقرران.
+        if (isFoul) tacklerWon = false;
 
         string reasonStr = reasons.Count > 0 ? string.Join("، ", reasons) : "صراع متكافئ";
 
