@@ -54,7 +54,7 @@ Check((string?)typeof(MatchSettings).GetProperty("LastSaveError")?.GetValue(s) i
 // Legacy Off is also a deliberate choice, and explicit load paths must not rewrite the default file.
 var legacy=Path.Combine(root,"legacy.json");s.SettingsVersion=0;s.CommentaryEnabled=false;s.CommentaryVoice=CommentaryVoiceOption.Off;File.WriteAllText(legacy,JsonSerializer.Serialize(s));
 var previousFile=File.ReadAllText(file);MatchSettings.Load(legacy);
-Check(!s.CommentaryEnabled&&s.CommentaryVoice==CommentaryVoiceOption.Off,"legacy disabled commentary is not re-enabled by migration");
+Check(s.CommentaryEnabled&&s.CommentaryVoice==CommentaryVoiceOption.FaresAwad&&s.Commentator==CommentatorId.FaresAwad&&s.SettingsVersion==3,"legacy saved voice migrates to the single Fares commentator");
 Check(File.ReadAllText(file)==previousFile,"explicit legacy load does not write a different settings file");
 Defaults();
 Fixture("SFX/Crowd/CrowdAmbiance.wav");Fixture("stadium.wav");Fixture("chant.wav");Fixture("Anthems/ChampionsLeague.wav");Fixture("Commentary/FaresAwad/Intro/intro.wav");Fixture("Commentary/RaoufKhlif/Intro/intro.wav");
@@ -65,10 +65,10 @@ Check(SoundEffectsPlayer.CrowdVolumeSetting==17&&SoundEffectsPlayer.MasterVolume
 s.CrowdVolumePercent=0;Apply();SoundEffectsPlayer.SetStadiumAcoustics(Path.Combine(root,"stadium.wav"));SoundEffectsPlayer.StartCrowdAmbiance();SoundEffectsPlayer.SetCrowdVolume(1000,true);SoundEffectsPlayer.PlayOneShotChant(Path.Combine(root,"chant.wav"));SoundEffectsPlayer.PlayCrowdGoal();
 Check(!commands.Any(c=>c.StartsWith("play ")),"crowd zero prevents stadium, ambience, reaction and chant playback");
 s.CrowdVolumePercent=40;s.MasterVolumePercent=50;Apply();SoundEffectsPlayer.SetStadiumAcoustics(Path.Combine(root,"stadium.wav"));
-Check(VolumeBeforePlay("crowd",160),"stadium gets master x crowd volume BEFORE first play");
-commands.Clear();SoundEffectsPlayer.SetCrowdVolume(1000,true);Check(commands.Contains("setaudio crowd volume to 200"),"dynamic crowd scales saved category and master exactly once");
-s.CrowdVolumePercent=20;s.ApplyLive();Check(commands.Last(c=>c.StartsWith("setaudio crowd volume"))=="setaudio crowd volume to 100","live saved crowd change is not squared");
-commands.Clear();SoundEffectsPlayer.PlayOneShotChant(Path.Combine(root,"chant.wav"));Check(VolumeBeforePlay("chant_ch",100),"chant follows crowd, not SFX volume");
+Check(VolumeBeforePlay("crowd",88),"stadium gets master x crowd x steady bed gain BEFORE first play");
+commands.Clear();SoundEffectsPlayer.SetCrowdVolume(1000,true);Check(commands.Contains("setaudio crowd volume to 110"),"dynamic crowd scales saved category, master and steady bed gain exactly once");
+s.CrowdVolumePercent=20;s.ApplyLive();Check(commands.Last(c=>c.StartsWith("setaudio crowd volume"))=="setaudio crowd volume to 55","live saved crowd change is not squared");
+commands.Clear();SoundEffectsPlayer.PlayOneShotChant(Path.Combine(root,"chant.wav"));Check(VolumeBeforePlay("chant_ch",50),"chant follows crowd with its steady gain, not SFX volume");
 s.CrowdVolumePercent=0;s.ApplyLive();Check(commands.Contains("stop crowd")&&commands.Contains("stop chant_ch"),"muting crowd stops already-playing ambience and chants");
 commands.Clear();SoundEffectsPlayer.SetCrowdVolume(1000,true);SoundEffectsPlayer.ResumeCrowdAmbiance();Check(!commands.Any(c=>c.StartsWith("play ")),"proximity and resume cannot revive muted crowd");
 SoundEffectsPlayer.StopCrowdAmbiance();s.CrowdVolumePercent=50;s.ApplyLive();Check(!Played("crowd"),"applying settings outside a match cannot start crowd");
@@ -88,7 +88,7 @@ using(var commentary=new CommentaryEngine(CommentatorId.FaresAwad,root))
  s.CommentaryEnabled=true;s.CommentaryVoice=CommentaryVoiceOption.FaresAwad;s.Commentator=CommentatorId.FaresAwad;s.MasterVolumePercent=50;s.CommentaryVolumePercent=40;Apply();
  Check(commentary.TryPlayMatchIntro()&&VolumeBeforePlay("comm_voice",200),"enabled commentary uses saved master and commentary volume");
  s.CommentaryEnabled=false;s.CommentaryVoice=CommentaryVoiceOption.Off;s.ApplyLive();Check(commands.Contains("stop comm_voice")&&!SoundEffectsPlayer.IsCommentaryPlaying(),"switching Off stops current recording and clears busy state");
- s.CommentaryEnabled=true;s.CommentaryVoice=CommentaryVoiceOption.RaoufKhlif;s.Commentator=CommentatorId.RaoufKhlif;s.ApplyLive();Check(commentary.ActiveCommentator.Id==CommentatorId.RaoufKhlif,"saved voice change reaches the existing commentary engine");
+ s.CommentaryEnabled=true;s.CommentaryVoice=CommentaryVoiceOption.RaoufKhlif;s.Commentator=CommentatorId.RaoufKhlif;s.ApplyLive();Check(commentary.ActiveCommentator.Id==CommentatorId.FaresAwad,"removed commentator request keeps the single Fares voice");
 }
 Defaults();s.MasterVolumePercent=0;Apply();SoundEffectsPlayer.SetStadiumAcoustics(Path.Combine(root,"stadium.wav"));SoundEffectsPlayer.PlayOneShotChant(Path.Combine(root,"chant.wav"));SoundEffectsPlayer.PlayWhistle();SoundEffectsPlayer.PlayCommentaryAudio(Path.Combine(root,"chant.wav"));GoalBeaconPlayer.PlayBeaconPulse(1,0);anthem.PlayChampionsLeagueSample();Check(!commands.Any(c=>c.StartsWith("play ")),"master zero suppresses all six sound paths");
 // A failed native volume command must not fall through to full-volume playback.
@@ -241,23 +241,17 @@ SoundEffectsPlayer.SetStadiumAcoustics(Path.Combine(root,"stadium.wav"));SoundEf
 var heldReader=new ControlledReader();bool recordedBusy=true;
 using(var orderedReader=new PriorityScreenReader(heldReader,()=>recordedBusy))
 {
- orderedReader.SpeechActivityChanged += speaking=>SoundEffectsPlayer.SetCrowdDucking(speaking?.2f:1f);
  var radarCoordinator=new SmartAudioCoordinator(orderedReader);
  commands.Clear();
  radarCoordinator.HandleMatchEvent(new MatchEvent(MatchEventType.TacticalRadarInfo,"Space radar request"));
  Thread.Sleep(100);
- Check(!heldReader.Started.Task.IsCompleted&&!commands.Contains("setaudio chant_ch volume to 40"),"waiting for the commentator does not duck crowd early");
+ Check(!heldReader.Started.Task.IsCompleted,"waiting for the commentator does not start reader speech early");
  recordedBusy=false;SpinWait.SpinUntil(()=>heldReader.Started.Task.IsCompleted,1500);
- Check(commands.Contains("setaudio crowd volume to 32")&&commands.Contains("setaudio chant_ch volume to 40")&&commands.Contains("setaudio crowd_goal volume to 40"),"actual Space reader speech ducks ambience, full chant and crowd reaction together");
- Check(s.CrowdVolumePercent==40&&SoundEffectsPlayer.CrowdVolumeSetting==40,"temporary speech attenuation never changes the saved crowd slider");
- commands.Clear();SoundEffectsPlayer.TryPlayAudibleChant(Path.Combine(root,"chant.wav"));SoundEffectsPlayer.PlayCrowdCheer();
- Check(commands.Contains("setaudio chant_ch volume to 40")&&commands.Contains("setaudio crowd_cheer volume to 40"),"new chants and reactions started during Space speech inherit attenuation");
- s.CrowdVolumePercent=60;s.ApplyLive();
- Check(commands.Contains("setaudio chant_ch volume to 60"),"live user volume edit during speech keeps attenuation without squaring category volume");
- commands.Clear();heldReader.Finish.TrySetResult(true);SpinWait.SpinUntil(()=>commands.Contains("setaudio chant_ch volume to 300"),1500);
- Check(commands.Contains("setaudio crowd volume to 240")&&commands.Contains("setaudio chant_ch volume to 300")&&commands.Contains("setaudio crowd_cheer volume to 300"),"reader completion restores every crowd channel to the latest saved volume");
+ Check(!commands.Any(c=>c.StartsWith("setaudio crowd")||c.StartsWith("setaudio chant_ch")||c.StartsWith("setaudio crowd_goal")),"reader speech never ducks any crowd channel");
+ commands.Clear();heldReader.Finish.TrySetResult(true);Thread.Sleep(100);
+ Check(!commands.Any(c=>c.StartsWith("setaudio crowd")||c.StartsWith("setaudio chant_ch")),"reader completion leaves crowd levels untouched");
 }
-SoundEffectsPlayer.StopAll();SoundEffectsPlayer.SetCrowdDucking(1);Defaults();
+SoundEffectsPlayer.StopAll();Defaults();
 // Commentary context reflects actual crowd channels, not the removed musical bed or a stale alias.
 SoundEffectsPlayer.StopAll();Defaults();SoundEffectsPlayer.SetStadiumAcoustics(null);
 string crowdMode="playing";bool statusFails=false;
