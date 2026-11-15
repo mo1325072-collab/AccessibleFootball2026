@@ -601,6 +601,11 @@ public static class GamePlanMenuBuilder
             onResumeMatch();
         });
 
+        menu.AddItem(T("الرادار التكتيكي: من معه الكرة وأين هي", "Tactical radar: ball carrier and location"), () =>
+        {
+            match.ReportTacticalRadar();
+        });
+
         menu.AddItem(T("التشكيلة الأساسية", "Starting lineup"), () =>
         {
             var lineup = CreateLineupMenu(match.HomeTeam, screenReader, pushMenu, popMenu, match);
