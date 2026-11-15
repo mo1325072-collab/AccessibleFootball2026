@@ -9,7 +9,7 @@ public static class PackageAudioGuard
         "SFX/Kicks/Pass_Center.wav", "SFX/Kicks/Shot_Center.wav", "SFX/Kicks/Cross_Center.wav",
         "SFX/Chants/chants_index.json", "SFX/StadiumAcoustics/Acoustic_3.wav",
         "Commentary/FaresAwad/commentary_context.json"
-    }.Concat(new[]{"TackleWon","TackleMissed","BallLost","Foul","Penalty","Corner","GoalKick","ThrowIn","PlayerSwitch"}
+    }.Concat(new[]{"TackleWon","TackleMissed","BallLost","Foul","Penalty","Corner","GoalKick","ThrowIn","PlayerSwitch","ChargeStart","ChargeMax"}
         .Select(cue=>"SFX/Earcons/"+cue+".wav")).ToArray();
 
     public static IReadOnlyList<string> FindMissing(string audioRoot)
