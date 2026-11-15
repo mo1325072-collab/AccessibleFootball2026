@@ -196,8 +196,8 @@ public static class UserGuideDatabase
             "Space",
             "الرادار التكتيكي الصوتي (Tactical Radar)",
             "Tactical Audio Radar",
-            "يوفر إحاطة مكانية شاملة للمكفوفين عند الطلب بالضغط على زر المسافة، فينطق بدقة من معه الكرة (أنت أو زميلك أو الخصم)، المنطقة الحالية في الملعب، والمسافة الدقيقة لمرمى الخصم بالأمتار، مع صمت تام أثناء الجري بالكرة لعدم تشويش التجربة الصوتية.",
-            "Provides complete spatial awareness on demand by pressing Space: announces ball carrier, pitch zone, and distance to opponent goal in meters, while keeping screen reader 100% silent during active ball running."
+            "المسافة تنطق اسم حامل الكرة والمسافة بالمتر فقط. مع فريقك تكون المسافة لمرمى الخصم، ومع الخصم تكون لمرماك. يتبدل المرميان بعد الشوط. وإذا لم يحملها أحد يقول الكرة حرة.",
+            "Space announces only the current holder and goal distance. With your team holding, distance is to the opponent goal; with the opponent holding, distance is to your goal. Ends switch at half-time. A loose ball is reported as loose."
         ),
         new(
             "spatial_goal_beacon",
