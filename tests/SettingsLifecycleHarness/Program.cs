@@ -241,17 +241,23 @@ SoundEffectsPlayer.SetStadiumAcoustics(Path.Combine(root,"stadium.wav"));SoundEf
 var heldReader=new ControlledReader();bool recordedBusy=true;
 using(var orderedReader=new PriorityScreenReader(heldReader,()=>recordedBusy))
 {
+ orderedReader.SpeechActivityChanged += speaking=>SoundEffectsPlayer.SetCrowdDucking(speaking?.2f:1f);
  var radarCoordinator=new SmartAudioCoordinator(orderedReader);
  commands.Clear();
  radarCoordinator.HandleMatchEvent(new MatchEvent(MatchEventType.TacticalRadarInfo,"Space radar request"));
  Thread.Sleep(100);
- Check(!heldReader.Started.Task.IsCompleted,"waiting for the commentator does not start reader speech early");
+ Check(!heldReader.Started.Task.IsCompleted&&!commands.Contains("setaudio chant_ch volume to 20"),"waiting for the commentator does not duck crowd early");
  recordedBusy=false;SpinWait.SpinUntil(()=>heldReader.Started.Task.IsCompleted,1500);
- Check(!commands.Any(c=>c.StartsWith("setaudio crowd")||c.StartsWith("setaudio chant_ch")||c.StartsWith("setaudio crowd_goal")),"reader speech never ducks any crowd channel");
- commands.Clear();heldReader.Finish.TrySetResult(true);Thread.Sleep(100);
- Check(!commands.Any(c=>c.StartsWith("setaudio crowd")||c.StartsWith("setaudio chant_ch")),"reader completion leaves crowd levels untouched");
+ Check(commands.Contains("setaudio crowd volume to 17")&&commands.Contains("setaudio chant_ch volume to 20")&&commands.Contains("setaudio crowd_goal volume to 20"),"actual Space reader speech ducks ambience, full chant and crowd reaction together");
+ Check(s.CrowdVolumePercent==40&&SoundEffectsPlayer.CrowdVolumeSetting==40,"temporary speech attenuation never changes the saved crowd slider");
+ commands.Clear();SoundEffectsPlayer.TryPlayAudibleChant(Path.Combine(root,"chant.wav"));SoundEffectsPlayer.PlayCrowdCheer();
+ Check(commands.Contains("setaudio chant_ch volume to 20")&&commands.Contains("setaudio crowd_cheer volume to 20"),"new chants and reactions started during Space speech inherit attenuation");
+ s.CrowdVolumePercent=60;s.ApplyLive();
+ Check(commands.Contains("setaudio chant_ch volume to 30"),"live user volume edit during speech keeps attenuation without squaring category volume");
+ commands.Clear();heldReader.Finish.TrySetResult(true);SpinWait.SpinUntil(()=>commands.Contains("setaudio chant_ch volume to 150"),1500);
+ Check(commands.Contains("setaudio crowd volume to 132")&&commands.Contains("setaudio chant_ch volume to 150")&&commands.Contains("setaudio crowd_cheer volume to 150"),"reader completion restores every crowd channel to the latest saved volume");
 }
-SoundEffectsPlayer.StopAll();Defaults();
+SoundEffectsPlayer.StopAll();SoundEffectsPlayer.SetCrowdDucking(1);Defaults();
 // Commentary context reflects actual crowd channels, not the removed musical bed or a stale alias.
 SoundEffectsPlayer.StopAll();Defaults();SoundEffectsPlayer.SetStadiumAcoustics(null);
 string crowdMode="playing";bool statusFails=false;
