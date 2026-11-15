@@ -700,7 +700,7 @@ public static class SoundEffectsPlayer
     /// <summary>Academy previews never substitute procedural match impacts for missing recordings.</summary>
     public static bool TryPlayAcademySample(string soundId)
     {
-        if (new[] { "TackleWon", "TackleMissed", "BallLost", "Foul", "Penalty", "Corner", "GoalKick", "ThrowIn", "PlayerSwitch" }.Contains(soundId))
+        if (new[] { "TackleWon", "TackleMissed", "BallLost", "Foul", "Penalty", "Corner", "GoalKick", "ThrowIn", "PlayerSwitch", "ChargeStart", "ChargeMax" }.Contains(soundId))
             return PlayOneShot(Path.Combine(_baseAudioDir, "SFX", "Earcons", soundId + ".wav"), "academy_earcon");
         string? path = soundId switch
         {
@@ -878,6 +878,8 @@ public static class SoundEffectsPlayer
     public static void PlayThrowIn() => PlayEarcon("ThrowIn");
     public static void PlayPlayerSwitch() => PlayEarcon("PlayerSwitch");
     public static void PlayTackleMissed() => PlayEarcon("TackleMissed");
+    public static void PlayChargeStart() => PlayEarcon("ChargeStart");
+    public static void PlayChargeMax() => PlayEarcon("ChargeMax");
 
     // =========================================================================
     // 5. أصوات المعلقين الحقيقية المسجلة
