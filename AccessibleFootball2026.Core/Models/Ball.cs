@@ -1,140 +1,89 @@
 using System.Numerics;
+using AccessibleFootball2026.Core.Simulation.Play;
 
 namespace AccessibleFootball2026.Core.Models;
 
-public enum BallState
-{
-    Free,
-    Controlled,
-    InFlight,
-    OutOfBounds,
-    InGoal
-}
+public enum BallState { Free, Controlled, InFlight, OutOfBounds, InGoal }
 
-/// <summary>
-/// فيزياء الكرة ثلاثية الأبعاد (X, Y على أرضية الملعب، و Z الارتفاع في الهواء)
-/// </summary>
+/// <summary>The ball owns its control transition. Player flags cannot remain on an old owner.</summary>
 public class Ball
 {
-    public Vector3 Position { get; set; } = new(52.5f, 34.0f, 0.0f); // مركز الملعب
+    private Player? _owner;
+    public Vector3 Position { get; set; } = new(52.5f, 34, 0);
     public Vector2 Position2D => new(Position.X, Position.Y);
-    public Vector3 Velocity { get; set; } = Vector3.Zero;
-    public Player? Owner { get; set; } = null;
+    public Vector3 Velocity { get; set; }
     public float CurveRadiansPerSecond { get; set; }
     public BallState State { get; set; } = BallState.Free;
+    public const float GroundDeceleration = BallFlight.RollingDeceleration;
 
-    // معاملات فيزيائية واقعية
-    public const float GroundDeceleration = 2.5f; // تباطؤ خطي لاحتكاك العشب (متر/ثانية²)
-    private const float AirResistance = 0.985f;    // مقاومة الهواء
-    private const float Gravity = 9.81f;          // الجاذبية الأرضية
-    private const float BounceRestitution = 0.6f; // ارتداد الكرة من الأرض
+    public event Action? ControlChanged;
+    public Player? Owner
+    {
+        get => _owner;
+        set
+        {
+            if (ReferenceEquals(_owner, value)) { if (value != null) SynchronizeControl(); return; }
+            if (_owner != null) _owner.HasBall = false;
+            _owner = value;
+            if (value != null)
+            {
+                value.HasBall = true;
+                SynchronizeControl();
+            }
+            else if (State == BallState.Controlled) State = BallState.Free;
+            ControlChanged?.Invoke();
+        }
+    }
+
+    public static Vector2 FeetOf(Player player)
+    {
+        var facing = player.FacingDirection;
+        if (!BallFlight.Finite(facing) || facing.LengthSquared() < .0001f) facing = Vector2.UnitX;
+        else facing = Vector2.Normalize(facing);
+        return player.Position2D + facing * .35f;
+    }
+
+    private void SynchronizeControl()
+    {
+        if (_owner == null) return;
+        Position = new Vector3(FeetOf(_owner), 0);
+        Velocity = Vector3.Zero;
+        CurveRadiansPerSecond = 0;
+        State = BallState.Controlled;
+    }
 
     public void UpdatePhysics(float deltaTime) => Update(deltaTime);
-
     public void Update(float deltaTime)
     {
-        if (Owner != null)
+        if (!float.IsFinite(deltaTime) || deltaTime <= 0) return;
+        if (_owner != null)
         {
-            // الكرة ملتصقة بقدم اللاعب المستحوذ
-            Position = new Vector3(Owner.Position2D.X, Owner.Position2D.Y, 0.0f);
-            Velocity = Vector3.Zero;
-            State = BallState.Controlled;
-            return;
+            if (_owner.IsActiveOnPitch) { SynchronizeControl(); return; }
+            Owner = null;
         }
-
-        if (CurveRadiansPerSecond != 0 && Velocity.Length() > 1)
-        {
-            float angle = CurveRadiansPerSecond * deltaTime;
-            float cos = MathF.Cos(angle), sin = MathF.Sin(angle);
-            Velocity = new Vector3(Velocity.X * cos - Velocity.Y * sin, Velocity.X * sin + Velocity.Y * cos, Velocity.Z);
-        }
-        // تحديث الموضع بناءً على السرعة
-        Position += Velocity * deltaTime;
-
-        // تطبيق الجاذبية ومقاومة الهواء في الهواء
-        if (Position.Z > 0.0f)
-        {
-            Velocity = new Vector3(
-                Velocity.X * AirResistance,
-                Velocity.Y * AirResistance,
-                Velocity.Z - (Gravity * deltaTime)
-            );
-        }
-
-        // فحص الارتطام بالأرض عندما تصبح Z <= 0
-        if (Position.Z <= 0.0f)
-        {
-            Position = new Vector3(Position.X, Position.Y, 0.0f);
-
-            if (Math.Abs(Velocity.Z) > 1.0f)
-            {
-                // ارتداد الكرة من الأرض
-                Velocity = new Vector3(
-                    Velocity.X * 0.85f,
-                    Velocity.Y * 0.85f,
-                    -Velocity.Z * BounceRestitution
-                );
-            }
-            else
-            {
-                // استقرار الكرة على الأرض
-                Velocity = new Vector3(Velocity.X, Velocity.Y, 0.0f);
-                if (State == BallState.InFlight)
-                {
-                    State = BallState.Free;
-                }
-
-                // تدحرج على العشب مع تباطؤ فيزيائي خطي مستقل عن معدل الإطارات
-                float speed = Velocity.Length();
-                if (speed > 0.05f)
-                {
-                    float newSpeed = Math.Max(0.0f, speed - (GroundDeceleration * deltaTime));
-                    Velocity = (Velocity / speed) * newSpeed;
-                }
-                else
-                {
-                    Velocity = Vector3.Zero;
-                    State = BallState.Free;
-                }
-
-                if (Velocity.Length() < 0.1f)
-                {
-                    State = BallState.Free;
-                }
-            }
-        }
+        if (State is BallState.OutOfBounds or BallState.InGoal) return;
+        var result = BallFlight.Advance(Position, Velocity, CurveRadiansPerSecond, deltaTime);
+        Position = result.Position;
+        Velocity = result.Velocity;
+        State = result.Airborne ? BallState.InFlight : BallState.Free;
     }
 
     public void Kick(Vector2 direction, float horizontalSpeed, float verticalSpeed, Player? kicker = null)
     {
-        if (direction.Length() > 0)
-        {
-            direction = Vector2.Normalize(direction);
-        }
-
-        if (Owner != null)
-        {
-            Owner.HasBall = false;
-            Owner = null;
-        }
-
+        if (!BallFlight.Finite(direction) || !float.IsFinite(horizontalSpeed) || !float.IsFinite(verticalSpeed) || horizontalSpeed < 0) return;
+        if (_owner != null) SynchronizeControl();
+        if (direction.LengthSquared() > .000001f) direction = Vector2.Normalize(direction);
+        else if (horizontalSpeed > 0) return;
+        Owner = null;
         CurveRadiansPerSecond = 0;
-        Velocity = new Vector3(direction.X * horizontalSpeed, direction.Y * horizontalSpeed, verticalSpeed);
-        State = verticalSpeed > 0.5f ? BallState.InFlight : BallState.Free;
+        Velocity = new Vector3(direction * horizontalSpeed, verticalSpeed);
+        State = verticalSpeed > .05f || Position.Z > .0001f ? BallState.InFlight : BallState.Free;
     }
 
+    // This is a committed control transition. Eligibility belongs to PossessionArbiter, not this data model.
     public void CatchOrTackle(Player newOwner)
     {
-        if (Owner != null)
-        {
-            Owner.HasBall = false;
-        }
-
-        CurveRadiansPerSecond = 0;
+        if (!newOwner.IsActiveOnPitch) return;
         Owner = newOwner;
-        newOwner.HasBall = true;
-        State = BallState.Controlled;
-        Velocity = Vector3.Zero;
-        Position = new Vector3(newOwner.Position2D.X, newOwner.Position2D.Y, 0.0f);
     }
 }
