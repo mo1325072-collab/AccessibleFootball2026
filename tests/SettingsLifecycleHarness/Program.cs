@@ -452,7 +452,7 @@ Check(!secondCardMatch.ReviewCardDecision(secondCardPlayer,secondCardPlayer,fals
 Check(secondCardMatch.ReviewCardDecision(secondCardPlayer,secondCardPlayer,false,false,true)&&secondCardMatch.VideoReviewPending,"clearly incorrect second caution remains reviewable under IFAB 2026/27");
 var cleanGoalMatch=Match();cleanGoalMatch.Update(.1f);
 cleanGoalMatch.Ball.Position=new Vector3(Pitch.Length+.5f,Pitch.Width/2,0);
-Call(cleanGoalMatch,"CheckRefereeRules");
+Call(cleanGoalMatch,"CheckRefereeRules",cleanGoalMatch.Ball.Position);
 Check(!cleanGoalMatch.VideoReviewPending&&cleanGoalMatch.HomeTeam.Score+cleanGoalMatch.AwayTeam.Score==1,"clean goal counts without a routine VAR review hold");
 // Product identity: name is exactly "Accessible Football"; 2026.1 is the version, not part of the name.
 s.Language=UiLanguage.English;
@@ -733,7 +733,7 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
     {
         var acts=new LawMovementInput();acts.Actions.Clear();acts.Actions.Add(GameAction.StandTackle);
         var h=Make("pkh",TeamSide.Home);var a=Make("pka",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
-        ParkAll(e);ZeroTimers(e);
+        GPark(e);GZero(e);
         var c=a.Players[1];c.Position2D=new(50,34);c.FacingDirection=Vector2.UnitX;e.Ball.CatchOrTackle(c);
         var t=e.ActiveUserPlayer;t.Position2D=new(49.3f,34);t.Velocity=Vector2.Zero; // 0.7m directly behind, stationary
         int fouls=0,duels=0;
@@ -745,7 +745,7 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
     // B. Selected-player control preserved: the press never moves the user's active player.
     {
         var acts=new Input();var h=Make("sph",TeamSide.Home);var a=Make("spa",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
-        ParkAll(e);ZeroTimers(e);h.Tactics.PressingIntensity=50;
+        GPark(e);GZero(e);h.Tactics.PressingIntensity=50;
         var c=a.Players[1];c.Position2D=new(54,34);c.FacingDirection=Vector2.UnitX;e.Ball.CatchOrTackle(c);
         var t=e.ActiveUserPlayer;t.Position2D=new(52,34);t.Velocity=Vector2.Zero;
         var dw=(System.Collections.IDictionary)typeof(MatchEngine).GetField("_tacticalDecisionWait",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(e)!;dw[c]=50f;
@@ -783,7 +783,7 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
     // D. CPU receiver guidance: named receiver runs to meet the pass and completes it.
     {
         var acts=new Input();var h=Make("rgh",TeamSide.Home);var a=Make("rga",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
-        ParkAll(e);ZeroTimers(e);
+        GPark(e);GZero(e);
         var c1=a.Players[1];var c2=a.Players[2];c1.Position2D=new(40,34);c2.Position2D=new(55,20);
         e.Ball.Kick(Vector2.Normalize(new Vector2(12,-14)),16,.15f,c1);
         Call(e,"BeginCommentaryPass",c1,c2,c2.Position2D,"short","ground",false);
@@ -798,7 +798,7 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
     // E. Reception guidance never claims an opponent-controlled ball.
     {
         var acts=new Input();var h=Make("och",TeamSide.Home);var a=Make("oca",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
-        ParkAll(e);ZeroTimers(e);
+        GPark(e);GZero(e);
         var c1=a.Players[1];var c2=a.Players[2];c1.Position2D=new(40,34);c2.Position2D=new(46,34);
         var hp=h.Players.First(pl=>pl!=e.ActiveUserPlayer);hp.Position2D=new(52,34);
         e.Ball.CatchOrTackle(hp);
@@ -842,6 +842,211 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
         var oob=RunGuard(6f,false,true);
         Check(oob.grace==0&&oob.approach<2f,$"no receiver guidance to an out-of-bounds ball (approach {oob.approach:F2}m over {oob.frames} frames, grace {oob.grace:F2})");
     }
+}
+
+void GPark(MatchEngine e){foreach(var pl in e.HomeTeam.Players.Concat(e.AwayTeam.Players))pl.Position2D=new(80,10);}
+void GZero(MatchEngine e){var T=typeof(MatchEngine);foreach(var n in new[]{"_kickoffProtectionTimer","_possessionGraceTimer","_aiTackleCooldownTimer"})T.GetField(n,BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(e,0f);}
+// Removed control bindings (approved cleanup, Nov 2026): the retired keys never produce game actions.
+{
+    int[] removedVk={0x20,0x43,0x51,0x52,0x54,0x4B,0x42,0x4E,0x48,0x4A,0x56,0x4C,0x46}; // Space C Q R T K B N H J V L F
+    foreach(bool poss in new[]{true,false})
+    {
+        var removedKb=new AccessibleFootball2026.Input.KeyboardInputHandler();
+        foreach(int vk in removedVk)
+        {
+            removedKb.HandleKeyDown(vk,false);
+            Check(removedKb.PollCurrentActions(poss).Count==0,$"removed key 0x{vk:X2} press produces no action (possession {poss})");
+            removedKb.HandleKeyUp(vk);
+            Check(removedKb.PollCurrentActions(poss).Count==0,$"removed key 0x{vk:X2} release produces no action (possession {poss})");
+        }
+    }
+    var keptKb=new AccessibleFootball2026.Input.KeyboardInputHandler();
+    keptKb.HandleKeyDown(0x41,true);
+    Check(keptKb.PollCurrentActions(true).Contains(GameAction.ThroughBall),"A still fires the through ball with possession");
+    keptKb.HandleKeyUp(0x41);
+    keptKb.HandleKeyDown(0x11,false);
+    Check(keptKb.PollCurrentActions(false).Contains(GameAction.SwitchPlayer),"Ctrl still switches the defender off the ball");
+    keptKb.HandleKeyUp(0x11);
+}
+
+// Goal crossing provenance and event-specific shot accounting.
+{
+    // Loose ball rolling over the line: no registered shot, no carrier -> still a shot on target.
+    {
+        var acts=new Input();var h=Make("gph",TeamSide.Home);var a=Make("gpa",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        GPark(e);GZero(e);
+        e.Ball.Owner=null;
+        MatchEvent? goalEv=null;bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.GoalScored)goalEv=ev;};
+        e.Ball.Position=new Vector3(104.5f,34f,0.1f);
+        e.Ball.Kick(Vector2.UnitX,10,0.1f,null);
+        for(int i=0;i<400&&goalEv==null;i++)e.Update(.01f);
+        Check(goalEv!=null,"a loose ball crossing the goal line is a goal");
+        Check(goalEv!=null&&goalEv.Context.TryGet("goal.mechanism",out var mech)&&mech=="loose","the loose-ball goal is classified loose");
+        Check(goalEv!=null&&goalEv.Context.TryGet("goal.crossingY",out var cy)&&float.TryParse(cy,out var cyf)&&Math.Abs(cyf-34f)<1.5f,"the crossing Y is interpolated at the goal plane, not the overshoot position");
+        Check(goalEv!=null&&goalEv.Context.TryGet("goal.registeredShot",out var rs)&&rs=="false","the loose-ball goal records no registered shot");
+        Check(e.StatisticsFor(h).Shots==1&&e.StatisticsFor(h).ShotsOnTarget==1,"a non-own goal without a registered shot still counts as a shot on target");
+    }
+    // Own goal: defender's last touch into his own net -> mechanism ownGoal, no shot accounting.
+    {
+        var acts=new Input();var h=Make("ogh",TeamSide.Home);var a=Make("oga",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        GPark(e);GZero(e);
+        e.Ball.Owner=null;
+        MatchEvent? goalEv=null;bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.GoalScored)goalEv=ev;};
+        e.Ball.Position=new Vector3(104.5f,34f,0.1f);
+        e.Ball.Kick(Vector2.UnitX,10,0.1f,null);
+        Call(e,"RecordBallTouch",a.Players[1],false);
+        for(int i=0;i<400&&goalEv==null;i++)e.Update(.01f);
+        Check(goalEv!=null&&goalEv.GoalData!=null&&goalEv.GoalData.IsOwnGoal,"a defender's last touch into his own net is an own goal");
+        Check(goalEv!=null&&goalEv.Context.TryGet("goal.mechanism",out var mech)&&mech=="ownGoal","the own goal is classified ownGoal");
+        Check(e.StatisticsFor(h).Shots==0&&e.StatisticsFor(h).ShotsOnTarget==0&&e.StatisticsFor(a).Shots==0,"an own goal changes no shot accounting");
+    }
+    // Carried goal: the user player dribbles the ball over the line -> mechanism carried, still a shot on target.
+    {
+        var acts=new LawMovementInput();var h=Make("cgh",TeamSide.Home);var a=Make("cga",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        GPark(e);GZero(e);
+        var user=e.ActiveUserPlayer;user.Position2D=new(104.2f,34f);
+        e.Ball.CatchOrTackle(user);
+        MatchEvent? goalEv=null;bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.GoalScored)goalEv=ev;};
+        for(int i=0;i<400&&goalEv==null;i++)e.Update(.01f);
+        Check(goalEv!=null,"dribbling the ball over the goal line is a goal");
+        Check(goalEv!=null&&goalEv.Context.TryGet("goal.mechanism",out var mech)&&mech=="carried","the dribbled-in goal is classified carried");
+        Check(e.StatisticsFor(h).Shots==1&&e.StatisticsFor(h).ShotsOnTarget==1,"a carried goal still counts as a shot on target");
+    }
+}
+
+// Registered-shot identity: a goal links to a prior shot only while that same shot is live and untouched.
+{
+    // Direct registered shot into the net: exactly one shot, one on target.
+    {
+        var acts=new Input();var h=Make("rsh",TeamSide.Home);var a=Make("rsa",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        GPark(e);GZero(e);
+        var user=e.ActiveUserPlayer;user.Position2D=new(100,34);user.FacingDirection=Vector2.UnitX;
+        e.Ball.CatchOrTackle(user);
+        MatchEvent? goalEv=null;bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.GoalScored)goalEv=ev;};
+        e.ExecuteShot(1f);
+        for(int i=0;i<600&&goalEv==null;i++)e.Update(.01f);
+        Check(goalEv!=null,"a driven shot from close range scores");
+        Check(goalEv!=null&&goalEv.Context.TryGet("goal.mechanism",out var m1)&&m1=="registeredShot","the shot's own goal is classified registeredShot");
+        Check(e.StatisticsFor(h).Shots==1&&e.StatisticsFor(h).ShotsOnTarget==1,"a registered-shot goal counts exactly one shot and one on target, never a duplicate");
+    }
+    // Missed shot, then a teammate carries the rebound in: the goal is a NEW shot, no prior-shot linkage.
+    {
+        var acts=new Input();var h=Make("msh",TeamSide.Home);var a=Make("msa",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        GPark(e);GZero(e);
+        var user=e.ActiveUserPlayer;user.Position2D=new(100,20);user.FacingDirection=Vector2.UnitX;
+        e.Ball.CatchOrTackle(user);
+        e.ExecuteShot(1f);
+        // The shot is smothered dead in play: a genuine miss with no boundary restart.
+        e.Ball.Velocity=Vector3.Zero;
+        for(int i=0;i<50;i++)e.Update(.01f);
+        Check(e.StatisticsFor(h).Shots==1&&e.StatisticsFor(h).ShotsOnTarget==0,"the missed shot counts one shot and zero on target");
+        // Teammate collects the loose ball and dribbles it over the line.
+        var mate=h.Players.First(pl=>pl!=user);mate.Position2D=new(104.2f,34f);
+        e.Ball.Position=new Vector3(103.8f,34f,0.1f);e.Ball.Velocity=Vector3.Zero;e.Ball.Owner=null;e.Ball.State=BallState.Free;
+        e.Ball.CatchOrTackle(mate);
+        var walk=new LawMovementInput(); // MoveRight
+        typeof(MatchEngine).GetField("_inputHandler",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(e,walk);
+        // ActiveUserPlayer must be the carrier for user movement to carry him over the line.
+        typeof(MatchEngine).GetProperty("ActiveUserPlayer")!.SetValue(e,mate);
+        MatchEvent? goalEv=null;bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.GoalScored)goalEv=ev;};
+        for(int i=0;i<400&&goalEv==null;i++)e.Update(.01f);
+        Check(goalEv!=null&&goalEv.Context.TryGet("goal.mechanism",out var m2)&&m2=="carried","the rebound carry-in is classified carried, not linked to the missed shot");
+        Check(e.StatisticsFor(h).Shots==2&&e.StatisticsFor(h).ShotsOnTarget==1,"the carried rebound goal is a new shot on target with no duplicate from the missed shot");
+    }
+}
+
+// Defensive approach assistance geometry: curves only toward the carrier, physical speed only, tackling stays manual.
+{
+    (Vector2 disp,MatchEngine e,Player user) RunCase(Vector2 userPos,Vector2 carrierPos,HashSet<GameAction> input,bool userHasBall)
+    {
+        var acts=new LawMovementInput(){Actions=input};
+        var h=Make("jkh",TeamSide.Home);var a=Make("jka",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        GPark(e);GZero(e);
+        var carrier=a.Players[1];carrier.Position2D=carrierPos;carrier.Velocity=Vector2.Zero;
+        var user=e.ActiveUserPlayer;user.Position2D=userPos;user.Velocity=Vector2.Zero;
+        e.Ball.CatchOrTackle(userHasBall?user:carrier);
+        var before=user.Position2D;
+        e.Update(.016f);
+        return (user.Position2D-before,e,user);
+    }
+    var toward=RunCase(new(50,30),new(60,34),new(){GameAction.MoveRight},false);
+    Check(toward.disp.X>0&&toward.disp.Y>0,$"steering at the carrier curves the run toward the intercept (disp {toward.disp.X:F3},{toward.disp.Y:F3})");
+    float speed=toward.disp.Length()/.016f;
+    Check(speed<=10.05f,$"assisted movement stays at the physical capped speed ({speed:F2} m/s)");
+    var away=RunCase(new(50,30),new(40,34),new(){GameAction.MoveRight},false);
+    Check(away.disp.Y==0&&away.disp.X>0,$"steering away from the carrier is untouched (disp {away.disp.X:F3},{away.disp.Y:F3})");
+    var own=RunCase(new(50,30),new(60,34),new(){GameAction.MoveRight},true);
+    Check(own.disp.Y==0&&own.disp.X>0,$"no approach assistance while in possession (disp {own.disp.X:F3},{own.disp.Y:F3})");
+    var tackle=new Input();var th=Make("tkh",TeamSide.Home);var ta=Make("tka",TeamSide.Away);var tbus=new MatchEventBus();var te=new MatchEngine(th,ta,tbus,tackle);
+    GPark(te);GZero(te);
+    var tcarrier=ta.Players[1];tcarrier.Position2D=new(52,30);te.Ball.CatchOrTackle(tcarrier);
+    var tuser=te.ActiveUserPlayer;tuser.Position2D=new(50,30);
+    bool autoTackled=false;tbus.OnMatchEvent+=ev=>{if(ev.Type is MatchEventType.TackleSuccessful or MatchEventType.UserTackleSuccessful)autoTackled=true;};
+    var twaits=(System.Collections.IDictionary)typeof(MatchEngine).GetField("_tacticalDecisionWait",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(te)!;
+    var tcool=typeof(MatchEngine).GetField("_aiTackleCooldownTimer",BindingFlags.NonPublic|BindingFlags.Instance)!;
+    for(int i=0;i<200;i++){twaits[tcarrier]=999f;tcool.SetValue(te,999f);te.Update(.016f);} // scripted: carrier holds, teammate auto-duels suppressed (user-isolation)
+    Check(!autoTackled&&te.Ball.Owner==tcarrier,"approach assistance never auto-tackles without a tackle input");
+}
+// Body collision coherence: solid bodies, carrier body-block, and the controlled assist benefit.
+{
+    // 1) Off-ball user cannot penetrate an opponent's body disc.
+    var bi=new LawMovementInput(){Actions=new(){GameAction.MoveRight}};
+    var bh=Make("bdh",TeamSide.Home);var ba=Make("bda",TeamSide.Away);var bbus=new MatchEventBus();var be=new MatchEngine(bh,ba,bbus,bi);
+    GPark(be);GZero(be);
+    var bcarrier=ba.Players[1];bcarrier.Position2D=new(45,34);bcarrier.Velocity=Vector2.Zero;
+    var buser=be.ActiveUserPlayer;buser.Position2D=new(43,34);buser.Velocity=Vector2.Zero;
+    be.Ball.CatchOrTackle(bcarrier);
+    var bwaits=(System.Collections.IDictionary)typeof(MatchEngine).GetField("_tacticalDecisionWait",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(be)!;
+    float minGap=999;
+    for(int i=0;i<100;i++){bwaits[bcarrier]=999f;be.Update(.02f);minGap=Math.Min(minGap,Vector2.Distance(buser.Position2D,bcarrier.Position2D));}
+    Check(minGap>=0.44f,$"body separation: steering straight into the carrier keeps a solid body gap ({minGap:F2}m)");
+
+    // 2) A CPU carrier runs into a parked defender and stops instead of passing through him.
+    var ch=Make("cbh",TeamSide.Home);var ca=Make("cba",TeamSide.Away);var cbus=new MatchEventBus();var ce=new MatchEngine(ch,ca,cbus,new Input());
+    GPark(ce);GZero(ce);
+    var ccarrier=ca.Players[1];ccarrier.Position2D=new(45,34);ccarrier.Velocity=new(-4,0);ccarrier.FacingDirection=new(-1,0);
+    var cuser=ce.ActiveUserPlayer;cuser.Position2D=new(43.5f,34);cuser.Velocity=Vector2.Zero;
+    ce.Ball.CatchOrTackle(ccarrier);
+    var cwaits=(System.Collections.IDictionary)typeof(MatchEngine).GetField("_tacticalDecisionWait",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(ce)!;
+    float cx0=ccarrier.Position2D.X;
+    for(int i=0;i<50;i++){cwaits[ccarrier]=999f;ce.Update(.02f);}
+    Check(cx0-ccarrier.Position2D.X<1.2f&&Vector2.Distance(cuser.Position2D,ccarrier.Position2D)>=0.44f,$"carrier body-block: a parked defender stops the carrier without overlap (advanced {cx0-ccarrier.Position2D.X:F2}m, gap {Vector2.Distance(cuser.Position2D,ccarrier.Position2D):F2}m)");
+
+    // 3) Controlled seeded A/B: scripted straight-line carrier, 8-way steer-at-carrier + manual
+    // tackle when the fair window opens. Assist ON wins the ball; assist OFF never reaches it.
+    (bool won,bool fouled) Chase(float assist)
+    {
+        var acts=new LawMovementInput();
+        var h=Make("abh",TeamSide.Home);var a=Make("aba",TeamSide.Away);var bus2=new MatchEventBus();var e=new MatchEngine(h,a,bus2,acts);
+        GPark(e);GZero(e);
+        typeof(MatchEngine).GetField("_defensiveApproachAssistStrength",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(e,assist);
+        var carrier=a.Players[1];carrier.Position2D=new(45,34);carrier.Velocity=new(-4,0);carrier.FacingDirection=new(-1,0);
+        var user=e.ActiveUserPlayer;user.Position2D=new(53,34);user.Velocity=Vector2.Zero;
+        e.Ball.CatchOrTackle(carrier);
+        var waits=(System.Collections.IDictionary)typeof(MatchEngine).GetField("_tacticalDecisionWait",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(e)!;
+        var cool=typeof(MatchEngine).GetField("_aiTackleCooldownTimer",BindingFlags.NonPublic|BindingFlags.Instance)!;
+        bool won=false,fouled=false;
+        bus2.OnMatchEvent+=ev=>{
+            if(ev.Type is MatchEventType.TackleSuccessful or MatchEventType.UserTackleSuccessful&&ev.SubjectPlayer==user)won=true;
+            if(ev.Type==MatchEventType.FoulCommitted&&ev.SubjectPlayer==user)fouled=true;};
+        for(int i=0;i<250&&!won&&!fouled;i++)
+        {
+            if(e.Ball.Owner!=carrier||e.Restart!=null)break;
+            waits[carrier]=999f;cool.SetValue(e,999f);
+            var d=carrier.Position2D-user.Position2D;float len=d.Length();
+            acts.Actions.Clear();
+            if(len>0.01f){if(Math.Abs(d.X)>0.38f*len)acts.Actions.Add(d.X>0?GameAction.MoveRight:GameAction.MoveLeft);if(Math.Abs(d.Y)>0.38f*len)acts.Actions.Add(d.Y>0?GameAction.MoveDown:GameAction.MoveUp);}
+            var ballP=new Vector2(e.Ball.Position.X,e.Ball.Position.Y);
+            var cf=carrier.FacingDirection.Length()>0.1f?Vector2.Normalize(carrier.FacingDirection):new Vector2(-1,0);
+            bool shielded=len>0.05f&&Vector2.Dot(cf,Vector2.Normalize(d))>0.25f;
+            if(len<=1.2f&&Vector2.Distance(user.Position2D,ballP)<=0.65f&&!shielded)acts.Actions.Add(GameAction.StandTackle);
+            e.Update(.02f);
+        }
+        return (won,fouled);
+    }
+    var on=Chase(0.4f);var off=Chase(0f);
+    Check(on.won&&!on.fouled,$"assist ON: chasing defender reaches the fair window and wins the manual tackle (won={on.won} fouled={on.fouled})");
+    Check(!off.won&&!off.fouled,$"assist OFF: same scripted scenario never reaches the ball (won={off.won} fouled={off.fouled})");
 }
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
