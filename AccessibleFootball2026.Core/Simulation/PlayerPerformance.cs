@@ -12,6 +12,7 @@ public sealed class MatchPerformance
     public int Misses { get; private set; }
     public int Fouls { get; private set; }
     public float Rating => Math.Clamp(6 + Goals * 1.2f + Saves * .35f + Tackles * .15f + CompletedPasses * .03f - LostPasses * .08f - Misses * .12f - Fouls * .2f, 1, 10);
+    internal void RevokeSave() => Saves = Math.Max(0, Saves - 1);
     internal void Record(MatchEventType type)
     {
         switch(type)
