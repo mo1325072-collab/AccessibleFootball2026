@@ -601,55 +601,114 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
  Check(chSet.Contains(GameAction.Shoot),"the charged shot still fires on release after the Ctrl hold ends");
 }
 
-// Law 12 sanction mapping: careless=no card, reckless=caution, DOGSO outside box=red, DOGSO in box (attempt on ball)=caution, persistent fouls=caution
+// Contact simulation parameters, not a claim of complete Law 12 coverage.
 {
     s.AiVarEnabled=false;
-    var lawKb=new AccessibleFootball2026.Input.KeyboardInputHandler();
-    var lawHome=Make("lh",TeamSide.Home);var lawAway=Make("la",TeamSide.Away);
-    var lawBus=new MatchEventBus();var lawEngine=new MatchEngine(lawHome,lawAway,lawBus,lawKb);
-    var lawCards=new List<MatchEvent>();lawBus.OnMatchEvent+=e=>{if(e.Type is MatchEventType.YellowCard or MatchEventType.RedCard)lawCards.Add(e);};
-    var lawTackler=lawHome.Players[1];
-    var lawCarrier=lawAway.Players[1];
-    foreach(var pl in lawHome.Players.Concat(lawAway.Players)) pl.Position2D=new Vector2(70,10);
-    lawTackler.Position2D=new Vector2(53,34);lawCarrier.Position2D=new Vector2(52,34);
-    lawEngine.HandleFoulSanction(lawTackler,lawCarrier,false,false);
-    Check(lawCards.Count==0&&lawTackler.YellowCards==0&&!lawTackler.IsSentOff,"law12 careless midfield foul carries no card");
-    lawEngine.HandleFoulSanction(lawTackler,lawCarrier,true,true);
-    Check(lawCards.Count==1&&lawCards[0].Type==MatchEventType.YellowCard&&lawTackler.YellowCards==1&&!lawTackler.IsSentOff,"law12 slide from behind is caution not direct red");
-    lawEngine.HandleFoulSanction(lawTackler,lawCarrier,true,true);
-    Check(lawTackler.YellowCards==2&&lawTackler.IsSentOff&&lawCards.Any(e=>e.Type==MatchEventType.RedCard),"law12 second caution dismisses via second-yellow flow");
-
-    var dogHome=Make("dh",TeamSide.Home);var dogAway=Make("da",TeamSide.Away);
-    var dogBus=new MatchEventBus();var dogEngine=new MatchEngine(dogHome,dogAway,dogBus,lawKb);
-    var dogCards=new List<MatchEvent>();dogBus.OnMatchEvent+=e=>{if(e.Type is MatchEventType.YellowCard or MatchEventType.RedCard)dogCards.Add(e);};
-    var dogTackler=dogHome.Players[1];
-    var dogCarrier=dogAway.Players[1];
-    foreach(var pl in dogHome.Players.Concat(dogAway.Players)) pl.Position2D=new Vector2(70,10);
-    dogTackler.Position2D=new Vector2(21,34);dogCarrier.Position2D=new Vector2(20,34);
-    dogEngine.HandleFoulSanction(dogTackler,dogCarrier,false,false);
-    Check(dogCards.Count==1&&dogCards[0].Type==MatchEventType.RedCard&&dogTackler.IsSentOff&&dogTackler.YellowCards==0,"law12 dogso outside penalty area is direct red");
-
-    var penHome=Make("ph",TeamSide.Home);var penAway=Make("pa",TeamSide.Away);
-    var penBus=new MatchEventBus();var penEngine=new MatchEngine(penHome,penAway,penBus,lawKb);
-    var penCards=new List<MatchEvent>();penBus.OnMatchEvent+=e=>{if(e.Type is MatchEventType.YellowCard or MatchEventType.RedCard)penCards.Add(e);};
-    var penTackler=penHome.Players[1];
-    var penCarrier=penAway.Players[1];
-    foreach(var pl in penHome.Players.Concat(penAway.Players)) pl.Position2D=new Vector2(70,10);
-    penTackler.Position2D=new Vector2(11,34);penCarrier.Position2D=new Vector2(10,34);
-    penEngine.HandleFoulSanction(penTackler,penCarrier,false,false);
-    Check(penCards.Count==1&&penCards[0].Type==MatchEventType.YellowCard&&penTackler.YellowCards==1&&!penTackler.IsSentOff,"law12 dogso inside penalty area attempt on ball is caution not red");
-
-    var perHome=Make("qh",TeamSide.Home);var perAway=Make("qa",TeamSide.Away);
-    var perBus=new MatchEventBus();var perEngine=new MatchEngine(perHome,perAway,perBus,lawKb);
-    var perCards=new List<MatchEvent>();perBus.OnMatchEvent+=e=>{if(e.Type is MatchEventType.YellowCard or MatchEventType.RedCard)perCards.Add(e);};
-    var perTackler=perHome.Players[1];
-    var perCarrier=perAway.Players[1];
-    foreach(var pl in perHome.Players.Concat(perAway.Players)) pl.Position2D=new Vector2(70,10);
-    perTackler.Position2D=new Vector2(53,34);perCarrier.Position2D=new Vector2(52,34);
-    var publish=typeof(MatchEngine).GetMethod("Publish",BindingFlags.NonPublic|BindingFlags.Instance)!;
-    for(int fi=0;fi<3;fi++) publish.Invoke(perEngine,new object[]{new MatchEvent(MatchEventType.FoulCommitted,"test foul "+fi,PitchZone.Midfield,spatialPan:0f,subjectPlayer:perTackler),Array.Empty<(string Key,object? Value)>()});
-    perEngine.HandleFoulSanction(perTackler,perCarrier,false,false);
-    Check(perCards.Count==1&&perCards[0].Type==MatchEventType.YellowCard&&perTackler.YellowCards==1&&!perTackler.IsSentOff,"law12 persistent fouls (3rd by same player) earn caution");
+    (MatchEngine e,Player t,Player c,List<MatchEvent> cards) FoulCase(bool homeTackles,float distance=52)
+    {
+        var h=Make("lawh",TeamSide.Home);var a=Make("lawa",TeamSide.Away);var bus=new MatchEventBus();
+        var e=new MatchEngine(h,a,bus,new Input());
+        var t=(homeTackles?h:a).Players[1];var c=(homeTackles?a:h).Players[1];
+        float x=homeTackles?distance:Pitch.Length-distance;float sign=homeTackles?-1:1;
+        foreach(var p in h.Players.Concat(a.Players)){p.Position2D=new(homeTackles?70:35,10);p.Velocity=Vector2.Zero;}
+        c.Position2D=new(x,34);c.FacingDirection=new(sign,0);
+        t.Position2D=new(x,35);t.FacingDirection=new(0,-1);
+        e.Ball.CatchOrTackle(c);
+        var cards=new List<MatchEvent>();bus.OnMatchEvent+=ev=>{if(ev.Type is MatchEventType.YellowCard or MatchEventType.RedCard)cards.Add(ev);};
+        return(e,t,c,cards);
+    }
+    foreach(bool side in new[]{true,false})
+    {
+        var f=FoulCase(side);f.e.HandleFoulSanction(f.t,f.c,true,true,MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D));
+        Check(f.cards.Count==0,"stationary foul has no automatic card despite slide/behind flags on side "+side);
+        f=FoulCase(side);f.t.Velocity=new(0,-16);f.e.HandleFoulSanction(f.t,f.c,false,false,MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D));
+        Check(f.cards.Count==1&&f.t.YellowCards==1&&!f.t.IsSentOff,"16m/s impact cautions with stationary victim on side "+side);
+        // A new incident with the same offender exercises the unchanged second-caution workflow.
+        f.t.Position2D=f.c.Position2D+Vector2.UnitY;f.t.Velocity=new(0,-16);f.c.Velocity=Vector2.Zero;
+        f.e.HandleFoulSanction(f.t,f.c,false,false,MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D));
+        Check(f.t.IsSentOff&&f.t.YellowCards==2,"second reckless contact uses second-yellow dismissal on side "+side);
+        f=FoulCase(side);f.t.Velocity=new(0,-26);f.e.HandleFoulSanction(f.t,f.c,false,false,MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D));
+        Check(f.cards.Any(ev=>ev.Type==MatchEventType.RedCard)&&f.t.IsSentOff&&f.t.YellowCards==0,"high-speed contact keeps SFP red possible on side "+side);
+        f=FoulCase(side);f.t.Velocity=new(0,-26);f.c.Velocity=new(0,-26);
+        var following=MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D);
+        Check(following.Severity==MatchEngine.FoulContactSeverity.Careless&&following.ClosingSpeed==0,"moving-away victim avoids false high-speed impact on side "+side);
+        f=FoulCase(side);f.c.Velocity=new(0,12);
+        Check(MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D).Severity==MatchEngine.FoulContactSeverity.Careless,"stationary tackler not assigned force from victim speed on side "+side);
+        f=FoulCase(side,10);f.e.HandleFoulSanction(f.t,f.c,false,false,MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D));
+        Check(f.t.YellowCards==1&&!f.t.IsSentOff&&f.e.Restart?.Kind==RestartKind.Penalty,"inside-box DOGSO genuine side ball challenge cautions plus penalty on side "+side);
+        f=FoulCase(side,10);float sign=side?-1:1;f.t.Position2D=f.c.Position2D-new Vector2(sign,0);f.t.FacingDirection=new(sign,0);
+        f.e.HandleFoulSanction(f.t,f.c,false,true,MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D));
+        Check(f.t.IsSentOff&&f.t.YellowCards==0&&f.e.Restart?.Kind==RestartKind.Penalty,"inside-box DOGSO blocked ball path remains red plus penalty on side "+side);
+        f=FoulCase(side,20);f.e.HandleFoulSanction(f.t,f.c,false,false,MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D));
+        Check(f.t.IsSentOff&&f.e.Restart?.Kind==RestartKind.FreeKick,"outside-box DOGSO remains red on side "+side);
+        f=FoulCase(side);f.t.Velocity=new(0,-4);
+        var lunge=MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D,2.8f,new Vector2(0,-4));
+        Check(Math.Abs(lunge.ClosingSpeed-4)<.001f,"slide impulse never counted twice on side "+side);
+        (side?f.e.HomeTeam:f.e.AwayTeam).Tactics.Tackling=TacklingAggression.Reckless;
+        var aggressive=MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D);
+        (side?f.e.HomeTeam:f.e.AwayTeam).Tactics.Tackling=TacklingAggression.Cautious;
+        Check(aggressive==MatchEngine.CaptureFoulIncident(f.t,f.c,f.e.Ball.Position2D),"tactical aggression does not classify contact on side "+side);
+        f.e.AwardFoulRestart(f.c);
+        Check(f.e.HomeTeam.Players.Concat(f.e.AwayTeam.Players).All(p=>p.Velocity==Vector2.Zero),"restart placement clears contact momentum on side "+side);
+    }
+    foreach(float dt in new[]{.01f,.04f})
+    {
+        var movement=new LawMovementInput();var e=new MatchEngine(Make("mh",TeamSide.Home),Make("ma",TeamSide.Away),new MatchEventBus(),movement);
+        e.ActiveUserPlayer.Position2D=new(50,20);var before=e.ActiveUserPlayer.Position2D;
+        typeof(MatchEngine).GetField("_kickoffProtectionTimer",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(e,0f);
+        var keeper=e.AwayTeam.Players.First(p=>p.Role==PlayerRole.Goalkeeper);keeper.Position2D=new(100,27);var keeperBefore=keeper.Position2D;
+        e.Update(dt);var speed=(e.ActiveUserPlayer.Position2D-before).Length()/dt;
+        float keeperMeasured=(keeper.Position2D-keeperBefore).Length()/dt;
+        Check(Math.Abs(keeper.Velocity.Length()-keeperMeasured)<.01f,"CPU keeper velocity records physical displacement per second at dt "+dt);
+        var contactMotion=typeof(MatchEngine).GetMethod("ContactMotion",BindingFlags.NonPublic|BindingFlags.Instance)!;
+        Check((Vector2)contactMotion.Invoke(e,new object[]{keeper})! == Vector2.Zero,"keeper positional correction contributes zero contact force at dt "+dt);
+        var correctionVictim=e.HomeTeam.Players[1];correctionVictim.Position2D=new(52,34);keeper.Position2D=new(52,35);keeper.FacingDirection=new(0,-1);
+        keeper.Velocity=new(0,-30); // deliberately contaminate display velocity; live contact source stays zero
+        e.Ball.CatchOrTackle(correctionVictim);e.HandleFoulSanction(keeper,correctionVictim,true,true);
+        Check(!keeper.IsSentOff&&keeper.YellowCards==0,"keeper correction/display velocity cannot synthesize a SFP red at dt "+dt);
+        Console.WriteLine($"CONTACT CALIBRATION dt={dt}: user={speed:F3}m/s keeper={keeperMeasured:F3}m/s; CPU 75-speed press base Easy/Normal/Hard/Legendary=3.375/4.650/6.375/7.875m/s before fatigue/reaction modifiers");
+        Check(speed>8&&speed<18&&Math.Abs(speed-10)<.01f,"actual movement velocity is metres per second at dt "+dt);
+        var t=e.HomeTeam.Players[1];var c=e.AwayTeam.Players[1];t.Position2D=new(50,35);c.Position2D=new(50,34);t.FacingDirection=new(0,-1);t.Velocity=new(0,-16);c.Velocity=Vector2.Zero;
+        Check(MatchEngine.CaptureFoulIncident(t,c,c.Position2D).Severity==MatchEngine.FoulContactSeverity.Reckless,"classification independent of frame length "+dt);
+    }
+    foreach(float dt in new[]{.01f,.02f,.04f}) foreach(bool sprint in new[]{false,true}) foreach(bool slide in new[]{false,true}) foreach(int rating in new[]{75,100})
+    {
+        var actions=new LawMovementInput();actions.Actions.Add(slide?GameAction.SlideTackle:GameAction.StandTackle);
+        if(sprint)actions.Actions.Add(GameAction.Sprint);
+        var h=Make("rh",TeamSide.Home);var a=Make("ra",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,actions);
+        var t=e.ActiveUserPlayer;var c=a.Players[1];t.BaseSpeed=rating;
+        foreach(var pl in h.Players.Concat(a.Players))pl.Position2D=new(80,10);
+        t.Position2D=new(50,34);c.Position2D=new(51.5f,34);c.FacingDirection=Vector2.UnitX;e.Ball.CatchOrTackle(c);
+        int fouls=0;bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.FoulCommitted)fouls++;};
+        e.Update(dt);
+        bool highImpact=false;
+        Check(fouls==1&&t.IsSentOff==highImpact&&t.YellowCards==(sprint?1:0),$"actual input dt={dt} rating={rating} sprint={sprint} slide={slide}: normal run no red, calibrated high-speed contact SFP");
+        Console.WriteLine($"ACTUAL CONTACT dt={dt} rating={rating} sprint={sprint} slide={slide} fouls={fouls} yellow={t.YellowCards} red={t.IsSentOff}");
+    }
+    foreach(float dt in new[]{.01f,.02f,.04f})
+    {
+        var actions=new LawMovementInput();var h=Make("ih",TeamSide.Home);var a=Make("ia",TeamSide.Away);
+        var e=new MatchEngine(h,a,new MatchEventBus(),actions);var t=e.ActiveUserPlayer;var c=a.Players[1];
+        foreach(var pl in h.Players.Concat(a.Players))pl.Position2D=new(80,10);
+        t.Position2D=new(40,34);c.Position2D=new(52,34);e.Ball.CatchOrTackle(c);
+        typeof(MatchEngine).GetField("_kickoffProtectionTimer",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(e,0f);
+        actions.Actions.Clear();e.Update(dt); // CPU carrier really runs left, about4.875m/s.
+        float victimX=c.Position2D.X;
+        t.Position2D=new(victimX-(.4f+16*dt),34); // after the next movement, a physical contact at.4m
+        actions.Actions.UnionWith(new[]{GameAction.MoveRight,GameAction.Sprint,GameAction.StandTackle});
+        e.Update(dt);
+        Check(t.IsSentOff&&t.YellowCards==0,"actual sprint into oncoming carrier contact can produce SFP red even ball-first at dt "+dt);
+    }
+    // Change live motion/positions after review starts: the original incident must survive.
+    s.AiVarEnabled=true;var v=FoulCase(true);v.t.Velocity=new(0,-26);
+    v.e.HandleFoulSanction(v.t,v.c,false,false,MatchEngine.CaptureFoulIncident(v.t,v.c,v.e.Ball.Position2D));
+    Check(v.e.VideoReviewPending&&!v.t.IsSentOff,"SFP waits for approved VAR narration and Enter");
+    v.t.Velocity=Vector2.Zero;v.c.Position2D=new(10,34);
+    for(int i=0;i<80&&!v.e.AwaitingStoppageConfirmation;i++)v.e.Update(.1f);
+    v.e.DismissStoppageReplay();
+    Check(v.t.IsSentOff&&v.t.YellowCards==0,"VAR preserves original force snapshot despite live changes");
+    Check(v.e.Restart?.Kind==RestartKind.FreeKick&&Math.Abs(v.e.Restart.Spot.X-52)<.01f,"VAR preserves original restart location not changed victim position");
+    s.AiVarEnabled=false;
 }
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
@@ -663,3 +722,5 @@ sealed class ControlledReader:IScreenReader
  public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Started.TrySetResult(true);return Finish.Task;}
  public void CancelSpeech()=>Finish.TrySetResult(true);
 }
+
+sealed class LawMovementInput:IInputHandler{public HashSet<GameAction> Actions=new(){GameAction.MoveRight};public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>Actions;public bool IsActionTriggered(GameAction action,bool possession)=>false;}
