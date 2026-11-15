@@ -75,6 +75,8 @@ public class SmartAudioCoordinator
 
     public void HandleMatchEvent(MatchEvent matchEvent)
     {
+        // Lifecycle bookkeeping only; the following period whistle supplies the audible outcome.
+        if (matchEvent.Type == MatchEventType.ShotInterrupted) return;
         if(matchEvent.Type is MatchEventType.VideoReviewStarted or MatchEventType.VideoReviewDecision)
         {
             // Explicit referee information is never hidden by live-speech silence or recorded commentary.
