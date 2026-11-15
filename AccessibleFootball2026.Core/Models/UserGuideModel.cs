@@ -193,11 +193,11 @@ public static class UserGuideDatabase
         new(
             "tactical_radar_guide",
             "radar_beacon",
-            "Space",
+            "Pause",
             "الرادار التكتيكي الصوتي (Tactical Radar)",
             "Tactical Audio Radar",
-            "يوفر إحاطة مكانية شاملة للمكفوفين عند الطلب بالضغط على زر المسافة، فينطق بدقة من معه الكرة (أنت أو زميلك أو الخصم)، المنطقة الحالية في الملعب، والمسافة الدقيقة لمرمى الخصم بالأمتار، مع صمت تام أثناء الجري بالكرة لعدم تشويش التجربة الصوتية.",
-            "Provides complete spatial awareness on demand by pressing Space: announces ball carrier, pitch zone, and distance to opponent goal in meters, while keeping screen reader 100% silent during active ball running."
+            "يوفر إحاطة مكانية شاملة للمكفوفين عند الطلب من قائمة الإيقاف المؤقت، فينطق بدقة من معه الكرة (أنت أو زميلك أو الخصم)، المنطقة الحالية في الملعب، والمسافة الدقيقة لمرمى الخصم بالأمتار، مع صمت تام أثناء الجري بالكرة لعدم تشويش التجربة الصوتية.",
+            "Provides complete spatial awareness on demand from the pause menu: announces ball carrier, pitch zone, and distance to opponent goal in meters, while keeping screen reader 100% silent during active ball running."
         ),
         new(
             "spatial_goal_beacon",
