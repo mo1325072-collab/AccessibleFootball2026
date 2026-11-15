@@ -710,6 +710,139 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
     Check(v.e.Restart?.Kind==RestartKind.FreeKick&&Math.Abs(v.e.Restart.Spot.X-52)<.01f,"VAR preserves original restart location not changed victim position");
     s.AiVarEnabled=false;
 }
+
+// === Targeted regressions: tackle path geometry, converging home press, CPU receiver parity ===
+{
+    void ZeroTimers(MatchEngine e){var T=typeof(MatchEngine);foreach(var n in new[]{"_kickoffProtectionTimer","_possessionGraceTimer","_aiTackleCooldownTimer"})T.GetField(n,BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(e,0f);}
+    void ParkAll(MatchEngine e){foreach(var pl in e.HomeTeam.Players.Concat(e.AwayTeam.Players))pl.Position2D=new(80,10);}
+    // Let every AI player reach his formation anchor before measuring (kills ParkAll Lerp-drift
+    // artifacts): the holder keeps the ball far from all pressers with passing disabled.
+    void Settle(MatchEngine e,Player holder)
+    {
+        foreach(var pl in e.HomeTeam.Players.Concat(e.AwayTeam.Players))pl.Position2D=new(80,10);
+        holder.Position2D=new(95,34);holder.FacingDirection=-Vector2.UnitX;e.Ball.CatchOrTackle(holder);
+        e.ActiveUserPlayer.Position2D=new(80,10);
+        var dw=(System.Collections.IDictionary)typeof(MatchEngine).GetField("_tacticalDecisionWait",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(e)!;dw[holder]=50f;
+        for(int k=0;k<75;k++)e.Update(.02f);
+    }
+    float GraceOf(MatchEngine e)=>(float)typeof(MatchEngine).GetField("_possessionGraceTimer",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(e)!;
+
+    // A. Close-quarters rear poke with no closing speed is a duel, not an automatic foul.
+    // The existing 24-scenario matrix above still covers body-blocked 1.5m lunges and sprint collisions.
+    foreach(float dt in new[]{.01f,.04f})
+    {
+        var acts=new LawMovementInput();acts.Actions.Clear();acts.Actions.Add(GameAction.StandTackle);
+        var h=Make("pkh",TeamSide.Home);var a=Make("pka",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        ParkAll(e);ZeroTimers(e);
+        var c=a.Players[1];c.Position2D=new(50,34);c.FacingDirection=Vector2.UnitX;e.Ball.CatchOrTackle(c);
+        var t=e.ActiveUserPlayer;t.Position2D=new(49.3f,34);t.Velocity=Vector2.Zero; // 0.7m directly behind, stationary
+        int fouls=0,duels=0;
+        bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.FoulCommitted)fouls++;if(ev.Type is MatchEventType.TackleAttempted or MatchEventType.UserTackleSuccessful)duels++;};
+        e.Update(dt);
+        Check(fouls==0&&duels==1,$"close-quarters rear poke at 0.7m with no closing speed is a duel not an automatic foul at dt {dt}");
+    }
+
+    // B. Selected-player control preserved: the press never moves the user's active player.
+    {
+        var acts=new Input();var h=Make("sph",TeamSide.Home);var a=Make("spa",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        ParkAll(e);ZeroTimers(e);h.Tactics.PressingIntensity=50;
+        var c=a.Players[1];c.Position2D=new(54,34);c.FacingDirection=Vector2.UnitX;e.Ball.CatchOrTackle(c);
+        var t=e.ActiveUserPlayer;t.Position2D=new(52,34);t.Velocity=Vector2.Zero;
+        var dw=(System.Collections.IDictionary)typeof(MatchEngine).GetField("_tacticalDecisionWait",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(e)!;dw[c]=50f;
+        for(int i=0;i<40;i++)e.Update(.02f);
+        Check(t.Position2D==new Vector2(52,34)&&t.Velocity==Vector2.Zero,"converging press never moves the user's selected player");
+    }
+
+    // C. Press convergence is velocity-bounded, directional, and count-limited (measured in the
+    // first second of the press, before any duel/restart can reposition players; end-to-end arrival
+    // at duel range is covered by the AI-duel foul/win evidence in the hoard probe).
+    {
+        var acts=new Input();var h=Make("cvh",TeamSide.Home);var a=Make("cva",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        ZeroTimers(e);h.Tactics.PressingIntensity=50;
+        var c=a.Players[1];Settle(e,c);
+        // start the observed press from a realistic goal-side spot against a midfielder carrier
+        c.Position2D=new(50,34);c.FacingDirection=-Vector2.UnitX;
+        e.Ball.Position=new Vector3(50,34,.1f);e.Ball.CatchOrTackle(c);
+        var ph=h.Players.Where(pl=>pl!=e.ActiveUserPlayer&&pl.Role!=PlayerRole.Goalkeeper).OrderBy(pl=>Vector2.DistanceSquared(pl.Position2D,c.Position2D)).First();
+        float d0=Vector2.Distance(ph.Position2D,e.Ball.Position2D),maxStep=0;int maxPressers=0;
+        var prev=ph.Position2D;int frames=0;
+        for(int i=0;i<50&&e.Restart==null&&e.Ball.Owner==c;i++)
+        {
+            e.Update(.02f);frames++;
+            maxStep=Math.Max(maxStep,Vector2.Distance(ph.Position2D,prev));prev=ph.Position2D;
+            maxPressers=Math.Max(maxPressers,h.Players.Count(pl=>pl!=e.ActiveUserPlayer&&pl.Role!=PlayerRole.Goalkeeper
+                &&pl.Velocity.Length()>3&&Vector2.Distance(pl.Position2D,e.Ball.Position2D)<14f
+                &&Vector2.Dot(Vector2.Normalize(pl.Velocity),Vector2.Normalize(e.Ball.Position2D-pl.Position2D))>.8f));
+        }
+        float d1=Vector2.Distance(ph.Position2D,e.Ball.Position2D);
+        Check(e.Ball.Owner==c&&d1<=d0-.7f,$"pressing teammate converges on the carrier by real movement ({d0:F1}m -> {d1:F1}m over {frames} frames)");
+        Check(maxStep<=.25f,$"press convergence is velocity-bounded with no teleport (max frame step {maxStep:F3}m at dt 0.02)");
+        Check(maxPressers>=1&&maxPressers<=3,$"press stays count-limited, no whole-team swarm (peak in-range ball-facing pressers {maxPressers})");
+    }
+
+    // D. CPU receiver guidance: named receiver runs to meet the pass and completes it.
+    {
+        var acts=new Input();var h=Make("rgh",TeamSide.Home);var a=Make("rga",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        ParkAll(e);ZeroTimers(e);
+        var c1=a.Players[1];var c2=a.Players[2];c1.Position2D=new(40,34);c2.Position2D=new(55,20);
+        e.Ball.Kick(Vector2.Normalize(new Vector2(12,-14)),16,.15f,c1);
+        Call(e,"BeginCommentaryPass",c1,c2,c2.Position2D,"short","ground",false);
+        float d0=Vector2.Distance(c2.Position2D,e.Ball.Position2D),minD=d0;
+        int completed=0;Player? recv=null;
+        bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.PassCompleted){completed++;recv=ev.SubjectPlayer;}};
+        for(int i=0;i<800&&completed==0;i++){e.Update(.01f);minD=Math.Min(minD,Vector2.Distance(c2.Position2D,e.Ball.Position2D));}
+        Check(minD<=d0-3f,$"CPU pass receiver runs to meet the ball ({d0:F1}m -> {minD:F1}m)");
+        Check(completed==1&&recv==c2,"CPU receiver guidance produces a completed pass to the named receiver");
+    }
+
+    // E. Reception guidance never claims an opponent-controlled ball.
+    {
+        var acts=new Input();var h=Make("och",TeamSide.Home);var a=Make("oca",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+        ParkAll(e);ZeroTimers(e);
+        var c1=a.Players[1];var c2=a.Players[2];c1.Position2D=new(40,34);c2.Position2D=new(46,34);
+        var hp=h.Players.First(pl=>pl!=e.ActiveUserPlayer);hp.Position2D=new(52,34);
+        e.Ball.CatchOrTackle(hp);
+        Call(e,"BeginCommentaryPass",c1,c2,c2.Position2D,"short","ground",false);
+        int completed=0;bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.PassCompleted)completed++;};
+        for(int i=0;i<100;i++)e.Update(.01f);
+        Check(e.Ball.Owner==hp&&completed==0,"CPU receiver guidance cannot claim an opponent-controlled ball");
+    }
+
+    // F. Receiver-guidance guards. The guidance reception is the only away pickup path that grants
+    // possession grace (line-level fact), so a positive grace sample proves guidance acted; its
+    // absence proves the guard suppressed guidance regardless of other movement.
+    {
+        (float approach,float grace,bool owned,int frames) RunGuard(float ballOffset,bool bumpAge,bool outOfBounds)
+        {
+            var acts=new Input();var h=Make("guh",TeamSide.Home);var a=Make("gua",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
+            ZeroTimers(e);
+            var c1=a.Players[1];var c2=a.Players[2];Settle(e,c1);
+            float dx=c2.Position2D.X<60?ballOffset:-ballOffset;
+            var spot=c2.Position2D+new Vector2(dx,0);
+            spot.X=Math.Clamp(spot.X,3f,102f);
+            e.Ball.Kick(Vector2.UnitX,.01f,.15f,c1);e.Ball.Position=new Vector3(spot.X,spot.Y,.1f);
+            Call(e,"BeginCommentaryPass",c1,c2,c2.Position2D,"short","ground",false);
+            if(bumpAge){var ef=typeof(MatchEngine).GetField("_elapsedSeconds",BindingFlags.Instance|BindingFlags.NonPublic)!;ef.SetValue(e,(float)ef.GetValue(e)!+9f);}
+            if(outOfBounds)e.Ball.State=BallState.OutOfBounds;
+            float d0=Vector2.Distance(c2.Position2D,spot),maxGrace=0;int k=0;
+            bool WindowOpen()=>e.Restart==null&&(!outOfBounds||e.Ball.State==BallState.OutOfBounds);
+            for(;k<160&&e.Ball.Owner!=c2&&WindowOpen();k++){e.Update(.01f);maxGrace=Math.Max(maxGrace,GraceOf(e));}
+            return (d0-Vector2.Distance(c2.Position2D,spot),maxGrace,e.Ball.Owner==c2,k);
+        }
+        var beyondCap=RunGuard(19f,false,false);
+        // grace is the guidance reception's unique signature; ordinary loose-ball cleanup may still
+        // move players, so the guard is proven by its absence
+        Check(beyondCap.grace==0,$"no receiver guidance beyond the 18m reachability cap (grace {beyondCap.grace:F2}, approach {beyondCap.approach:F2}m)");
+        var insideCap=RunGuard(13f,false,false); // 13m: inside the cap and clear of interception range from home anchors
+        Check(insideCap.grace>0&&insideCap.owned,$"receiver guidance acts inside the cap (grace {insideCap.grace:F2}, received {insideCap.owned})");
+        var expired=RunGuard(6f,true,false);
+        Check(expired.grace==0,$"no receiver guidance from an expired transit >8s (grace {expired.grace:F2}, approach {expired.approach:F2}m)");
+        var live=RunGuard(6f,false,false);
+        Check(live.grace>0&&live.owned,"live transit at the same spot guides the receiver into possession");
+        var oob=RunGuard(6f,false,true);
+        Check(oob.grace==0&&oob.approach<2f,$"no receiver guidance to an out-of-bounds ball (approach {oob.approach:F2}m over {oob.frames} frames, grace {oob.grace:F2})");
+    }
+}
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
 sealed class Input:IInputHandler{public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>new();public bool IsActionTriggered(GameAction action,bool possession)=>false;}
