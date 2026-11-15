@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Numerics;
 using System.Reflection;
@@ -532,6 +533,11 @@ Check(keys.Contains(GameAction.StandTackle)&&!keys.Contains(GameAction.ShortPass
   Check(shotSrc.Contains("1f + .35f * charge")&&shotSrc.Contains("1f + .7f * charge"),"charged driven shots gain speed but lose accuracy, never a guaranteed goal");
   var audioSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Audio","SmartAudioCoordinator.cs"));
   Check(!audioSrc.Contains("KickChargeCue")&&!audioSrc.Contains("PlayChargeMax"),"audio layer carries no charge-start or full-charge cue");
+  var gkSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Core","Simulation","MatchEngineIncidents.cs"));
+  var awayGuard=Regex.Escape("&& (Ball.Owner == null || AwayTeam.Players.Contains(Ball.Owner))");
+  var homeGuard=Regex.Escape("&& (Ball.Owner == null || HomeTeam.Players.Contains(Ball.Owner))");
+  Check(Regex.Matches(gkSrc,awayGuard).Count>=1&&Regex.Matches(gkSrc,homeGuard).Count>=1,"keeper auto-catch never takes an opponent-owned controlled ball (both teams)");
+  Check(Regex.Matches(gkSrc,Regex.Escape("HandleFoulSanction(")).Count>=3,"keeper duels route fouls through the same sanction path as outfield tackles");
  }
 }
 // Charged kicks move real ball physics: same engine, same positions, only hold duration changes.
