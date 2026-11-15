@@ -510,7 +510,6 @@ public partial class MatchEngine
     {
         bool hasPossession = Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner);
         var actions = _inputHandler.PollCurrentActions(hasPossession);
-        PublishChargeCues();
 
         if (actions.Contains(GameAction.Pause))
         {
@@ -628,30 +627,6 @@ public partial class MatchEngine
             {
                 ExecuteSlideTackle();
             }
-        }
-    }
-
-    // Hold-to-charge tactile feedback: one earcon when a charge starts, one at full power; never spoken.
-    private bool _chargeCueActive, _chargeCueMaxed;
-    private void PublishChargeCues()
-    {
-        float strongest = Math.Max(_inputHandler.ActiveCharge01(GameAction.ShortPass),
-            Math.Max(_inputHandler.ActiveCharge01(GameAction.Cross), _inputHandler.ActiveCharge01(GameAction.Shoot)));
-        if (strongest < 0f)
-        {
-            _chargeCueActive = false;
-            _chargeCueMaxed = false;
-            return;
-        }
-        if (!_chargeCueActive)
-        {
-            _chargeCueActive = true;
-            Publish(new MatchEvent(MatchEventType.KickChargeCue, "شحن قوة اللعبة", CurrentZone), ("charge.stage", "start"));
-        }
-        if (strongest >= 1f && !_chargeCueMaxed)
-        {
-            _chargeCueMaxed = true;
-            Publish(new MatchEvent(MatchEventType.KickChargeCue, "اكتمل شحن القوة", CurrentZone), ("charge.stage", "max"));
         }
     }
 
