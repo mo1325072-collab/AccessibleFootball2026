@@ -114,6 +114,8 @@ public partial class MatchEngine
     private bool _isShotInProgress = false;
     private float _shotTargetGoalX = 0.0f;   // المرمى المستهدف بالتسديدة الجارية
     private bool _shotGkResolved = false;    // هل حُسمت مواجهة الحارس لهذه التسديدة
+    // Defensive approach assistance blend strength (simulation parameter; tests can zero it for baseline).
+    private float _defensiveApproachAssistStrength = 0.4f;
     private Player? _shotShooter = null;     // مسدد التسديدة الجارية
     private float _celebrationTimer = 0.0f;
     public bool AutomaticGoalRestart { get; set; } = true;
@@ -334,8 +336,6 @@ public partial class MatchEngine
             // Held incidents freeze play, not explicit information requests. Consume unsafe queued
             // actions here so a shot/tackle tapped during narration cannot fire after dismissal.
             var heldActions = _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
-            if (heldActions.Contains(GameAction.TacticalRadar)) ReportRequestedRadar();
-            if (heldActions.Contains(GameAction.RequestLineup)) RequestLineup();
             return;
         }
         if (State == MatchState.GoalCelebration)
@@ -498,7 +498,7 @@ public partial class MatchEngine
         CheckShotBlock(previousBall);
         UpdateClearanceOutcome();
         CheckPitchZone();
-        CheckRefereeRules();
+        CheckRefereeRules(previousBall);
 
         // ترشيد استدعاء صوت الجماهير لمنع تقطيع الصوت
         _crowdUpdateTimer += deltaTime;
@@ -520,10 +520,6 @@ public partial class MatchEngine
             return;
         }
 
-        if (actions.Contains(GameAction.SlowRunUp)) BeginSlowRunUp();
-        if (actions.Contains(GameAction.RequestLineup)) RequestLineup();
-        // الرادار التكتيكي اللحظي على الطلب (Space أو C)
-        if (actions.Contains(GameAction.TacticalRadar)) ReportRequestedRadar();
 
         ActiveUserPlayer.Velocity = _slideDurationTimer > 0 ? _slideImpulseVelocity : Vector2.Zero;
         _contactMotion[ActiveUserPlayer] = ActiveUserPlayer.Velocity;
@@ -556,17 +552,114 @@ public partial class MatchEngine
             if (moveDir.Length() > 0)
             {
                 moveDir = Vector2.Normalize(moveDir);
-                if (hasPossession && Ball.Owner == ActiveUserPlayer && (actions.Contains(GameAction.MoveUp) || actions.Contains(GameAction.MoveDown)))
+                Vector2? assistFacing = null;
+                // A tackle actually EXECUTING this tick skips assistance (true foul evidence);
+                // a held tackle key during the cooldown does not - the attempt won't run anyway.
+                bool tackleExecuting = (actions.Contains(GameAction.StandTackle) || actions.Contains(GameAction.SlideTackle))
+                    && _tackleCooldownTimer <= 0.0f;
+                if (_defensiveApproachAssistStrength > 0.001f && !hasPossession && !tackleExecuting
+                    && Ball.Owner is { } ballCarrier && AwayTeam.Players.Contains(ballCarrier))
+                {
+                    // Defensive approach assistance (simulation parameters, not a rules claim):
+                    // when the player steers roughly at the ball carrier (alignment cone ~32 deg),
+                    // curve the run toward a FAIR ball-side containment point: 0.70m ahead of the
+                    // carrier along his movement/facing, where the ball (0.35m ahead of the carrier)
+                    // sits ~0.35m from the player and a manual tackle reaches it cleanly instead of
+                    // charging through the carrier's body. Physical movement only: speed stays the
+                    // capped moveSpeed, tackling stays manual, no teleport, no audio; steering
+                    // anywhere outside the cone is untouched. A committed tackle this tick skips
+                    // assistance entirely: the challenge must use the player's true approach
+                    // velocity so foul/contact evidence is never bent by the steering curve.
+                    Vector2 toCarrier = ballCarrier.Position2D - ActiveUserPlayer.Position2D;
+                    float carrierDistance = toCarrier.Length();
+                    if (carrierDistance > 1e-3f && Vector2.Dot(moveDir, toCarrier / carrierDistance) >= 0.85f)
+                    {
+                        // Jockeying: in duel range the defender FACES the carrier, not his own run
+                        // direction - head-on geometry for the manual tackle, never from-behind.
+                        if (carrierDistance <= 2.0f)
+                            assistFacing = toCarrier / carrierDistance;
+                        Vector2 carrierDir = ballCarrier.Velocity.Length() > 0.6f
+                            ? Vector2.Normalize(ballCarrier.Velocity)
+                            : (ballCarrier.FacingDirection.Length() > 0.1f ? Vector2.Normalize(ballCarrier.FacingDirection) : Vector2.Zero);
+                        if (carrierDir != Vector2.Zero)
+                        {
+                            Vector2 fairPoint = ballCarrier.Position2D + carrierDir * 0.70f;
+                            Vector2 toFair = fairPoint - ActiveUserPlayer.Position2D;
+                            float fairDistance = toFair.Length();
+                            Vector2 dirToFair = fairDistance > 1e-4f ? toFair / fairDistance : carrierDir;
+                            // Route around the carrier's body: when the straight line to the fair
+                            // point passes through his body disc (chasing from behind/side), steer
+                            // for a waypoint beside the carrier first - on the side the player is
+                            // already on - instead of pushing into his back, where the moving fair
+                            // point can never be reached.
+                            Vector2 relCarrier = ballCarrier.Position2D - ActiveUserPlayer.Position2D;
+                            float alongPath = Vector2.Dot(relCarrier, dirToFair);
+                            bool bodyInPath = fairDistance > 0.25f
+                                && Vector2.Dot(relCarrier, carrierDir) > 0.15f
+                                && alongPath > 0 && alongPath < fairDistance + 0.45f
+                                && (relCarrier - dirToFair * alongPath).Length() < 0.55f;
+                            // Pursuit lead: aim where the moving fair point will be, not where it
+                            // is, so a sprinting player actually closes on a moving carrier.
+                            float leadTime = Math.Clamp(fairDistance / moveSpeed, 0f, 0.4f);
+                            Vector2 steerTarget = fairPoint + ballCarrier.Velocity * leadTime;
+                            if (bodyInPath)
+                            {
+                                Vector2 lateral = ActiveUserPlayer.Position2D - ballCarrier.Position2D;
+                                lateral -= carrierDir * Vector2.Dot(lateral, carrierDir);
+                                Vector2 perpDir = lateral.LengthSquared() > 1e-6f
+                                    ? Vector2.Normalize(lateral)
+                                    : new Vector2(-carrierDir.Y, carrierDir.X);
+                                steerTarget = ballCarrier.Position2D + perpDir * 1.0f + carrierDir * 0.3f;
+                            }
+                            // Parked on the fair point: hold the position instead of letting the
+                            // raw steer drag the player into the carrier's body; the carrier then
+                            // runs into the block or must play the ball.
+                            if (!bodyInPath && fairDistance <= 0.25f)
+                                moveDir = Vector2.Zero;
+                            Vector2 toTarget = steerTarget - ActiveUserPlayer.Position2D;
+                            if (toTarget.LengthSquared() > 1e-6f && (bodyInPath || fairDistance > 0.25f))
+                            {
+                                // The correction strengthens on the final approach: far away the
+                                // player's own steering dominates; in tackle range the curve
+                                // delivers him to the ball side instead of the carrier's body.
+                                float blend = Math.Clamp(_defensiveApproachAssistStrength + 0.5f * (1f - carrierDistance / 6f), _defensiveApproachAssistStrength, 0.9f);
+                                moveDir = Vector2.Normalize(Vector2.Lerp(moveDir, Vector2.Normalize(toTarget), blend));
+                            }
+                            // No speed easing near the fair point: an eased approach can never
+                            // catch a point that recedes at carrier speed. The player arrives at
+                            // full (capped) speed; the body separation and the carrier's body-block
+                            // stop turn the arrival into a physical standoff in front of the ball.
+
+                        }
+                    }
+                }
+                if (assistFacing is { } jockeyFace)
+                {
+                    ActiveUserPlayer.FacingDirection = jockeyFace;
+                }
+                else if (hasPossession && Ball.Owner == ActiveUserPlayer && (actions.Contains(GameAction.MoveUp) || actions.Contains(GameAction.MoveDown)))
                 {
                     // FacingDirection تم ضبطها بدقة مثلثية في AdjustAimingAngle ولا تحتاج لإعادة تطبيع مشوهة
                 }
-                else
+                else if (moveDir.LengthSquared() > 1e-6f)
                 {
                     ActiveUserPlayer.FacingDirection = moveDir;
                 }
                 ActiveUserPlayer.Velocity = moveDir * moveSpeed;
                 _contactMotion[ActiveUserPlayer] = ActiveUserPlayer.Velocity;
                 ActiveUserPlayer.Position2D += ActiveUserPlayer.Velocity * deltaTime;
+                // فصل بدني: أجسام اللاعبين صلبة - لا يخترق المدافع جسم لاعب خصم (خارج الاستحواذ فقط)
+                if (Ball.Owner != ActiveUserPlayer)
+                {
+                    foreach (var opp in AwayTeam.Players)
+                    {
+                        if (!opp.IsActiveOnPitch) continue;
+                        var awayFromBody = ActiveUserPlayer.Position2D - opp.Position2D;
+                        float bodyDist = awayFromBody.Length();
+                        if (bodyDist < 0.45f && bodyDist > 0.0001f)
+                            ActiveUserPlayer.Position2D = opp.Position2D + awayFromBody / bodyDist * 0.45f;
+                    }
+                }
                 ActiveUserPlayer.Position2D = new Vector2(
                     Math.Clamp(ActiveUserPlayer.Position2D.X, 0, Pitch.Length),
                     Math.Clamp(ActiveUserPlayer.Position2D.Y, 0, Pitch.Width)
@@ -587,24 +680,12 @@ public partial class MatchEngine
             }
         }
 
-        if (actions.Contains(GameAction.Header)) TryExecuteTechnique(ShotTechnique.Header);
-        else if (actions.Contains(GameAction.BicycleKick)) TryExecuteTechnique(ShotTechnique.Bicycle);
-        else if (actions.Contains(GameAction.Volley)) TryExecuteTechnique(ShotTechnique.Volley);
-        else if (actions.Contains(GameAction.LobShot)) TryExecuteTechnique(ShotTechnique.Lob);
-        else if (actions.Contains(GameAction.CurledShot)) TryExecuteTechnique(ShotTechnique.Curled);
 
         if (hasPossession && Ball.Owner == ActiveUserPlayer)
         {
-            if (actions.Contains(GameAction.Clearance)) ExecuteClearance();
-            else if (actions.Contains(GameAction.GroundCross)) ExecuteCross(CrossStyle.Ground);
-            else if (actions.Contains(GameAction.FarPostCross)) ExecuteCross(actions.Contains(GameAction.Sprint)?CrossStyle.GroundFarPost:CrossStyle.FarPost);
-            else if (actions.Contains(GameAction.ShortPass))
+            if (actions.Contains(GameAction.ShortPass))
             {
                 ExecutePass(moveDir, isThroughBall: false, charge01: _inputHandler.ConsumeReleasedCharge01(GameAction.ShortPass));
-            }
-            else if(actions.Contains(GameAction.LoftedThroughBall))
-            {
-                ExecutePass(moveDir,isThroughBall:true,lofted:true);
             }
             else if (actions.Contains(GameAction.ThroughBall))
             {
