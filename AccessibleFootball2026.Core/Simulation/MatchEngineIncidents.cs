@@ -150,6 +150,40 @@ public partial class MatchEngine
                 pressRange = Math.Min(pressRange, 8.0f);
             }
 
+            // تعادل الاستلام: مستلم تمريرة الكمبيوتر يجري لنقطة الالتقاء ويستلم الكرة كما يفعل مستلم
+            // تمريرة المستخدم في مسار الاستلام، بدل بقائه ثابتاً بينما تمر الكرة من جانبه.
+            if (Ball.Owner == null && (Ball.State == BallState.Free || Ball.State == BallState.InFlight)
+                && _commentaryPass is { } cpuPass && cpuPass.Target == opponent
+                && _elapsedSeconds - cpuPass.Started <= 8)
+            {
+                float distReceiverBall = Vector2.Distance(opponent.Position2D, ball2D);
+                // تمريرة شاردة بعيدة لا تُدار كاستقبال: تُترك كرةً حرة لمنطق الملاحقة العادي بدل
+                // سحب المستلم بعيداً عن مركزه خلف كرة لا يمكن بلوغها.
+                if (distReceiverBall > 18f) goto SkipReceiverGuidance;
+                Vector2 passBallVel = new(Ball.Velocity.X, Ball.Velocity.Y);
+                float receiverRunSpeed = (opponent.Speed / 6.5f) * 1.45f * FatigueMovementMultiplier(opponent);
+                Vector2 interceptPoint;
+                if (distReceiverBall < 4.0f || passBallVel.Length() < 1.0f)
+                    interceptPoint = ball2D;
+                else
+                    interceptPoint = ball2D + passBallVel * Math.Clamp(distReceiverBall / (receiverRunSpeed + passBallVel.Length()), 0.08f, 1.2f);
+                interceptPoint.X = Math.Clamp(interceptPoint.X, 2.0f, Pitch.Length - 2.0f);
+                interceptPoint.Y = Math.Clamp(interceptPoint.Y, 2.0f, Pitch.Width - 2.0f);
+                Vector2 toIntercept = interceptPoint - opponent.Position2D;
+                if (toIntercept.Length() > 0.08f)
+                {
+                    Vector2 runDir = Vector2.Normalize(toIntercept);
+                    opponent.Velocity = runDir * receiverRunSpeed;
+                    _contactMotion[opponent] = opponent.Velocity;
+                    opponent.Position2D += opponent.Velocity * deltaTime;
+                    opponent.FacingDirection = runDir;
+                }
+                if (Vector2.Distance(opponent.Position2D, ball2D) <= 2.2f && Ball.Position.Z <= 1.5f && TryControlIncomingBall(opponent))
+                    GrantPossessionGrace(1.4f);
+                continue;
+            }
+            SkipReceiverGuidance: ;
+
             if (ShouldTacticalPress(AwayTeam,opponent,pressRange))
             {
                 var toBall = ball2D - opponent.Position2D;
@@ -344,8 +378,62 @@ public partial class MatchEngine
                 continue;
             }
 
-            Vector2 shiftedHome = ShouldTacticalPress(HomeTeam,teammate,13.5f) ? ball2D : GetFormationSupportTarget(HomeTeam, teammate);
-            teammate.Position2D = Vector2.Lerp(teammate.Position2D, shiftedHome, Math.Clamp(deltaTime * DefensiveReactionMultiplier(teammate) * FatigueMovementMultiplier(teammate) * (.7f+HomeTeam.Tactics.Tempo*.006f),0,1));
+            bool homePressing = ShouldTacticalPress(HomeTeam,teammate,13.5f);
+            if (homePressing)
+            {
+                // تقارب الضغط بسرعة فعلية بدل الانجراف التشكيلي، ليصل الضاغط لمدى الالتحام فعلاً
+                // دون انتقال لحظي أو تكالب الفريق كله (عدد الضاغطين محدود بكثافة الضغط).
+                Vector2 pressVec = ball2D - teammate.Position2D;
+                Vector2 pressDir = pressVec.LengthSquared() > .000001f ? Vector2.Normalize(pressVec) : Vector2.Zero;
+                teammate.Velocity = pressDir * (teammate.Speed * .08f * DefensiveReactionMultiplier(teammate) * FatigueMovementMultiplier(teammate));
+                _contactMotion[teammate] = teammate.Velocity;
+                teammate.Position2D += teammate.Velocity * deltaTime;
+                if (pressDir.LengthSquared() > .000001f) teammate.FacingDirection = pressDir;
+            }
+            else
+            {
+                teammate.Velocity = Vector2.Zero;
+                Vector2 homeAnchor = GetFormationSupportTarget(HomeTeam, teammate);
+                teammate.Position2D = Vector2.Lerp(teammate.Position2D, homeAnchor, Math.Clamp(deltaTime * DefensiveReactionMultiplier(teammate) * FatigueMovementMultiplier(teammate) * (.7f+HomeTeam.Tactics.Tempo*.006f),0,1));
+            }
+
+            // مسابقة متماثلة: زميل المستخدم الضاغط داخل مدى الاستخلاص من حامل كرة الكمبيوتر يخوض
+            // نفس صراع الافتكاك الذي يخوضه ضغط الكمبيوتر ضد حامل كرة المستخدم — نفس المدى ونفس
+            // فترات التهدئة، والنتيجة مهارية وليست خطفاً مضموناً لأي جانب.
+            if (homePressing && Ball.Owner != null && AwayTeam.Players.Contains(Ball.Owner)
+                && Vector2.Distance(teammate.Position2D, ball2D) < 1.3f
+                && _possessionGraceTimer <= 0.0f && _aiTackleCooldownTimer <= 0.0f)
+            {
+                var cpuCarrier = Ball.Owner;
+                var homeDuel = EvaluateTackleDuel(
+                    tackler: teammate,
+                    carrier: cpuCarrier,
+                    ballPos2D: ball2D,
+                    tacklerTeam: HomeTeam,
+                    carrierTeam: AwayTeam,
+                    diff: diff,
+                    counterTransitionActive: IsCounterTransition(AwayTeam),
+                    tacklerContactMotion: ContactMotion(teammate), carrierContactMotion: ContactMotion(cpuCarrier)
+                );
+                _aiTackleCooldownTimer = 1.5f;
+                if (homeDuel.TacklerWon)
+                {
+                    Ball.CatchOrTackle(teammate);
+                    RecordBallTouch(teammate);
+                    _aiTackleCooldownTimer = 2.0f;
+                    ActiveUserPlayer = teammate;
+                    Publish(new MatchEvent(MatchEventType.BallTrapped, $"قطع {teammate.Name} الكرة من {cpuCarrier.Name}! ({homeDuel.TacticalReason})", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: teammate));
+                }
+                else if (homeDuel.IsFoul)
+                {
+                    _aiTackleCooldownTimer = 2.5f;
+                    Ball.CatchOrTackle(cpuCarrier);
+                    Ball.Velocity = Vector3.Zero;
+                    Publish(new MatchEvent(MatchEventType.FoulCommitted, $"خطأ ضد {teammate.Name} بعد تدخل على {cpuCarrier.Name}!", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: teammate), ("foul.intentional", false));
+                    HandleFoulSanction(teammate, cpuCarrier, isSlideTackle: homeDuel.SlidingCommitment, isFromBehind: homeDuel.FromBehind);
+                }
+                continue;
+            }
 
             if (Ball.State == BallState.Free && Ball.Position.Z <= 1.5f && !IsPassInTransit && Vector2.Distance(teammate.Position2D, ball2D) < 1.8f)
             {
@@ -387,6 +475,14 @@ public partial class MatchEngine
 
                 // أثناء التمريرة الجارية، لا يستولي زميل آخر على الكرة الموجهة للمستلم المستهدف
                 if (IsPassInTransit && HomeTeam.Players.Contains(p) && p != ActivePassTransit?.IntendedReceiver)
+                {
+                    continue;
+                }
+
+                // أثناء تمريرة الكمبيوتر الجارية، لا يستولي زميل آخر على الكرة الموجهة لمستلمها — نفس
+                // حماية مسار تمريرة المستخدم أعلاه. بعد انقضاء نافذة التمريرة (8 ثوانٍ) تُعامل ككرة حرة.
+                if (_commentaryPass is { } liveCpuPass && _elapsedSeconds - liveCpuPass.Started <= 8
+                    && AwayTeam.Players.Contains(p) && p != liveCpuPass.Target)
                 {
                     continue;
                 }
