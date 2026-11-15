@@ -75,13 +75,6 @@ public class SmartAudioCoordinator
 
     public void HandleMatchEvent(MatchEvent matchEvent)
     {
-        // Hold-to-charge tactile feedback: a short earcon only, never speech, so commentary is never flooded.
-        if (matchEvent.Type == MatchEventType.KickChargeCue)
-        {
-            if (matchEvent.Context.TryGet("charge.stage", out var chargeStage) && chargeStage == "max") SoundEffectsPlayer.PlayChargeMax();
-            else SoundEffectsPlayer.PlayChargeStart();
-            return;
-        }
         if(matchEvent.Type is MatchEventType.VideoReviewStarted or MatchEventType.VideoReviewDecision)
         {
             // Explicit referee information is never hidden by live-speech silence or recorded commentary.
