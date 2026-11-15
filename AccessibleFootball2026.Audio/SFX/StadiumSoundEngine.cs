@@ -81,6 +81,7 @@ public class StadiumSoundEngine
     /// </summary>
     public void HandleMatchContext(MatchEvent matchEvent, int homeScore, int awayScore, float matchMinute)
     {
+        if (matchEvent.Type == MatchEventType.ShotInterrupted) return;
         var crowdTeam = ActiveHomeTeam != null && ShouldPlayChantForTeam(ActiveHomeTeam) ? ActiveHomeTeam :
                         ActiveAwayTeam != null && ShouldPlayChantForTeam(ActiveAwayTeam) ? ActiveAwayTeam : null;
         if (crowdTeam == null) return;
