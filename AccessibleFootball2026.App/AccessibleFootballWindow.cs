@@ -34,7 +34,6 @@ public class AccessibleFootballWindow : Form
     private readonly SmartAudioCoordinator _coordinator;
     private readonly AnthemEngine _anthemEngine;
     private readonly StadiumSoundEngine _stadiumSoundEngine = new();
-    private readonly CallnameManager _callnameManager = new();
 
     // حالة القوائم
     private readonly Stack<AccessibleMenu> _menuHistory = new();
@@ -157,12 +156,7 @@ public class AccessibleFootballWindow : Form
 
     private void SetupAudioEvents()
     {
-        // Duck actual reader speech, not the wait while a recorded commentator owns the channel.
-        if (_screenReader is PriorityScreenReader priorityReader)
-            priorityReader.SpeechActivityChanged += speaking => SoundEffectsPlayer.SetCrowdDucking(speaking ? .2f : 1f);
-        else
-            _coordinator.OnCrowdVolumeDucking += SoundEffectsPlayer.SetCrowdDucking;
-
+        // بلا خفض مؤقت لصوت الجماهير (No crowd ducking): مستوى ثابت معقول بطلب المستخدم
         _stadiumSoundEngine.OnDiscontentWhistlePlayed += team =>
         {
             if(_activeMatch is not {} current)return;
@@ -190,15 +184,6 @@ public class AccessibleFootballWindow : Form
             if (_activeMatch != null)
             {
                 _stadiumSoundEngine.HandleMatchContext(evt, _activeMatch.HomeTeam.Score, _activeMatch.AwayTeam.Score, _activeMatch.MatchTimeMinutes);
-                // نداء اسم اللاعب صاحب اللمسة الفعلية (تمريرة/تسديدة/عرضية من أي فريق) وليس لاعب المستخدم دائماً
-                if (_commentaryEngine.ActiveCommentator.Id==CommentatorId.RaoufKhlif && evt.Type == MatchEventType.BallKicked && evt.SubjectPlayer != null)
-                {
-                    lock (_commentaryEngine.SpeechGate)
-                    {
-                        if (_commentaryEngine.IsIdle && (_screenReader is not PriorityScreenReader voice || !voice.IsSpeaking))
-                            _callnameManager.TryPlayPlayerCallname(evt.SubjectPlayer);
-                    }
-                }
             }
         };
 
@@ -454,7 +439,6 @@ public class AccessibleFootballWindow : Form
             StartSoundAcademyFlow();
         });
 
-        menu.AddItem(T("مكتبة تسجيلات فارس كاملة", "Fares recording library"),()=>PushMenu(CommentaryLibraryMenuBuilder.Create(_commentaryEngine,_screenReader,PushMenu,PopMenu)));
 
         menu.AddItem(LocalizationService.GetString("UserGuide"), () =>
         {
@@ -596,15 +580,11 @@ public class AccessibleFootballWindow : Form
             var awaySelectMenu = teamManager.CreateAwayTeamSelectMenu(away =>
             {
                 selectedAway = away.Clone(TeamSide.Away);
-                var commSelectMenu = CreateCommentatorSelectMenu(commentator =>
+                var preMatchMenu = GamePlanMenuBuilder.CreatePreMatchMenu(selectedHome, _screenReader, PushMenu, PopMenu, onStartMatch: () =>
                 {
-                    var preMatchMenu = GamePlanMenuBuilder.CreatePreMatchMenu(selectedHome, _screenReader, PushMenu, PopMenu, onStartMatch: () =>
-                    {
-                        StartInteractiveMatch(selectedHome, selectedAway, cupFinal: cupFinal);
-                    });
-                    PushMenu(preMatchMenu);
+                    StartInteractiveMatch(selectedHome, selectedAway, cupFinal: cupFinal);
                 });
-                PushMenu(commSelectMenu);
+                PushMenu(preMatchMenu);
             });
             PushMenu(awaySelectMenu);
         });
@@ -713,11 +693,7 @@ public class AccessibleFootballWindow : Form
 
         menu.AddItem(T("بدء المباراة", "Start match"), () =>
         {
-            var commMenu = CreateCommentatorSelectMenu(_ =>
-            {
-                StartInteractiveMatch(builder.UserDreamTeam, builder.CpuDreamTeam);
-            });
-            PushMenu(commMenu);
+            StartInteractiveMatch(builder.UserDreamTeam, builder.CpuDreamTeam);
         });
 
         menu.AddItem(T("التشكيلة الأساسية", "Starting lineup"), () =>
@@ -777,31 +753,6 @@ public class AccessibleFootballWindow : Form
         else RefreshMenuDisplay();
     }
 
-    private AccessibleMenu CreateCommentatorSelectMenu(Action<CommentatorProfile> onSelected)
-    {
-        var menu = new AccessibleMenu(T("اختر المعلق الصوتي المعتمد للمباراة", "Select commentator"), _screenReader);
-        var list = _commentaryEngine.GetAvailableCommentators();
-
-        foreach (var c in list)
-        {
-            var current = c;
-            menu.AddItem(T($"{current.DisplayName}، {current.Region}", $"{current.DisplayName}, {current.Region}"), () =>
-            {
-                _commentaryEngine.SwitchCommentator(current.Id);
-                // حفظ الاختيار حتى يبقى معتمداً في المباريات القادمة ولا ترجعه مزامنة الإعدادات
-                MatchSettings.Current.Commentator = current.Id;
-                MatchSettings.Current.CommentaryVoice = current.Id == CommentatorId.FaresAwad ? CommentaryVoiceOption.FaresAwad : CommentaryVoiceOption.RaoufKhlif;
-                MatchSettings.Current.CommentaryEnabled = true;
-                MatchSettings.Current.Save();
-                _screenReader.Speak(T($"تم اعتماد المعلق {current.DisplayName}", $"Commentator: {current.DisplayName}"));
-                onSelected(current);
-            });
-        }
-
-        menu.AddItem(T("رجوع", "Back"), () => PopMenu());
-        return menu;
-    }
-
     private void StartTournamentsBrowserFlow()
     {
         var tournaments = TournamentDatabase.GetAllTournaments();
@@ -832,8 +783,8 @@ public class AccessibleFootballWindow : Form
                             foreach (var availableAway in currentTourney.Teams.Where(t => t.Id != team1.Id))
                             {
                                 var team2 = availableAway;
-                                awayMenu.AddItem(team2.Name, () => PushMenu(CreateCommentatorSelectMenu(_ =>
-                                    StartInteractiveMatch(team1.Clone(TeamSide.Home), team2.Clone(TeamSide.Away)))));
+                                awayMenu.AddItem(team2.Name, () =>
+                                    StartInteractiveMatch(team1.Clone(TeamSide.Home), team2.Clone(TeamSide.Away)));
                             }
                             awayMenu.AddItem(T("رجوع", "Back"), PopMenu);
                             PushMenu(awayMenu);
@@ -863,12 +814,6 @@ public class AccessibleFootballWindow : Form
             }, startMatch: false);
             PushMenu(planMenu);
         });
-        PushMenu(menu);
-    }
-
-    private void StartCommentarySettingsFlow()
-    {
-        var menu = CreateCommentatorSelectMenu(_ => PopMenu());
         PushMenu(menu);
     }
 
@@ -947,7 +892,6 @@ public class AccessibleFootballWindow : Form
         _commentaryEngine.SwitchCommentator(MatchSettings.Current.Commentator);
 
         _stadiumSoundEngine.SetMatchTeams(homeTeam, awayTeam);
-        _callnameManager.PreWarmSquads(homeTeam, awayTeam);
 
         // Background candidates are not verified crowd. Chants/reactions still run during play.
         SoundEffectsPlayer.StartCrowdAmbiance();
