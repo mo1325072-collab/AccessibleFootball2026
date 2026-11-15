@@ -37,7 +37,10 @@ public partial class MatchEngine
                 float gkX = UserAttackingRight ? Pitch.Length - 4.0f : 4.0f;
                 if(Ball.Owner!=opponent && Math.Abs(ball2D.X-gkX)<14 && Math.Abs(ball2D.Y-Pitch.Width/2)<16 && Ball.Position.Z<2.6f)
                     gkX=Math.Clamp(ball2D.X,UserAttackingRight?Pitch.Length-14:1,UserAttackingRight?Pitch.Length-1:14);
+                var keeperBefore = opponent.Position2D;
                 opponent.Position2D = Vector2.Lerp(opponent.Position2D, new Vector2(gkX, targetY), deltaTime * 2.5f);
+                opponent.Velocity = (opponent.Position2D - keeperBefore) / deltaTime;
+                _contactMotion[opponent] = Vector2.Zero; // Positional correction, not a running charge.
 
                 if (Ball.Owner == opponent)
                 {
@@ -86,7 +89,8 @@ public partial class MatchEngine
                         tacklerTeam: AwayTeam,
                         carrierTeam: HomeTeam,
                         diff: diff,
-                        counterTransitionActive: IsCounterTransition(HomeTeam)
+                        counterTransitionActive: IsCounterTransition(HomeTeam),
+                        tacklerContactMotion: ContactMotion(opponent), carrierContactMotion: ContactMotion(carrier)
                     );
                     _aiTackleCooldownTimer = 1.5f;
                     if (duel.TacklerWon)
@@ -150,7 +154,9 @@ public partial class MatchEngine
             {
                 var toBall = ball2D - opponent.Position2D;
                 Vector2 pressDir = toBall.LengthSquared() > .000001f ? Vector2.Normalize(toBall) : Vector2.Zero;
-                opponent.Position2D += pressDir * (opponent.Speed * speedMult * DefensiveReactionMultiplier(opponent) * FatigueMovementMultiplier(opponent)) * deltaTime;
+                opponent.Velocity = pressDir * (opponent.Speed * speedMult * DefensiveReactionMultiplier(opponent) * FatigueMovementMultiplier(opponent));
+                _contactMotion[opponent] = opponent.Velocity;
+                opponent.Position2D += opponent.Velocity * deltaTime;
                 opponent.FacingDirection = pressDir;
 
                 if (distToBall < 1.3f && Ball.Owner != opponent && (Ball.Owner == null || !AwayTeam.Players.Contains(Ball.Owner)))
@@ -187,7 +193,8 @@ public partial class MatchEngine
                                 tacklerTeam: AwayTeam,
                                 carrierTeam: HomeTeam,
                                 diff: diff,
-                                counterTransitionActive:IsCounterTransition(HomeTeam)
+                                counterTransitionActive:IsCounterTransition(HomeTeam),
+                                tacklerContactMotion:ContactMotion(opponent),carrierContactMotion:ContactMotion(carrier)
                             );
 
                             _aiTackleCooldownTimer = 1.5f;
@@ -256,7 +263,10 @@ public partial class MatchEngine
                 float gkX = UserAttackingRight ? 4.0f : Pitch.Length - 4.0f;
                 if(Ball.Owner!=teammate && Math.Abs(ball2D.X-gkX)<14 && Math.Abs(ball2D.Y-Pitch.Width/2)<16 && Ball.Position.Z<2.6f)
                     gkX=Math.Clamp(ball2D.X,UserAttackingRight?1:Pitch.Length-14,UserAttackingRight?14:Pitch.Length-1);
+                var keeperBefore = teammate.Position2D;
                 teammate.Position2D = Vector2.Lerp(teammate.Position2D, new Vector2(gkX, targetY), deltaTime * 2.5f);
+                teammate.Velocity = (teammate.Position2D - keeperBefore) / deltaTime;
+                _contactMotion[teammate] = Vector2.Zero; // Positional correction, not a running charge.
 
                 if (Ball.Owner == teammate)
                 {
@@ -303,7 +313,8 @@ public partial class MatchEngine
                         tacklerTeam: HomeTeam,
                         carrierTeam: AwayTeam,
                         diff: diff,
-                        counterTransitionActive: IsCounterTransition(AwayTeam)
+                        counterTransitionActive: IsCounterTransition(AwayTeam),
+                        tacklerContactMotion: ContactMotion(teammate), carrierContactMotion: ContactMotion(carrier)
                     );
                     _aiTackleCooldownTimer = 1.5f;
                     if (duel.TacklerWon)
