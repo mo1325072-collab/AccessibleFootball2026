@@ -453,6 +453,25 @@ var cleanGoalMatch=Match();cleanGoalMatch.Update(.1f);
 cleanGoalMatch.Ball.Position=new Vector3(Pitch.Length+.5f,Pitch.Width/2,0);
 Call(cleanGoalMatch,"CheckRefereeRules");
 Check(!cleanGoalMatch.VideoReviewPending&&cleanGoalMatch.HomeTeam.Score+cleanGoalMatch.AwayTeam.Score==1,"clean goal counts without a routine VAR review hold");
+// Product identity: name is exactly "Accessible Football"; 2026.1 is the version, not part of the name.
+s.Language=UiLanguage.English;
+Check(LocalizationService.GetString("Welcome")=="Welcome to Accessible Football.","English welcome uses the plain product name");
+s.Language=UiLanguage.Arabic;
+Check(!LocalizationService.GetString("Welcome").Contains("2026"),"Arabic welcome carries no year in the product name");
+{
+ var dir=AppContext.BaseDirectory;string? buildScript=null;
+ for(int up=0;up<12&&dir!=null;up++){var c=Path.Combine(dir,"Build-Complete.py");if(File.Exists(c)){buildScript=c;break;}dir=Path.GetDirectoryName(dir);}
+ if(buildScript==null){Console.WriteLine("SKIP installer-script checks outside the repo checkout");}
+ else{
+  var py=File.ReadAllText(buildScript);
+  Check(py.Contains("AppId=AccessibleFootball2026-Full"),"installer AppId stays stable for update identity");
+  Check(py.Contains("AppName=Accessible Football\\n")&&!py.Contains("AppName=Accessible Football 2026"),"installer product name is exactly Accessible Football");
+  Check(py.Contains("DefaultDirName={localappdata}\\\\AccessibleFootball2026"),"installer keeps the existing install directory");
+  Check(py.Contains("Name: \"desktopicon\"")&&py.Contains("{cm:CreateDesktopIcon}")&&py.Contains("{autodesktop}")&&py.Contains("Tasks: desktopicon"),"installer offers an optional Create a desktop icon task");
+  Check(!py.Contains("{autodesktop}\\Accessible Football 2026"),"desktop shortcut label carries no year");
+ }
+}
+Defaults();
 // Keyboard event contract: held modifiers remain continuous; discrete actions debounce per physical press.
 var kb=new AccessibleFootball2026.Input.KeyboardInputHandler();
 kb.HandleKeyDown(0x10,false);kb.HandleKeyDown(0x27,false);kb.HandleKeyDown(0x11,false);kb.HandleKeyDown(0x53,false);
