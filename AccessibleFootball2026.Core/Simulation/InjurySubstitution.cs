@@ -10,6 +10,13 @@ public partial class MatchEngine
 
     public bool ResolveInjurySubstitution(Player injured, Player? replacement)
     {
+        if (PendingInjuryPlayer == injured && injured.IsSentOff)
+        {
+            // A player removed by the referee can never be the subject of an injury choice;
+            // drop the ghost so later injury choices are not stuck behind it.
+            _pendingInjuryChoices.Dequeue();
+            return false;
+        }
         if (PendingInjuryPlayer != injured || !HomeTeam.Players.Contains(injured) || injured.IsSentOff) return false;
         if (replacement != null)
         {
