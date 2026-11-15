@@ -32,6 +32,9 @@ public partial class MatchEngine
         if (taker == null) return;
         var spot = penalty ? new Vector2(right ? Pitch.Length - 11 : 11, Pitch.Width / 2) : incidentPosition;
         spot = new Vector2(Math.Clamp(spot.X, .5f, Pitch.Length - .5f), Math.Clamp(spot.Y, .5f, Pitch.Width - .5f));
+        _contactMotion.Clear(); _previousContactMotion.Clear();
+        // Restart placement is not movement/contact momentum.
+        foreach (var player in HomeTeam.Players.Concat(AwayTeam.Players)) player.Velocity = Vector2.Zero;
         Restart = new PendingRestart(indirect ? RestartKind.IndirectFreeKick : penalty ? RestartKind.Penalty : RestartKind.FreeKick, team, taker, spot);
         _restartReadySeconds = 0;
         _isShotInProgress = false;
