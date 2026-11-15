@@ -67,7 +67,7 @@ public static class Program
         var screenReader = new RecordingReader();
         var eventBus = new MatchEventBus();
         inputHandler = new KeyboardInputHandler();
-        var commentary = new CommentaryEngine(CommentatorId.RaoufKhlif, baseAudioDir);
+        var commentary = new CommentaryEngine(CommentatorId.FaresAwad, baseAudioDir);
         var coordinator = new SmartAudioCoordinator(screenReader);
         var anthem = new AnthemEngine(screenReader, anthemsDir);
 
