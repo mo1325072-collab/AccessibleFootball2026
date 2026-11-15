@@ -166,7 +166,7 @@ public class MatchSettings
         LastSaveError = null;
         try
         {
-            SettingsVersion = 2; // An explicit save must never be treated as an unmigrated legacy choice.
+            SettingsVersion = 3; // An explicit save must never be treated as an unmigrated legacy choice.
             var options = new JsonSerializerOptions { WriteIndented = true };
             string json = JsonSerializer.Serialize(this, options);
             string? dir = Path.GetDirectoryName(p);
@@ -197,6 +197,7 @@ public class MatchSettings
                 if (loaded != null)
                 {
                     Current.CopyFrom(loaded);
+                    bool migrated = false;
                     // ترقية لمرة واحدة: اعتماد فارس عوض معلقاً افتراضياً بطلب المستخدم؛
                     // رؤوف خليف يبقى متاحاً من قائمة اختيار المعلق ولا تتكرر الترقية بعد الإصدار 2
                     if (Current.SettingsVersion < 2)
@@ -207,6 +208,19 @@ public class MatchSettings
                             Current.CommentaryVoice = CommentaryVoiceOption.FaresAwad;
                         }
                         Current.SettingsVersion = 2;
+                        migrated = true;
+                    }
+                    // ترقية الإصدار 3: فارس عوض هو المعلق الوحيد؛ أي اختيار محفوظ لرؤوف خليف أو الوضع الصامت يتحول لفارس
+                    if (Current.SettingsVersion < 3)
+                    {
+                        Current.Commentator = CommentatorId.FaresAwad;
+                        Current.CommentaryVoice = CommentaryVoiceOption.FaresAwad;
+                        Current.CommentaryEnabled = true;
+                        Current.SettingsVersion = 3;
+                        migrated = true;
+                    }
+                    if (migrated)
+                    {
                         Current.Save(p);
                         return;
                     }
