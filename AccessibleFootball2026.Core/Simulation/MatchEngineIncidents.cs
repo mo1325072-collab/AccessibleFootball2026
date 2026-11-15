@@ -50,10 +50,11 @@ public partial class MatchEngine
                         SnapshotOffsideAtKick(opponent);
                         Ball.Kick(clearDir, 26.0f, 4.0f, opponent);
                         RecordBallTouch(opponent);
+                        BeginCommentaryPass(opponent, null, opponent.Position2D + Vector2.Normalize(clearDir) * 26f, "long", "high");
                         Publish(new MatchEvent(MatchEventType.BallKicked, $"حارس مرمى {AwayTeam.Name} يوزع الكرة عالية للأمام.", CurrentZone, spatialPan: CalculateBallPan(),subjectPlayer:opponent),("action.kind","pass"),("pass.height","high"));
                     }
                 }
-                else if (!_isShotInProgress && Vector2.Distance(opponent.Position2D, ball2D) < 2.0f && Ball.Position.Z < Pitch.GoalHeight)
+                else if (!_isShotInProgress && LastKicker != opponent && Vector2.Distance(opponent.Position2D, ball2D) < 2.0f && Ball.Position.Z < Pitch.GoalHeight)
                 {
                     // التقاط الكرات العادية فقط: التسديدات تُحسم بمواجهة حارس واحدة مبنية
                     // على المهارات، لا بالتقاط تلقائي مؤكد 100%
@@ -229,10 +230,11 @@ public partial class MatchEngine
                         SnapshotOffsideAtKick(teammate);
                         Ball.Kick(clearDir, 26.0f, 4.0f, teammate);
                         RecordBallTouch(teammate);
+                        BeginCommentaryPass(teammate, null, teammate.Position2D + Vector2.Normalize(clearDir) * 26f, "long", "high");
                         Publish(new MatchEvent(MatchEventType.BallKicked, $"حارسك {teammate.Name} يوزع الكرة عالية للأمام.", CurrentZone, spatialPan: CalculateBallPan(),subjectPlayer:teammate),("action.kind","pass"),("pass.height","high"));
                     }
                 }
-                else if (!_isShotInProgress && Vector2.Distance(teammate.Position2D, ball2D) < 2.5f && Ball.Position.Z < Pitch.GoalHeight && (Ball.Owner == null || AwayTeam.Players.Contains(Ball.Owner)))
+                else if (!_isShotInProgress && LastKicker != teammate && Vector2.Distance(teammate.Position2D, ball2D) < 2.5f && Ball.Position.Z < Pitch.GoalHeight && (Ball.Owner == null || AwayTeam.Players.Contains(Ball.Owner)))
                 {
                     _gkHoldTimer = 0.0f;
                     bool takenFromOpponent=Ball.Owner!=null&&AwayTeam.Players.Contains(Ball.Owner);
