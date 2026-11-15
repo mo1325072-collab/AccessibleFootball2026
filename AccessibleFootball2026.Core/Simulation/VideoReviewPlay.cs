@@ -52,7 +52,7 @@ public partial class MatchEngine
 
     private bool UpdateVideoReview(float dt)
     {
-        if (_videoDecision is not {} decision) return false;
+        if (_videoDecision is null) return false;
         // Consume unsafe taps without advancing the ball, players or match clock.
         _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
         if(State!=MatchState.InPlay)return true;
@@ -65,9 +65,8 @@ public partial class MatchEngine
             _videoVerdict?.Invoke();
             if(VideoAnnouncementPending?.Invoke()==true)return true;
         }
-        _videoDecision=null;_videoVerdict=null;
-        _applyingVideoDecision=true;
-        try { decision(); } finally { _applyingVideoDecision=false; }
+        // كل مراجعة فار تنتهي بشرح قارئ الشاشة ثم انتظار إنتر من المستخدم؛ لا استئناف تلقائي
+        AwaitingStoppageConfirmation=true;
         return true;
     }
 }
