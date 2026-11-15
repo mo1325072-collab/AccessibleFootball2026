@@ -80,11 +80,14 @@ var counter=Game();ClearGrace(counter);counter.HomeTeam.Tactics.Focus=AttackingF
 }
 MatchSettings.Current.AiVarEnabled=false;var readyTrap=TrapEpisode(false);var brokenTrap=TrapEpisode(true);Console.WriteLine($"MEASURE actual trap line ready={readyTrap.line:F2} broken={brokenTrap.line:F2}");Check(readyTrap.candidate&&!brokenTrap.candidate,"actual coordinated movement catches runner offside; one tired defender breaks the real kick-time line");Check(readyTrap.game.Restart?.Kind==RestartKind.IndirectFreeKick&&brokenTrap.game.Restart==null,"actual trap success needs touch and awards indirect restart; failure does not invent an offside whistle");
 // Same body-first geometry, all commitment choices. The CPU centre-ball representation must not erase fouls.
-var foulGame=Game();var defender=foulGame.AwayTeam.Players[1];var protectedCarrier=foulGame.ActiveUserPlayer;foreach(var x in foulGame.HomeTeam.Players.Concat(foulGame.AwayTeam.Players))x.Position2D=new Vector2(95,65);defender.Position2D=new Vector2(49,34);protectedCarrier.Position2D=new Vector2(50,34);defender.FacingDirection=protectedCarrier.FacingDirection=Vector2.UnitX;defender.BaseDefending=defender.BasePhysical=defender.BaseSpeed=55;protectedCarrier.BasePassing=protectedCarrier.BasePhysical=protectedCarrier.BaseSpeed=90;
+var foulGame=Game();var defender=foulGame.AwayTeam.Players[1];var protectedCarrier=foulGame.ActiveUserPlayer;foreach(var x in foulGame.HomeTeam.Players.Concat(foulGame.AwayTeam.Players))x.Position2D=new Vector2(95,65);defender.Position2D=new Vector2(49.5f,34);protectedCarrier.Position2D=new Vector2(50,34);defender.FacingDirection=protectedCarrier.FacingDirection=Vector2.UnitX;defender.BaseDefending=defender.BasePhysical=defender.BaseSpeed=55;protectedCarrier.BasePassing=protectedCarrier.BasePhysical=protectedCarrier.BaseSpeed=90;
 float previousAgg=-100;
 foreach(var aggression in Enum.GetValues<TacklingAggression>())
 {
- foulGame.AwayTeam.Tactics.Tackling=aggression;var d=MatchEngine.EvaluateTackleDuel(defender,protectedCarrier,protectedCarrier.Position2D,foulGame.AwayTeam,foulGame.HomeTeam,DifficultyLevel.Normal);
+ foulGame.AwayTeam.Tactics.Tackling=aggression;
+ // Severity is evidence-based: the commitment supplies its own approach speed (reckless charges in, cautious jockeys).
+ var approachMotion=aggression==TacklingAggression.Reckless?new Vector2(20,0):new Vector2(4,0);
+ var d=MatchEngine.EvaluateTackleDuel(defender,protectedCarrier,protectedCarrier.Position2D,foulGame.AwayTeam,foulGame.HomeTeam,DifficultyLevel.Normal,tacklerContactMotion:approachMotion);
  Check(d.TacticalModifier>previousAgg,"higher commitment changes the real same-geometry challenge advantage: "+aggression);previousAgg=d.TacticalModifier;
  Check(!d.TacklerWon&&(aggression!=TacklingAggression.Cautious||!d.IsFoul),"body-first CPU cannot win through the protected carrier; cautious containment avoids foul: "+aggression);
  if(aggression==TacklingAggression.Reckless)Check(d.IsFoul&&d.IsSevereInjuryRisk&&d.FromBehind&&d.SlidingCommitment,"reckless body-first tackle has actual foul, rear-angle and severe-injury cost even with ball stored at carrier centre");
@@ -99,11 +102,30 @@ MatchEngine RearChallenge(TacklingAggression commitment)
 {
  var m=Game();ClearGrace(m);m.AwayTeam.Tactics.PressingIntensity=100;m.AwayTeam.Tactics.Tackling=commitment;
  foreach(var x in m.HomeTeam.Players.Concat(m.AwayTeam.Players))x.Position2D=new Vector2(95,65);
- var p=m.AwayTeam.Players[1];var c=m.ActiveUserPlayer;p.Position2D=new Vector2(49,34);c.Position2D=new Vector2(50,34);p.FacingDirection=c.FacingDirection=Vector2.UnitX;p.BaseDefending=p.BasePhysical=p.BaseSpeed=55;c.BasePassing=c.BasePhysical=c.BaseSpeed=90;m.Ball.CatchOrTackle(c);AI(m,.01f);return m;
+ var p=m.AwayTeam.Players[1];var c=m.ActiveUserPlayer;p.Position2D=new Vector2(49.5f,34);c.Position2D=new Vector2(50,34);p.FacingDirection=c.FacingDirection=Vector2.UnitX;p.BaseDefending=p.BasePhysical=p.BaseSpeed=55;c.BasePassing=c.BasePhysical=c.BaseSpeed=90;m.Ball.CatchOrTackle(c);
+ // The carrier arrives at a full sprint (20 m/s toward the presser); that closing speed is the evidence
+ // that makes the reckless body-first challenge a bookable one. Home-player motion survives the AI tick.
+ if(commitment==TacklingAggression.Reckless){var carrierMotion=(Dictionary<Player,Vector2>)m.GetType().GetField("_contactMotion",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(m)!;carrierMotion[c]=new Vector2(-20,0);}
+ AI(m,.01f);return m;
 }
 var carefulChallenge=RearChallenge(TacklingAggression.Cautious);var recklessChallenge=RearChallenge(TacklingAggression.Reckless);
 Check(carefulChallenge.StatisticsFor(carefulChallenge.AwayTeam).Fouls==0&&carefulChallenge.StatisticsFor(carefulChallenge.AwayTeam).RedCards==0&&carefulChallenge.Ball.Owner==carefulChallenge.ActiveUserPlayer,"actual cautious CPU contains shielded carrier without a free win, foul or card");
-Check(recklessChallenge.StatisticsFor(recklessChallenge.AwayTeam).Fouls==1&&recklessChallenge.StatisticsFor(recklessChallenge.AwayTeam).RedCards==1&&recklessChallenge.PendingInjuryPlayer!=null,"actual reckless rear slide costs foul, red card and severe injury choice, not just a risk description");
+// The press itself reaches only walking pace (~2 m/s measured); the closing evidence comes from the
+// sprinting carrier. The truthful live outcome is a foul, a yellow and a minor knock, never an invented red.
+Check(recklessChallenge.StatisticsFor(recklessChallenge.AwayTeam).Fouls==1&&recklessChallenge.StatisticsFor(recklessChallenge.AwayTeam).YellowCards==1&&recklessChallenge.StatisticsFor(recklessChallenge.AwayTeam).RedCards==0&&recklessChallenge.PendingInjuryPlayer==null,"actual reckless CPU rear press on a sprinting carrier costs a foul and a reckless-challenge yellow, not a fabricated red");
+// The same duel + sanction chain the live branch runs, given the physical evidence a sprinting rear
+// lunge actually carries (20 m/s approach into a standing carrier): direct red and a severe-injury choice.
+{
+ var m=Game();ClearGrace(m);m.AwayTeam.Tactics.Tackling=TacklingAggression.Reckless;
+ foreach(var x in m.HomeTeam.Players.Concat(m.AwayTeam.Players))x.Position2D=new Vector2(95,65);
+ var p=m.AwayTeam.Players[1];var c=m.ActiveUserPlayer;p.Position2D=new Vector2(49.5f,34);c.Position2D=new Vector2(50,34);p.FacingDirection=c.FacingDirection=Vector2.UnitX;m.Ball.CatchOrTackle(c);
+ var sprint=new Vector2(20,0);
+ var sprintDuel=MatchEngine.EvaluateTackleDuel(p,c,c.Position2D,m.AwayTeam,m.HomeTeam,DifficultyLevel.Normal,tacklerContactMotion:sprint,carrierContactMotion:Vector2.Zero);
+ var sprintIncident=MatchEngine.CaptureFoulIncident(p,c,c.Position2D,tacklerMotion:sprint,carrierMotion:Vector2.Zero);
+ Check(sprintDuel.IsFoul&&sprintIncident.Severity==MatchEngine.FoulContactSeverity.EndangersSafety,"sprinting rear lunge is ruled a foul that endangers safety");
+ m.HandleFoulSanction(p,c,isSlideTackle:sprintDuel.SlidingCommitment,isFromBehind:sprintDuel.FromBehind,sprintIncident);
+ Check(m.StatisticsFor(m.AwayTeam).RedCards==1&&p.IsSentOff&&m.PendingInjuryPlayer==c,"sprint-evidence rear slide costs a direct red and the severe-injury substitution choice");
+}
 // Tracking a player is not the same as protecting a zone.
 (float distance,float displacement) MarkingEpisode(DefensiveMarking marking)
 {
