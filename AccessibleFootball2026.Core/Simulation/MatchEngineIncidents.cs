@@ -49,8 +49,8 @@ public partial class MatchEngine
                     {
                         _gkHoldTimer = 0.0f;
                         Vector2 clearDir = UserAttackingRight 
-                            ? new Vector2(-1.0f, ((float)Random.Shared.NextDouble() - 0.5f) * 0.4f)
-                            : new Vector2(1.0f, ((float)Random.Shared.NextDouble() - 0.5f) * 0.4f);
+                            ? new Vector2(-1.0f, ((float)SimulationRandom.Next() - 0.5f) * 0.4f)
+                            : new Vector2(1.0f, ((float)SimulationRandom.Next() - 0.5f) * 0.4f);
                         SnapshotOffsideAtKick(opponent);
                         Ball.Kick(clearDir, 26.0f, 4.0f, opponent);
                         RecordBallTouch(opponent);
@@ -203,9 +203,10 @@ public partial class MatchEngine
                     else
                     {
                         var carrier = Ball.Owner;
-                        if (carrier == null)
+                        if (carrier == null && !_isShotInProgress)
                         {
-                            // كرة حرة يستحوذ عليها الخصم عند وصوله إليها
+                            // كرة حرة يستحوذ عليها الخصم عند وصوله إليها. التسديدة الحية لا تُلمّ:
+                            // تطير حتى نتيجتها (مرمى/تصدٍ/خشبة/خروج) ولا تموت فورياً في قدم لاعب.
                             Ball.CatchOrTackle(opponent);
                             RecordBallTouch(opponent);
                             _aiTackleCooldownTimer = 1.6f;
@@ -217,7 +218,7 @@ public partial class MatchEngine
                             string desc = $"استحوذ {opponent.Name} على الكرة في {CurrentZone.ToArabicAnnouncement()}.";
                             Publish(new MatchEvent(MatchEventType.OpponentTackleSuccessful, desc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: opponent));
                         }
-                        else
+                        else if (carrier != null)
                         {
                             // صراع استخلاص الكرة التكتيكي والبدني المبني على الطاقات والتموضع وشراسة العرقلة
                             var duel = EvaluateTackleDuel(
@@ -309,8 +310,8 @@ public partial class MatchEngine
                     {
                         _gkHoldTimer = 0.0f;
                         Vector2 clearDir = UserAttackingRight 
-                            ? new Vector2(1.0f, ((float)Random.Shared.NextDouble() - 0.5f) * 0.4f)
-                            : new Vector2(-1.0f, ((float)Random.Shared.NextDouble() - 0.5f) * 0.4f);
+                            ? new Vector2(1.0f, ((float)SimulationRandom.Next() - 0.5f) * 0.4f)
+                            : new Vector2(-1.0f, ((float)SimulationRandom.Next() - 0.5f) * 0.4f);
                         SnapshotOffsideAtKick(teammate);
                         Ball.Kick(clearDir, 26.0f, 4.0f, teammate);
                         RecordBallTouch(teammate);
@@ -435,8 +436,9 @@ public partial class MatchEngine
                 continue;
             }
 
-            if (Ball.State == BallState.Free && Ball.Position.Z <= 1.5f && !IsPassInTransit && Vector2.Distance(teammate.Position2D, ball2D) < 1.8f)
+            if (Ball.State == BallState.Free && Ball.Position.Z <= 1.5f && !IsPassInTransit && !_isShotInProgress && Vector2.Distance(teammate.Position2D, ball2D) < 1.8f)
             {
+                // لا يلمّ زميل تسديدةً حية في طيرانها: تكمل إلى نتيجتها المسجلة.
                 if (!TryControlIncomingBall(teammate)) continue;
                 ActiveUserPlayer = teammate;
                 if (ActivePassTransit != null)
@@ -504,8 +506,9 @@ public partial class MatchEngine
                     closestPlayer.Position2D += chaseDir * (closestPlayer.Speed * 0.09f * FatigueMovementMultiplier(closestPlayer)) * deltaTime;
                 }
 
-                if (closestDist < 1.6f && Ball.Position.Z <= 1.5f)
+                if (closestDist < 1.6f && Ball.Position.Z <= 1.5f && !_isShotInProgress)
                 {
+                    // كرة شاردة فقط؛ التسديدة الحية تُترك لتُحسم في فحص المرمى/الخروج.
                     _ballFreeTimer = 0.0f;
                     if (!TryControlIncomingBall(closestPlayer)) return;
                     if (ActivePassTransit != null)
@@ -550,6 +553,19 @@ public partial class MatchEngine
 
     public void TriggerPenaltyAwarded(string desc = "ركلة جزاء!") =>
         Publish(new MatchEvent(MatchEventType.PenaltyAwarded, desc, CurrentZone, spatialPan: CalculateBallPan()));
+
+    // صافرة النهاية أثناء طيران تسديدة: المحاولة انتهت قبل أن تصل — لا نتيجة مرمى لها إطلاقاً.
+    // لا "على المرمى" متوقعة من مسار مقذوف ولا "خارج المرمى" مفترضة: حالتها الصادقة الوحيدة هي
+    // أن الصافرة أوقفتها، وتُحفظ في خانة مستقلة حتى لا تنتهي كهدف أو إهدار مُختلَق.
+    private void ResolveShotAtWhistle()
+    {
+        if (!_isShotInProgress) return;
+        _isShotInProgress = false;
+        Publish(new MatchEvent(MatchEventType.ShotInterrupted,
+            "تسديدة أوقفتها صافرة النهاية قبل أن تصل",
+            CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: _shotShooter),
+            ("shot.outcome", "whistleInterrupted"));
+    }
 
     private void CheckRefereeRules(Vector3 previousBall)
     {
@@ -609,7 +625,7 @@ public partial class MatchEngine
                             }
                             else
                             {
-                                Ball.Velocity = new Vector3(-Ball.Velocity.X * 0.35f, ((float)Random.Shared.NextDouble() - 0.5f) * 6.0f, 0.5f);
+                                Ball.Velocity = new Vector3(-Ball.Velocity.X * 0.35f, ((float)SimulationRandom.Next() - 0.5f) * 6.0f, 0.5f);
                                 RecordBallTouch(defendingGk, deliberatelyControlled:false);
                             }
                             Publish(new MatchEvent(MatchEventType.GoalkeeperSave, $"تصدي من {defendingGk.Name}!", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: defendingGk) { Context = shotFacts },
@@ -626,6 +642,9 @@ public partial class MatchEngine
             if (Ball.Velocity.Length() < 1.0f && Ball.Position.Z <= 0.05f)
             {
                 _isShotInProgress = false;
+                // Every registered shot keeps an explicit outcome: a shot that dies short is off target.
+                Publish(new MatchEvent(MatchEventType.MissedChance, "تسديدة ضعيفة لم تبلغ المرمى", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: _shotShooter),
+                    ("shot.outcome", "diedShort"));
             }
         }
 
@@ -804,7 +823,13 @@ public partial class MatchEngine
             }
             else if (isTouchline)
             {
-                _isShotInProgress = false;
+                if (_isShotInProgress)
+                {
+                    _isShotInProgress = false;
+                    // A live shot out over the touchline is an off-target outcome, never a silent trap.
+                    Publish(new MatchEvent(MatchEventType.MissedChance, "تسديدة خارج الملعب", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: _shotShooter),
+                        ("shot.outcome", "touchlineExit"));
+                }
                 bool lastTouchHome = TeamOf(LastKicker) == HomeTeam;
                 AwardThrowIn(forHomeTeam: !lastTouchHome);
             }
