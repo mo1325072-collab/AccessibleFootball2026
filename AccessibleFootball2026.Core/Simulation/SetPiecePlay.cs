@@ -176,7 +176,7 @@ public partial class MatchEngine
         var shooter = restart.Taker;
         bool right = !UserAttackingRight;
         var goal = right ? Pitch.RightGoalCenter : Pitch.LeftGoalCenter;
-        goal.Y += ((float)Random.Shared.NextDouble() * 2 - 1) * 3.2f;
+        goal.Y += ((float)SimulationRandom.Next() * 2 - 1) * 3.2f;
         RecordBallTouch(shooter);
         SnapshotOffsideAtKick(shooter);
         _lastShotTargetY = goal.Y;
