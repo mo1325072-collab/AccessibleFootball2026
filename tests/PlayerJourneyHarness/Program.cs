@@ -63,8 +63,8 @@ foreach(var (formation,expected) in new (FormationType,SpecificPosition[])[]{
 }
 // Ready restarts still belong to the same explicit radar/lineup journey after the held replay.
 var restartMatch=Match();restartMatch.AwardFoulRestart(restartMatch.HomeTeam.Players[9],new Vector2(75,34));restartMatch.DismissStoppageReplay();var restartEvents=new List<MatchEvent>();restartMatch.EventBus.OnMatchEvent+=restartEvents.Add;
-input.Actions.Add(GameAction.TacticalRadar);restartMatch.Update(.02f);Check(restartEvents.Any(e=>e.Type==MatchEventType.TacticalRadarInfo),"radar is available while aiming a ready free kick, not only during its held replay");
-input.Actions.Add(GameAction.RequestLineup);restartMatch.Update(.02f);Check(restartEvents.Any(e=>e.Type==MatchEventType.LineupRequested),"lineup request remains available during a ready restart");
+restartMatch.ReportTacticalRadar();Check(restartEvents.Any(e=>e.Type==MatchEventType.TacticalRadarInfo),"radar is available on demand while aiming a ready free kick (pause-menu route), not only during its held replay");
+restartMatch.RequestLineup();Check(restartEvents.Any(e=>e.Type==MatchEventType.LineupRequested),"lineup remains available on demand during a ready restart (pause-menu route)");
 var time=restartMatch.MatchTimeMinutes;var pos=restartMatch.Ball.Position;restartMatch.Update(float.NaN);Check(float.IsFinite(restartMatch.MatchTimeMinutes)&&float.IsFinite(restartMatch.Ball.Position.X),"invalid frame delta cannot poison a live match with NaN");
 // Ready opponent restarts must not swallow explicit information requests or pause.
 foreach(var kind in new[]{RestartKind.FreeKick,RestartKind.Penalty,RestartKind.Corner,RestartKind.ThrowIn,RestartKind.GoalKick})
@@ -74,8 +74,8 @@ foreach(var kind in new[]{RestartKind.FreeKick,RestartKind.Penalty,RestartKind.C
  else if(kind==RestartKind.ThrowIn)typeof(MatchEngine).GetMethod("AwardThrowIn",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(game,new object[]{false});
  else if(kind==RestartKind.GoalKick)typeof(MatchEngine).GetMethod("AwardGoalKick",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(game,new object[]{false});
  else game.AwardFoulRestart(game.AwayTeam.Players[9],new Vector2(kind==RestartKind.Penalty?5:30,34));
- game.DismissStoppageReplay();input.Actions.UnionWith(new[]{GameAction.TacticalRadar,GameAction.RequestLineup});game.Update(.02f);
- Check(events.Any(e=>e.Type==MatchEventType.TacticalRadarInfo)&&events.Any(e=>e.Type==MatchEventType.LineupRequested),"ready opponent "+kind+" accepts radar and lineup");
+ game.DismissStoppageReplay();game.ReportTacticalRadar();game.RequestLineup();
+ Check(events.Any(e=>e.Type==MatchEventType.TacticalRadarInfo)&&events.Any(e=>e.Type==MatchEventType.LineupRequested),"ready opponent "+kind+" accepts on-demand radar and lineup (pause-menu route)");
  input.Actions.Add(GameAction.Pause);game.Update(.02f);Check(game.State==MatchState.Paused,"ready opponent "+kind+" honors pause without taking the kick");
 }
 // Formation effects survive new-match construction and halftime; source identity remains unchanged.
@@ -105,7 +105,7 @@ Check(takerCard.Restart==null||takerCard.Restart.Taker.IsActiveOnPitch,"dismissa
 foreach(bool goalLineExit in new[]{false,true})
 {
  var lastTouch=Match();lastTouch.ActiveUserPlayer.Position2D=new Vector2(50,34);lastTouch.Ball.CatchOrTackle(lastTouch.ActiveUserPlayer);var outgoing=lastTouch.ActiveUserPlayer;lastTouch.ExecutePass(Vector2.UnitX);lastTouch.PauseMatch();lastTouch.MakeSubstitution(lastTouch.HomeTeam,outgoing,lastTouch.HomeTeam.Bench.First());lastTouch.ResumeMatch();
- lastTouch.Ball.Owner=null;lastTouch.Ball.Position=goalLineExit?new Vector3(Pitch.Length+1,5,0):new Vector3(50,-1,0);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(lastTouch,null);
+ lastTouch.Ball.Owner=null;lastTouch.Ball.Position=goalLineExit?new Vector3(Pitch.Length+1,5,0):new Vector3(50,-1,0);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(lastTouch,new object[]{new Vector3(52.5f,34,1)});
  Check(lastTouch.Restart?.Team==lastTouch.AwayTeam,"last touch by substituted home player still awards opponent "+(goalLineExit?"goal kick":"throw-in"));
 }
 var flyingShot=Match();var awayShooter=flyingShot.AwayTeam.Players[9];typeof(MatchEngine).GetField("_shotShooter",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(flyingShot,awayShooter);flyingShot.PauseMatch();flyingShot.MakeSubstitution(flyingShot.AwayTeam,awayShooter,flyingShot.AwayTeam.Bench.First());
@@ -113,9 +113,9 @@ var defendingKeeper=(Player?)typeof(MatchEngine).GetMethod("GetDefendingGoalkeep
 Check(defendingKeeper!=null&&flyingShot.HomeTeam.Players.Contains(defendingKeeper),"substituting an away shooter cannot switch the flying shot to the wrong defending goalkeeper");
 // Historical touch identity survives player replacement until the resulting goal is resolved.
 var ownGoalSub=Match();var ownEvents=new List<MatchEvent>();ownGoalSub.EventBus.OnMatchEvent+=ownEvents.Add;var ownTouch=ownGoalSub.ActiveUserPlayer;ownGoalSub.ExecutePass(Vector2.UnitX);ownGoalSub.PauseMatch();ownGoalSub.MakeSubstitution(ownGoalSub.HomeTeam,ownTouch,ownGoalSub.HomeTeam.Bench.First());ownGoalSub.ResumeMatch();ownGoalSub.Ball.Owner=null;ownGoalSub.Ball.Position=new Vector3(-.1f,Pitch.Width/2,1);
-typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(ownGoalSub,null);
+typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(ownGoalSub,new object[]{new Vector3(52.5f,34,1)});
 Check(ownEvents.Last(e=>e.Type==MatchEventType.GoalScored).GoalData!.IsOwnGoal&&ownTouch.MatchGoalsCount==0,"substituted last toucher remains correctly attributed for an own goal");
-var assistSub=Match();var assistEvents=new List<MatchEvent>();assistSub.EventBus.OnMatchEvent+=assistEvents.Add;var actualPasser=assistSub.ActiveUserPlayer;assistSub.ExecutePass(Vector2.UnitX);var actualScorer=assistSub.ActivePassTransit!.IntendedReceiver;assistSub.Ball.CatchOrTackle(actualScorer);typeof(MatchEngine).GetMethod("RecordBallTouch",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(assistSub,new object[]{actualScorer,true});assistSub.PauseMatch();assistSub.MakeSubstitution(assistSub.HomeTeam,actualPasser,assistSub.HomeTeam.Bench.First());assistSub.ResumeMatch();assistSub.Ball.Owner=null;assistSub.Ball.Position=new Vector3(Pitch.Length+.1f,Pitch.Width/2,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(assistSub,null);
+var assistSub=Match();var assistEvents=new List<MatchEvent>();assistSub.EventBus.OnMatchEvent+=assistEvents.Add;var actualPasser=assistSub.ActiveUserPlayer;assistSub.ExecutePass(Vector2.UnitX);var actualScorer=assistSub.ActivePassTransit!.IntendedReceiver;assistSub.Ball.CatchOrTackle(actualScorer);typeof(MatchEngine).GetMethod("RecordBallTouch",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(assistSub,new object[]{actualScorer,true});assistSub.PauseMatch();assistSub.MakeSubstitution(assistSub.HomeTeam,actualPasser,assistSub.HomeTeam.Bench.First());assistSub.ResumeMatch();assistSub.Ball.Owner=null;assistSub.Ball.Position=new Vector3(Pitch.Length+.1f,Pitch.Width/2,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(assistSub,new object[]{new Vector3(52.5f,34,1)});
 Check(assistEvents.Last(e=>e.Type==MatchEventType.GoalScored).GoalData!.Assister==actualPasser,"real assister is retained when substituted between the pass and goal");
 Check(assistSub.RequestCoachPraiseForLastTeamGoal(),"coach recognizes actual team goal after the assister leaves the pitch");
 var runSub=Match();var runOut=runSub.ActiveUserPlayer;runSub.BeginSlowRunUp();runSub.PauseMatch();runSub.MakeSubstitution(runSub.HomeTeam,runOut,runSub.HomeTeam.Bench.First());runSub.ResumeMatch();typeof(MatchEngine).GetMethod("UpdateRunUp",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(runSub,new object[]{1.3f});
@@ -155,7 +155,13 @@ foreach(var language in new[]{UiLanguage.Arabic,UiLanguage.English})
  var chosen=squad.Players[6];var action=Enumerable.Range(0,menu.Count).Select(menu.GetItem).First(item=>item.Title==chosen.Name);action.OnSelect!();action.OnSelect!();
  Check(selections==1&&roster.Players.Count==10&&!roster.Players.Contains(chosen)&&squad.Players.Count==11,"named menu choice applies once and cannot remove a second stale player: "+language);
 }
-var finalFoul=Match();finalFoul.AwayTeam.Tactics.Tackling=TacklingAggression.Reckless;foreach(var p in finalFoul.AwayTeam.Players.Where(p=>p.Role!=PlayerRole.Goalkeeper).Take(4).ToArray())finalFoul.IssueCard(p,true);var finalTackler=finalFoul.AwayTeam.Players.First(p=>p.IsActiveOnPitch&&p.Role!=PlayerRole.Goalkeeper);finalFoul.HandleFoulSanction(finalTackler,finalFoul.HomeTeam.Players[9],true,true);
+var finalFoul=Match();finalFoul.AwayTeam.Tactics.Tackling=TacklingAggression.Reckless;foreach(var p in finalFoul.AwayTeam.Players.Where(p=>p.Role!=PlayerRole.Goalkeeper).Take(4).ToArray())finalFoul.IssueCard(p,true);var finalTackler=finalFoul.AwayTeam.Players.First(p=>p.IsActiveOnPitch&&p.Role!=PlayerRole.Goalkeeper);
+// severity is evidence-based (closing speed along the approach line), never a slide/behind label:
+// place the tackler directly behind the victim and prime real contact motion
+finalFoul.HomeTeam.Players[9].Position2D=new Vector2(50,34);finalTackler.Position2D=new Vector2(48,34);
+var finalMotion=(Dictionary<Player,Vector2>)finalFoul.GetType().GetField("_contactMotion",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(finalFoul)!;
+finalMotion[finalTackler]=new Vector2(20,0);
+finalFoul.HandleFoulSanction(finalTackler,finalFoul.HomeTeam.Players[9],true,true);
 Check(finalFoul.State==MatchState.GameOver&&finalFoul.AbandonmentReason!=null&&finalFoul.Restart==null&&finalFoul.PendingInjuryPlayer==null&&!finalFoul.AwaitingStoppageConfirmation,"same severe foul that abandons a match cannot reopen a restart/injury menu afterward");
 // Complete repeated matches, not only individual methods. Invariants are checked after every tick.
 MatchSettings.Current.ResetToDefaults();MatchSettings.Current.AiVarEnabled=false; // Direct-decision fixtures; VAR timing is exercised in MatchFlowRegression.
