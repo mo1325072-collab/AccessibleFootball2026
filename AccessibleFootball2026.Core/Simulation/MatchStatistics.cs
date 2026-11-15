@@ -6,6 +6,8 @@ namespace AccessibleFootball2026.Core.Simulation;
 public sealed class TeamMatchStatistics
 {
     public int Shots { get; internal set; }
+    public int ShotsAnnulled { get; internal set; }
+    public int ShotsInterrupted { get; internal set; }
     public int ShotsOnTarget { get; internal set; }
     public int ShotsOffTarget { get; internal set; }
     public int Interceptions { get; internal set; }
@@ -31,37 +33,9 @@ public partial class MatchEngine
     private readonly TeamMatchStatistics _homeStatistics = new(), _awayStatistics = new();
     public TeamMatchStatistics StatisticsFor(Team team) => team == HomeTeam ? _homeStatistics :
         team == AwayTeam ? _awayStatistics : throw new ArgumentException("Team is not in this match", nameof(team));
-    // Per-shot outcome guard: reset by each ShotTaken, set by that shot's first outcome event.
-    private bool _shotOutcomeRecorded;
     private void RecordMatchStatistics(MatchEvent e, (string Key, object? Value)[] facts)
     {
         var team = TeamOf(e.SubjectPlayer);
-        if (e.Type == MatchEventType.ShotTaken) _shotOutcomeRecorded = false;
-        if (e.Type == MatchEventType.GoalScored && e.GoalData is { IsOwnGoal: false } goal)
-        {
-            // Event-specific accounting, no aggregate proxy. Every non-own goal is a shot on target.
-            var goalStats = StatisticsFor(goal.ScoringTeam);
-            if (facts.Any(f => f.Key == "goal.registeredShot" && f.Value is true))
-            {
-                // The registered shot's own outcome: its ShotTaken event already counted the shot.
-                if (!_shotOutcomeRecorded) { goalStats.ShotsOnTarget++; _shotOutcomeRecorded = true; }
-            }
-            else
-            {
-                // No live registered shot linked to this crossing (carried over the line, a loose ball,
-                // or a new touch after an earlier missed/blocked shot): the goal is its own shot.
-                // No fabricated ShotTaken event is emitted.
-                goalStats.Shots++;
-                goalStats.ShotsOnTarget++;
-                _shotOutcomeRecorded = true;
-            }
-        }
-        if (e.Type == MatchEventType.GoalkeeperSave)
-        {
-            // A save is the registered shot's on-target outcome, attributed to the shooter's team.
-            var shotTeam = TeamOf(_shotShooter) ?? (team == HomeTeam ? AwayTeam : HomeTeam);
-            if (shotTeam != null && !_shotOutcomeRecorded) { StatisticsFor(shotTeam).ShotsOnTarget++; _shotOutcomeRecorded = true; }
-        }
         if (e.Type == MatchEventType.PassCompleted && _passPerformanceActor is { } passer)
             team = TeamOf(passer);
         // A blocked shot belongs to the shooter, not to the defender who blocked it.
@@ -71,11 +45,7 @@ public partial class MatchEngine
         var s = StatisticsFor(team);
         switch (e.Type)
         {
-            case MatchEventType.ShotTaken: s.Shots++; break;
-            case MatchEventType.MissedChance: s.ShotsOffTarget++; break;
             case MatchEventType.PassIntercepted: s.Interceptions++; break;
-            case MatchEventType.ShotBlocked: s.BlockedShots++; break;
-            case MatchEventType.WoodworkHit: s.Woodwork++; break;
             case MatchEventType.PassCompleted: s.CompletedPasses++; break;
             case MatchEventType.CornerKick: s.Corners++; break;
             case MatchEventType.FreeKickAwarded: s.FreeKicks++; break;
@@ -88,7 +58,7 @@ public partial class MatchEngine
             case MatchEventType.Offside: case MatchEventType.GoalDisallowed:
                 if (e.Context.TryGet("offside.margin", out _)) s.Offsides++;
                 break;
-            case MatchEventType.GoalkeeperSave: s.Saves++; break;
+            case MatchEventType.GoalkeeperSave: if (e.Context.TryGet("attempt.outcome", out var result) && result == "Saved") s.Saves++; break;
             case MatchEventType.TackleSuccessful: case MatchEventType.UserTackleSuccessful: case MatchEventType.OpponentTackleSuccessful: s.Tackles++; break;
             case MatchEventType.YellowCard: s.YellowCards++; break;
             case MatchEventType.RedCard:
