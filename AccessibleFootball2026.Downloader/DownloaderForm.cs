@@ -239,9 +239,6 @@ public class DownloaderForm : Form
 
             new("https://raw.githubusercontent.com/Calinou/kenney-ui-audio/master/addons/kenney_ui_audio/switch3.wav",
                 @"SFX\Movement\BoundaryWarning.wav", "صوت تنبيه خط التماس والملعب"),
-
-            new("https://www.myinstants.com/media/sounds/chawali.mp3",
-                @"Commentary\RaoufKhlif\Goals\Goal_1.mp3", "صرخة الأهداف الحماسية بصوت المعلق رؤوف خليف")
         };
     }
 
@@ -326,12 +323,6 @@ public class DownloaderForm : Form
                             else if (item.RelativePath.Contains("CrowdGoal.wav"))
                             {
                                 File.Copy(destFile, Path.Combine(targetDir, @"SFX\Crowd\CrowdCheer.wav"), true);
-                            }
-                            else if (item.RelativePath.Contains("Goal_1.mp3"))
-                            {
-                                string introDir = Path.Combine(targetDir, "Commentary", "RaoufKhlif", "Intro");
-                                Directory.CreateDirectory(introDir);
-                                File.Copy(destFile, Path.Combine(introDir, "Intro_1.mp3"), true);
                             }
                         }
                         success = true;
