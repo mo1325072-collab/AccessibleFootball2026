@@ -115,14 +115,25 @@ public partial class MatchEngine
     public bool AwaitingStoppageConfirmation { get; private set; }
     private void HoldForStoppage(MatchEvent e)
     {
-        if (e.Type is MatchEventType.GoalScored or MatchEventType.FreeKickAwarded or MatchEventType.PenaltyAwarded
+        // الفاول العادي (ركلة حرة) لا يوقف اللعب ولا يطلب إنتر؛ الانتظار فقط للأهداف والجزاء واللقطات الجذرية
+        if (e.Type is MatchEventType.GoalScored or MatchEventType.PenaltyAwarded
             or MatchEventType.CornerKick or MatchEventType.GoalKick or MatchEventType.ThrowIn or MatchEventType.Offside or MatchEventType.GoalDisallowed)
         { BeginSubstitutionStoppage(); AwaitingStoppageConfirmation = true; }
     }
     /// <summary>The UI calls only after Enter and after the commentary/announcement finishes.</summary>
     public bool DismissStoppageReplay()
     {
-        if(VideoReviewPending)return false;
+        if (VideoReviewPending)
+        {
+            // مراجعة الفار: قارئ الشاشة يشرح القرار أولاً، وبعدها ضغطة إنتر هي التي تطبّق القرار وتعيد اللعب
+            if (!_videoVerdictAnnounced) return false;
+            var pendingDecision = _videoDecision;
+            _videoDecision = null; _videoVerdict = null;
+            AwaitingStoppageConfirmation = false;
+            _applyingVideoDecision = true;
+            try { pendingDecision?.Invoke(); } finally { _applyingVideoDecision = false; }
+            return true;
+        }
         if (PendingInjuryPlayer != null) return false;
         if (State is MatchState.Paused or MatchState.HalfTime or MatchState.GameOver) return false;
         if (!AwaitingStoppageConfirmation && !AnalysisReplayPending && State != MatchState.GoalCelebration) return false;
