@@ -600,6 +600,57 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
  chSet=chKb.PollCurrentActions(true);
  Check(chSet.Contains(GameAction.Shoot),"the charged shot still fires on release after the Ctrl hold ends");
 }
+
+// Law 12 sanction mapping: careless=no card, reckless=caution, DOGSO outside box=red, DOGSO in box (attempt on ball)=caution, persistent fouls=caution
+{
+    s.AiVarEnabled=false;
+    var lawKb=new AccessibleFootball2026.Input.KeyboardInputHandler();
+    var lawHome=Make("lh",TeamSide.Home);var lawAway=Make("la",TeamSide.Away);
+    var lawBus=new MatchEventBus();var lawEngine=new MatchEngine(lawHome,lawAway,lawBus,lawKb);
+    var lawCards=new List<MatchEvent>();lawBus.OnMatchEvent+=e=>{if(e.Type is MatchEventType.YellowCard or MatchEventType.RedCard)lawCards.Add(e);};
+    var lawTackler=lawHome.Players[1];
+    var lawCarrier=lawAway.Players[1];
+    foreach(var pl in lawHome.Players.Concat(lawAway.Players)) pl.Position2D=new Vector2(70,10);
+    lawTackler.Position2D=new Vector2(53,34);lawCarrier.Position2D=new Vector2(52,34);
+    lawEngine.HandleFoulSanction(lawTackler,lawCarrier,false,false);
+    Check(lawCards.Count==0&&lawTackler.YellowCards==0&&!lawTackler.IsSentOff,"law12 careless midfield foul carries no card");
+    lawEngine.HandleFoulSanction(lawTackler,lawCarrier,true,true);
+    Check(lawCards.Count==1&&lawCards[0].Type==MatchEventType.YellowCard&&lawTackler.YellowCards==1&&!lawTackler.IsSentOff,"law12 slide from behind is caution not direct red");
+    lawEngine.HandleFoulSanction(lawTackler,lawCarrier,true,true);
+    Check(lawTackler.YellowCards==2&&lawTackler.IsSentOff&&lawCards.Any(e=>e.Type==MatchEventType.RedCard),"law12 second caution dismisses via second-yellow flow");
+
+    var dogHome=Make("dh",TeamSide.Home);var dogAway=Make("da",TeamSide.Away);
+    var dogBus=new MatchEventBus();var dogEngine=new MatchEngine(dogHome,dogAway,dogBus,lawKb);
+    var dogCards=new List<MatchEvent>();dogBus.OnMatchEvent+=e=>{if(e.Type is MatchEventType.YellowCard or MatchEventType.RedCard)dogCards.Add(e);};
+    var dogTackler=dogHome.Players[1];
+    var dogCarrier=dogAway.Players[1];
+    foreach(var pl in dogHome.Players.Concat(dogAway.Players)) pl.Position2D=new Vector2(70,10);
+    dogTackler.Position2D=new Vector2(21,34);dogCarrier.Position2D=new Vector2(20,34);
+    dogEngine.HandleFoulSanction(dogTackler,dogCarrier,false,false);
+    Check(dogCards.Count==1&&dogCards[0].Type==MatchEventType.RedCard&&dogTackler.IsSentOff&&dogTackler.YellowCards==0,"law12 dogso outside penalty area is direct red");
+
+    var penHome=Make("ph",TeamSide.Home);var penAway=Make("pa",TeamSide.Away);
+    var penBus=new MatchEventBus();var penEngine=new MatchEngine(penHome,penAway,penBus,lawKb);
+    var penCards=new List<MatchEvent>();penBus.OnMatchEvent+=e=>{if(e.Type is MatchEventType.YellowCard or MatchEventType.RedCard)penCards.Add(e);};
+    var penTackler=penHome.Players[1];
+    var penCarrier=penAway.Players[1];
+    foreach(var pl in penHome.Players.Concat(penAway.Players)) pl.Position2D=new Vector2(70,10);
+    penTackler.Position2D=new Vector2(11,34);penCarrier.Position2D=new Vector2(10,34);
+    penEngine.HandleFoulSanction(penTackler,penCarrier,false,false);
+    Check(penCards.Count==1&&penCards[0].Type==MatchEventType.YellowCard&&penTackler.YellowCards==1&&!penTackler.IsSentOff,"law12 dogso inside penalty area attempt on ball is caution not red");
+
+    var perHome=Make("qh",TeamSide.Home);var perAway=Make("qa",TeamSide.Away);
+    var perBus=new MatchEventBus();var perEngine=new MatchEngine(perHome,perAway,perBus,lawKb);
+    var perCards=new List<MatchEvent>();perBus.OnMatchEvent+=e=>{if(e.Type is MatchEventType.YellowCard or MatchEventType.RedCard)perCards.Add(e);};
+    var perTackler=perHome.Players[1];
+    var perCarrier=perAway.Players[1];
+    foreach(var pl in perHome.Players.Concat(perAway.Players)) pl.Position2D=new Vector2(70,10);
+    perTackler.Position2D=new Vector2(53,34);perCarrier.Position2D=new Vector2(52,34);
+    var publish=typeof(MatchEngine).GetMethod("Publish",BindingFlags.NonPublic|BindingFlags.Instance)!;
+    for(int fi=0;fi<3;fi++) publish.Invoke(perEngine,new object[]{new MatchEvent(MatchEventType.FoulCommitted,"test foul "+fi,PitchZone.Midfield,spatialPan:0f,subjectPlayer:perTackler),Array.Empty<(string Key,object? Value)>()});
+    perEngine.HandleFoulSanction(perTackler,perCarrier,false,false);
+    Check(perCards.Count==1&&perCards[0].Type==MatchEventType.YellowCard&&perTackler.YellowCards==1&&!perTackler.IsSentOff,"law12 persistent fouls (3rd by same player) earn caution");
+}
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
 sealed class Input:IInputHandler{public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>new();public bool IsActionTriggered(GameAction action,bool possession)=>false;}
