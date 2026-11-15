@@ -31,22 +31,37 @@ public partial class MatchEngine
     private readonly TeamMatchStatistics _homeStatistics = new(), _awayStatistics = new();
     public TeamMatchStatistics StatisticsFor(Team team) => team == HomeTeam ? _homeStatistics :
         team == AwayTeam ? _awayStatistics : throw new ArgumentException("Team is not in this match", nameof(team));
-    private bool _shotCountedOnTarget;
-    private void MarkShotOnTarget(Team? team)
-    {
-        if (team == null || _shotCountedOnTarget) return;
-        var stats = StatisticsFor(team);
-        // A valid shot event must precede an outcome. Own goals are not attacking shots.
-        if (stats.ShotsOnTarget < stats.Shots) { stats.ShotsOnTarget++; _shotCountedOnTarget = true; }
-    }
+    // Per-shot outcome guard: reset by each ShotTaken, set by that shot's first outcome event.
+    private bool _shotOutcomeRecorded;
     private void RecordMatchStatistics(MatchEvent e, (string Key, object? Value)[] facts)
     {
         var team = TeamOf(e.SubjectPlayer);
-        if (e.Type == MatchEventType.ShotTaken) _shotCountedOnTarget = false;
+        if (e.Type == MatchEventType.ShotTaken) _shotOutcomeRecorded = false;
         if (e.Type == MatchEventType.GoalScored && e.GoalData is { IsOwnGoal: false } goal)
-            MarkShotOnTarget(goal.ScoringTeam);
-        if (e.Type == MatchEventType.GoalkeeperSave && team != null)
-            MarkShotOnTarget(team == HomeTeam ? AwayTeam : HomeTeam);
+        {
+            // Event-specific accounting, no aggregate proxy. Every non-own goal is a shot on target.
+            var goalStats = StatisticsFor(goal.ScoringTeam);
+            if (facts.Any(f => f.Key == "goal.registeredShot" && f.Value is true))
+            {
+                // The registered shot's own outcome: its ShotTaken event already counted the shot.
+                if (!_shotOutcomeRecorded) { goalStats.ShotsOnTarget++; _shotOutcomeRecorded = true; }
+            }
+            else
+            {
+                // No live registered shot linked to this crossing (carried over the line, a loose ball,
+                // or a new touch after an earlier missed/blocked shot): the goal is its own shot.
+                // No fabricated ShotTaken event is emitted.
+                goalStats.Shots++;
+                goalStats.ShotsOnTarget++;
+                _shotOutcomeRecorded = true;
+            }
+        }
+        if (e.Type == MatchEventType.GoalkeeperSave)
+        {
+            // A save is the registered shot's on-target outcome, attributed to the shooter's team.
+            var shotTeam = TeamOf(_shotShooter) ?? (team == HomeTeam ? AwayTeam : HomeTeam);
+            if (shotTeam != null && !_shotOutcomeRecorded) { StatisticsFor(shotTeam).ShotsOnTarget++; _shotOutcomeRecorded = true; }
+        }
         if (e.Type == MatchEventType.PassCompleted && _passPerformanceActor is { } passer)
             team = TeamOf(passer);
         // A blocked shot belongs to the shooter, not to the defender who blocked it.
