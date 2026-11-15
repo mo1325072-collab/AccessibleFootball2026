@@ -41,17 +41,6 @@ public class KeyboardInputHandler : IInputHandler
     private const int VK_KEY_D = 0x44;
     private const int VK_KEY_S = 0x53;
     private const int VK_KEY_W = 0x57;
-    private const int VK_KEY_H = 0x48;
-    private const int VK_KEY_J = 0x4A;
-    private const int VK_KEY_V = 0x56;
-    private const int VK_KEY_L = 0x4C;
-    private const int VK_KEY_F = 0x46;
-    private const int VK_KEY_K = 0x4B;
-    private const int VK_KEY_B = 0x42;
-    private const int VK_KEY_N = 0x4E;
-    private const int VK_KEY_T = 0x54;
-    private const int VK_KEY_R = 0x52;
-    private const int VK_KEY_Q = 0x51;
 
     // State collections
     private readonly HashSet<int> _heldContinuousKeys = new();
@@ -289,15 +278,6 @@ public class KeyboardInputHandler : IInputHandler
         // 2. الأوامر الفردية مع كشف الحافة الصاعدة (Rising Edge)
         CheckWin32DiscreteKey(VK_ESCAPE, GameAction.Pause, actions);
 
-        bool radarDown = IsKeyDown(VK_SPACE) || IsKeyDown(VK_KEY_C);
-        bool radarWasDown = _win32LastHeld.Contains(VK_SPACE) || _win32LastHeld.Contains(VK_KEY_C);
-        if (radarDown && !radarWasDown)
-        {
-            actions.Add(GameAction.TacticalRadar);
-        }
-        UpdateWin32Key(VK_SPACE);
-        UpdateWin32Key(VK_KEY_C);
-
         bool ctrlDown = IsKeyDown(VK_CONTROL) || IsKeyDown(VK_LCONTROL) || IsKeyDown(VK_RCONTROL);
         bool ctrlWasDown = _win32LastHeld.Contains(VK_CONTROL) || _win32LastHeld.Contains(VK_LCONTROL) || _win32LastHeld.Contains(VK_RCONTROL);
         if (ctrlDown && !ctrlWasDown)
@@ -307,18 +287,6 @@ public class KeyboardInputHandler : IInputHandler
         UpdateWin32Key(VK_CONTROL);
         UpdateWin32Key(VK_LCONTROL);
         UpdateWin32Key(VK_RCONTROL);
-
-        CheckWin32DiscreteKey(VK_KEY_Q, GameAction.LoftedThroughBall, actions);
-        CheckWin32DiscreteKey(VK_KEY_R, GameAction.SlowRunUp, actions);
-        CheckWin32DiscreteKey(VK_KEY_T, GameAction.RequestLineup, actions);
-        CheckWin32DiscreteKey(VK_KEY_K, GameAction.Clearance, actions);
-        CheckWin32DiscreteKey(VK_KEY_B, GameAction.GroundCross, actions);
-        CheckWin32DiscreteKey(VK_KEY_N, GameAction.FarPostCross, actions);
-        CheckWin32DiscreteKey(VK_KEY_H, GameAction.Header, actions);
-        CheckWin32DiscreteKey(VK_KEY_J, GameAction.BicycleKick, actions);
-        CheckWin32DiscreteKey(VK_KEY_V, GameAction.Volley, actions);
-        CheckWin32DiscreteKey(VK_KEY_L, GameAction.LobShot, actions);
-        CheckWin32DiscreteKey(VK_KEY_F, GameAction.CurledShot, actions);
 
         if (isPossession)
         {
@@ -386,9 +354,9 @@ public class KeyboardInputHandler : IInputHandler
         keyCode is VK_UP or VK_DOWN or VK_LEFT or VK_RIGHT or VK_SHIFT or VK_LSHIFT or VK_RSHIFT;
 
     private static bool IsDiscreteKey(int keyCode) =>
-        keyCode is VK_ESCAPE or VK_SPACE or VK_KEY_C or
+        keyCode is VK_ESCAPE or
                    VK_CONTROL or VK_LCONTROL or VK_RCONTROL or
-                   VK_KEY_A or VK_KEY_D or VK_KEY_S or VK_KEY_W or VK_KEY_H or VK_KEY_J or VK_KEY_V or VK_KEY_L or VK_KEY_F or VK_KEY_K or VK_KEY_B or VK_KEY_N or VK_KEY_T or VK_KEY_R or VK_KEY_Q;
+                   VK_KEY_A or VK_KEY_D or VK_KEY_S or VK_KEY_W;
 
     private bool IsDiscreteKeyHeld(int keyCode)
     {
@@ -411,19 +379,6 @@ public class KeyboardInputHandler : IInputHandler
     {
         // الأوامر العامة المشتركة
         if (keyCode == VK_ESCAPE) return GameAction.Pause;
-        if (keyCode is VK_SPACE or VK_KEY_C) return GameAction.TacticalRadar;
-
-        if (keyCode == VK_KEY_Q) return GameAction.LoftedThroughBall;
-        if (keyCode == VK_KEY_R) return GameAction.SlowRunUp;
-        if (keyCode == VK_KEY_T) return GameAction.RequestLineup;
-        if (keyCode == VK_KEY_K) return GameAction.Clearance;
-        if (keyCode == VK_KEY_B) return GameAction.GroundCross;
-        if (keyCode == VK_KEY_N) return GameAction.FarPostCross;
-        if (keyCode == VK_KEY_H) return GameAction.Header;
-        if (keyCode == VK_KEY_J) return GameAction.BicycleKick;
-        if (keyCode == VK_KEY_V) return GameAction.Volley;
-        if (keyCode == VK_KEY_L) return GameAction.LobShot;
-        if (keyCode == VK_KEY_F) return GameAction.CurledShot;
 
         // تبديل المدافعين
         if (keyCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL) return GameAction.SwitchPlayer;
