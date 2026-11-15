@@ -122,7 +122,8 @@ public partial class MatchEngine
         }
         var toGoal=goal-carrier.Position2D;var direction=toGoal.LengthSquared()>.001f?Vector2.Normalize(toGoal):new Vector2(UserAttackingRight?-1:1,0);
         carrier.FacingDirection=direction;
-        carrier.Position2D+=direction*(carrier.Speed*.065f*FatigueMovementMultiplier(carrier))*dt;
+        _contactMotion[carrier]=direction*(carrier.Speed*.065f*FatigueMovementMultiplier(carrier));
+        carrier.Position2D+=_contactMotion[carrier]*dt;
         Ball.CatchOrTackle(carrier);
     }
 }
