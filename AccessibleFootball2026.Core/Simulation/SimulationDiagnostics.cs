@@ -36,11 +36,10 @@ public static class SimulationDiagnostics
         match.ResumeMatch();
         Check(match.State == MatchState.InPlay && away.Players.Contains(match.Ball.Owner!), "Explicit resume starts second half with the correct kickoff team");
         match.AwardFoulRestart(home.Players[9], new Vector2(30, 34));
-        intervalTime = match.MatchTimeMinutes; var position = match.Ball.Position; match.Update(5);
-        Check(match.AwaitingStoppageConfirmation && match.MatchTimeMinutes == intervalTime && match.Ball.Position == position,
-            "Foul restart is held without advancing clock or ball");
-        Check(match.DismissStoppageReplay() && match.Restart != null && !match.AwaitingStoppageConfirmation,
-            "Explicit incident confirmation retains the actual restart");
+        Check(match.Restart != null && match.Restart.Team == home && !match.AwaitingStoppageConfirmation,
+            "Ordinary free kick is awarded without a confirmation hold (foul replays removed by user request)");
+        intervalTime = match.MatchTimeMinutes; match.Update(5);
+        Check(match.MatchTimeMinutes > intervalTime, "Unheld free kick lets play continue");
         Check(match.StatisticsFor(home).FreeKicks == 1 && match.StatisticsFor(away).FreeKicks == 0,
             "Restart statistics are measured for the awarded team");
         match = new MatchEngine(Fixture("Home 2", TeamSide.Home), Fixture("Away 2", TeamSide.Away), new MatchEventBus(), new IdleInput());
