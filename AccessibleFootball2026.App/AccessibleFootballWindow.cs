@@ -156,7 +156,12 @@ public class AccessibleFootballWindow : Form
 
     private void SetupAudioEvents()
     {
-        // بلا خفض مؤقت لصوت الجماهير (No crowd ducking): مستوى ثابت معقول بطلب المستخدم
+        // Duck actual reader speech, not the wait while a recorded commentator owns the channel.
+        if (_screenReader is PriorityScreenReader priorityReader)
+            priorityReader.SpeechActivityChanged += speaking => SoundEffectsPlayer.SetCrowdDucking(speaking ? .2f : 1f);
+        else
+            _coordinator.OnCrowdVolumeDucking += SoundEffectsPlayer.SetCrowdDucking;
+
         _stadiumSoundEngine.OnDiscontentWhistlePlayed += team =>
         {
             if(_activeMatch is not {} current)return;
