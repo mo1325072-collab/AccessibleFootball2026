@@ -17,8 +17,6 @@ namespace AccessibleFootball2026.App;
 public class AccessibleSettingsForm : Form
 {
     private readonly IScreenReader _screenReader;
-    private readonly MatchSettings _original = JsonSerializer.Deserialize<MatchSettings>(JsonSerializer.Serialize(MatchSettings.Current))!;
-    private bool _saved;
 
     // عناصر التحكم الحقيقية
     private ComboBox _cmbLanguage = null!;
@@ -31,7 +29,6 @@ public class AccessibleSettingsForm : Form
 
     private ComboBox _cmbDifficulty = null!;
     private ComboBox _cmbDuration = null!;
-    private ComboBox _cmbCommentaryVoice = null!;
 
     private CheckBox _chkExtraTime = null!;
     private CheckBox _chkPenalties = null!;
@@ -95,91 +92,43 @@ public class AccessibleSettingsForm : Form
             Font = new Font("Segoe UI", 11F)
         };
         _cmbLanguage.Items.AddRange(["العربية (Arabic)", "English (الإنجليزية)"]);
-        _cmbLanguage.SelectedIndexChanged += OnLanguageChanged;
+        // الإعدادات مسودة حتى الحفظ: لا تطبيق فوري ولا معاينة صوتية أثناء التنقل
         mainPanel.Controls.Add(lblLang, 0, row);
         mainPanel.Controls.Add(_cmbLanguage, 1, row++);
 
         // 2. الصوت العام (Master Volume TrackBar)
         var lblMaster = CreateLabel(isArabic ? "مستوى الصوت العام:" : "Master Volume:");
         _tbMasterVolume = CreateTrackBar(isArabic ? "مستوى الصوت العام" : "Master Volume");
-        _tbMasterVolume.ValueChanged += (_, _) =>
-        {
-            if (_isLoadingSettings) return;
-            MatchSettings.Current.MasterVolumePercent = _tbMasterVolume.Value;
-            MatchSettings.Current.ApplyLive();
-            SoundEffectsPlayer.MasterVolumeSetting = _tbMasterVolume.Value;
-            SoundEffectsPlayer.PlayLivePreviewMaster(_tbMasterVolume.Value);
-        };
         mainPanel.Controls.Add(lblMaster, 0, row);
         mainPanel.Controls.Add(_tbMasterVolume, 1, row++);
 
         // 3. مؤثرات اللعب (SFX Volume TrackBar)
         var lblSfx = CreateLabel(isArabic ? "مؤثرات اللعب والنغمات:" : "SFX & Earcons Volume:");
         _tbSfxVolume = CreateTrackBar(isArabic ? "مؤثرات اللعب والنغمات" : "SFX Volume");
-        _tbSfxVolume.ValueChanged += (_, _) =>
-        {
-            if (_isLoadingSettings) return;
-            MatchSettings.Current.SfxVolumePercent = _tbSfxVolume.Value;
-            MatchSettings.Current.ApplyLive();
-            SoundEffectsPlayer.SfxVolumeSetting = _tbSfxVolume.Value;
-            SoundEffectsPlayer.PlayLivePreviewSfx(_tbSfxVolume.Value);
-        };
         mainPanel.Controls.Add(lblSfx, 0, row);
         mainPanel.Controls.Add(_tbSfxVolume, 1, row++);
 
         // 4. التعليق الصوتي (Commentary Volume TrackBar)
         var lblComm = CreateLabel(isArabic ? "صوت التعليق:" : "Commentary Volume:");
         _tbCommentaryVolume = CreateTrackBar(isArabic ? "صوت التعليق" : "Commentary Volume");
-        _tbCommentaryVolume.ValueChanged += (_, _) =>
-        {
-            if (_isLoadingSettings) return;
-            MatchSettings.Current.CommentaryVolumePercent = _tbCommentaryVolume.Value;
-            MatchSettings.Current.ApplyLive();
-            SoundEffectsPlayer.CommentaryVolumeSetting = _tbCommentaryVolume.Value;
-            SoundEffectsPlayer.PlayLivePreviewCommentary(_tbCommentaryVolume.Value);
-        };
         mainPanel.Controls.Add(lblComm, 0, row);
         mainPanel.Controls.Add(_tbCommentaryVolume, 1, row++);
 
         // 5. صوت الجماهير (Crowd Volume TrackBar)
         var lblCrowd = CreateLabel(isArabic ? "صوت الجماهير في الملعب:" : "Stadium Crowd Volume:");
         _tbCrowdVolume = CreateTrackBar(isArabic ? "صوت الجماهير في الملعب" : "Crowd Volume");
-        _tbCrowdVolume.ValueChanged += (_, _) =>
-        {
-            if (_isLoadingSettings) return;
-            MatchSettings.Current.CrowdVolumePercent = _tbCrowdVolume.Value;
-            MatchSettings.Current.ApplyLive();
-            SoundEffectsPlayer.CrowdVolumeSetting = _tbCrowdVolume.Value;
-            SoundEffectsPlayer.PlayLivePreviewCrowd(_tbCrowdVolume.Value);
-        };
         mainPanel.Controls.Add(lblCrowd, 0, row);
         mainPanel.Controls.Add(_tbCrowdVolume, 1, row++);
 
         // 6. منارة المرمى 3D (Goal Beacon Volume TrackBar)
         var lblBeacon = CreateLabel(isArabic ? "منارة المرمى المجسمة 3D:" : "3D Goal Beacon Volume:");
         _tbBeaconVolume = CreateTrackBar(isArabic ? "منارة المرمى المجسمة 3D" : "Goal Beacon Volume");
-        _tbBeaconVolume.ValueChanged += (_, _) =>
-        {
-            if (_isLoadingSettings) return;
-            MatchSettings.Current.GoalBeaconVolumePercent = _tbBeaconVolume.Value;
-            MatchSettings.Current.ApplyLive();
-            SoundEffectsPlayer.GoalBeaconVolumeSetting = _tbBeaconVolume.Value;
-            SoundEffectsPlayer.PlayLivePreviewGoalBeacon(_tbBeaconVolume.Value);
-        };
         mainPanel.Controls.Add(lblBeacon, 0, row);
         mainPanel.Controls.Add(_tbBeaconVolume, 1, row++);
 
         // 7. موسيقى القوائم (Menu Music Volume TrackBar)
         var lblMusic = CreateLabel(isArabic ? "موسيقى القوائم والخلفية:" : "Menu Music Volume:");
         _tbMusicVolume = CreateTrackBar(isArabic ? "موسيقى القوائم والخلفية" : "Menu Music Volume");
-        _tbMusicVolume.ValueChanged += (_, _) =>
-        {
-            if (_isLoadingSettings) return;
-            MatchSettings.Current.MusicVolumePercent = _tbMusicVolume.Value;
-            MatchSettings.Current.ApplyLive();
-            SoundEffectsPlayer.MusicVolumeSetting = _tbMusicVolume.Value;
-            SoundEffectsPlayer.ApplyMusicVolume();
-        };
         mainPanel.Controls.Add(lblMusic, 0, row);
         mainPanel.Controls.Add(_tbMusicVolume, 1, row++);
 
@@ -213,20 +162,6 @@ public class AccessibleSettingsForm : Form
         }
         mainPanel.Controls.Add(lblDur, 0, row);
         mainPanel.Controls.Add(_cmbDuration, 1, row++);
-
-        // 10. المعلق الصوتي المعتمد (Commentary Voice ComboBox)
-        var lblVoice = CreateLabel(isArabic ? "المعلق الصوتي المعتمد:" : "Commentary Voice:");
-        _cmbCommentaryVoice = new ComboBox
-        {
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Dock = DockStyle.Fill,
-            AccessibleName = isArabic ? "المعلق الصوتي المعتمد" : "Commentary Voice",
-            BackColor = Color.FromArgb(36, 42, 56),
-            ForeColor = Color.White
-        };
-        _cmbCommentaryVoice.Items.AddRange(isArabic ? ["فارس عوض (Fares Awad)", "رؤوف خليف (Raouf Khlif)", "صامت (بدون تعليق)"] : ["Fares Awad", "Raouf Khlif", "Off (Silent)"]);
-        mainPanel.Controls.Add(lblVoice, 0, row);
-        mainPanel.Controls.Add(_cmbCommentaryVoice, 1, row++);
 
         // 11. الأشواط الإضافية (Extra Time CheckBox)
         _chkExtraTime = CreateCheckBox(isArabic ? "الأشواط الإضافية عند التعادل في مباريات الكؤوس" : "Extra Time on Draw");
@@ -427,9 +362,6 @@ public class AccessibleSettingsForm : Form
             int durIdx = Array.IndexOf(_durations, s.MatchDurationMinutes);
             _cmbDuration.SelectedIndex = durIdx >= 0 ? durIdx : 1;
 
-            _cmbCommentaryVoice.SelectedIndex = (s.CommentaryVoice == CommentaryVoiceOption.Off || !s.CommentaryEnabled) ? 2
-                : (s.Commentator == CommentatorId.FaresAwad ? 0 : 1);
-
             _chkExtraTime.Checked = s.ExtraTimeEnabled;
             _chkPenalties.Checked = s.PenaltyShootoutEnabled;
             _chkAutoSubs.Checked = s.AutoSubstitutionsEnabled;
@@ -466,8 +398,6 @@ public class AccessibleSettingsForm : Form
             ("مستوى الصعوبة", "Difficulty Level"),
             ("مدة المباراة الحقيقية:", "Match Duration:"),
             ("مدة المباراة الحقيقية", "Match Duration"),
-            ("المعلق الصوتي المعتمد:", "Commentary Voice:"),
-            ("المعلق الصوتي المعتمد", "Commentary Voice"),
             ("الأشواط الإضافية عند التعادل في مباريات الكؤوس", "Extra Time on Draw"),
             ("ركلات الترجيح عند استمرار التعادل", "Penalty Shootouts on Draw"),
             ("تبديلات تلقائية حسب اللياقة وخطر الطرد", "Automatic substitutions for fatigue or dismissal risk"),
@@ -497,60 +427,53 @@ public class AccessibleSettingsForm : Form
         try
         {
             Visit(this);
-            int difficulty = _cmbDifficulty.SelectedIndex, duration = _cmbDuration.SelectedIndex, voice = _cmbCommentaryVoice.SelectedIndex;
+            int difficulty = _cmbDifficulty.SelectedIndex, duration = _cmbDuration.SelectedIndex;
             bool arabic = MatchSettings.Current.Language == UiLanguage.Arabic;
             _cmbDifficulty.Items.Clear();
             _cmbDifficulty.Items.AddRange(arabic ? ["سهل (Easy)", "متوسط (Normal)", "محترف (Hard)", "أسطوري (Legendary)"] : ["Easy", "Normal", "Hard", "Legendary"]);
             _cmbDuration.Items.Clear();
             foreach (int minutes in _durations) _cmbDuration.Items.Add(LocalizationService.FormatDuration(minutes));
-            _cmbCommentaryVoice.Items.Clear();
-            _cmbCommentaryVoice.Items.AddRange(arabic ? ["فارس عوض (Fares Awad)", "رؤوف خليف (Raouf Khlif)", "صامت (بدون تعليق)"] : ["Fares Awad", "Raouf Khlif", "Off (Silent)"]);
             _cmbDifficulty.SelectedIndex = difficulty;
             _cmbDuration.SelectedIndex = duration;
-            _cmbCommentaryVoice.SelectedIndex = voice;
         }
         finally { _isLoadingSettings = loadingBefore; }
     }
 
-    private void OnLanguageChanged(object? sender, EventArgs e)
-    {
-        if (_isLoadingSettings) return;
-        var selectedLang = _cmbLanguage.SelectedIndex == 1 ? UiLanguage.English : UiLanguage.Arabic;
-        if (selectedLang != MatchSettings.Current.Language)
-        {
-            MatchSettings.Current.Language = selectedLang;
-            RefreshLanguageLabels();
-            _screenReader.Speak(selectedLang == UiLanguage.English ? "Language changed to English." : "تم تغيير لغة اللعبة إلى العربية.");
-        }
-    }
-
     private void OnResetDefaultsClicked(object? sender, EventArgs e)
     {
-        MatchSettings.Current.ResetToDefaults();
-        SoundEffectsPlayer.MasterVolumeSetting = MatchSettings.Current.MasterVolumePercent;
-        SoundEffectsPlayer.SfxVolumeSetting = MatchSettings.Current.SfxVolumePercent;
-        SoundEffectsPlayer.CommentaryVolumeSetting = MatchSettings.Current.CommentaryVolumePercent;
-        SoundEffectsPlayer.CrowdVolumeSetting = MatchSettings.Current.CrowdVolumePercent;
-        SoundEffectsPlayer.GoalBeaconVolumeSetting = MatchSettings.Current.GoalBeaconVolumePercent;
-        SoundEffectsPlayer.MusicVolumeSetting = MatchSettings.Current.MusicVolumePercent;
-        MatchSettings.Current.ApplyLive();
-
-        LoadCurrentSettings();
-        RefreshLanguageLabels();
+        // استعادة الافتراضيات تملأ المسودة فقط؛ لا تُطبَّق ولا تُحفَظ حتى يضغط المستخدم «حفظ الإعدادات»
+        var defaults = new MatchSettings();
+        _isLoadingSettings = true;
+        try
+        {
+            _cmbLanguage.SelectedIndex = defaults.Language == UiLanguage.English ? 1 : 0;
+            _tbMasterVolume.Value = Math.Clamp(defaults.MasterVolumePercent, 0, 100);
+            _tbSfxVolume.Value = Math.Clamp(defaults.SfxVolumePercent, 0, 100);
+            _tbCommentaryVolume.Value = Math.Clamp(defaults.CommentaryVolumePercent, 0, 100);
+            _tbCrowdVolume.Value = Math.Clamp(defaults.CrowdVolumePercent, 0, 100);
+            _tbBeaconVolume.Value = Math.Clamp(defaults.GoalBeaconVolumePercent, 0, 100);
+            _tbMusicVolume.Value = Math.Clamp(defaults.MusicVolumePercent, 0, 100);
+            _cmbDifficulty.SelectedIndex = Math.Clamp((int)defaults.Difficulty, 0, _cmbDifficulty.Items.Count - 1);
+            int durIdx = Array.IndexOf(_durations, defaults.MatchDurationMinutes);
+            _cmbDuration.SelectedIndex = durIdx >= 0 ? durIdx : 1;
+            _chkExtraTime.Checked = defaults.ExtraTimeEnabled;
+            _chkPenalties.Checked = defaults.PenaltyShootoutEnabled;
+            _chkAutoSubs.Checked = defaults.AutoSubstitutionsEnabled;
+            _chkAutoTactics.Checked = defaults.AutoTacticalAdjustmentsEnabled;
+            _chkAiVar.Checked = defaults.AiVarEnabled;
+            _chkStartupUpdates.Checked = defaults.CheckForUpdatesOnStartup;
+        }
+        finally { _isLoadingSettings = false; }
         SoundEffectsPlayer.PlayMenuSelect();
         _screenReader.Speak(MatchSettings.Current.Language == UiLanguage.Arabic
-            ? "تمت استعادة الإعدادات الافتراضية بنجاح"
-            : "Settings successfully reset to defaults.");
+            ? "عُرضت القيم الافتراضية. اضغط حفظ الإعدادات لاعتمادها."
+            : "Defaults shown. Press Save Settings to apply them.");
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        // لا تعديل مباشر على الإعدادات أثناء التحرير؛ الإغلاق دون حفظ يترك كل شيء كما كان
         base.OnFormClosing(e);
-        if (!e.Cancel && !_saved)
-        {
-            MatchSettings.Current.CopyFrom(_original);
-            MatchSettings.Current.ApplyLive();
-        }
     }
 
     private void OnSaveSettingsClicked(object? sender, EventArgs e)
@@ -568,23 +491,10 @@ public class AccessibleSettingsForm : Form
         s.Difficulty = (DifficultyLevel)_cmbDifficulty.SelectedIndex;
         s.MatchDurationMinutes = _durations[_cmbDuration.SelectedIndex];
 
-        if (_cmbCommentaryVoice.SelectedIndex == 2)
-        {
-            s.CommentaryVoice = CommentaryVoiceOption.Off;
-            s.CommentaryEnabled = false;
-        }
-        else if (_cmbCommentaryVoice.SelectedIndex == 1)
-        {
-            s.Commentator = CommentatorId.RaoufKhlif;
-            s.CommentaryVoice = CommentaryVoiceOption.RaoufKhlif;
-            s.CommentaryEnabled = true;
-        }
-        else
-        {
-            s.Commentator = CommentatorId.FaresAwad;
-            s.CommentaryVoice = CommentaryVoiceOption.FaresAwad;
-            s.CommentaryEnabled = true;
-        }
+        // المعلق المعتمد الوحيد حالياً هو فارس عوض؛ لا اختيار معلق ولا وضع صامت
+        s.Commentator = CommentatorId.FaresAwad;
+        s.CommentaryVoice = CommentaryVoiceOption.FaresAwad;
+        s.CommentaryEnabled = true;
 
         s.ExtraTimeEnabled = _chkExtraTime.Checked;
         s.PenaltyShootoutEnabled = _chkPenalties.Checked;
@@ -600,7 +510,6 @@ public class AccessibleSettingsForm : Form
                 : "Settings could not be saved to disk. Try again, or close to cancel changes.");
             return;
         }
-        _saved = true;
         SoundEffectsPlayer.PlayMenuSelect();
         _screenReader.Speak(s.Language == UiLanguage.Arabic
             ? "تم حفظ الإعدادات بنجاح في ملف settings.json"
