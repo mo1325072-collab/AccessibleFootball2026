@@ -469,6 +469,8 @@ Check(!LocalizationService.GetString("Welcome").Contains("2026"),"Arabic welcome
   Check(py.Contains("DefaultDirName={localappdata}\\\\AccessibleFootball2026"),"installer keeps the existing install directory");
   Check(py.Contains("Name: \"desktopicon\"")&&py.Contains("{cm:CreateDesktopIcon}")&&py.Contains("{autodesktop}")&&py.Contains("Tasks: desktopicon"),"installer offers an optional Create a desktop icon task");
   Check(!py.Contains("{autodesktop}\\Accessible Football 2026"),"desktop shortcut label carries no year");
+  var win=File.ReadAllText(Path.Combine(Path.GetDirectoryName(buildScript)!,"AccessibleFootball2026.App","AccessibleFootballWindow.cs"));
+  Check(!win.Contains("Accessible Football 2026")&&!win.Contains("2026/2027"),"window title and big menu label use the plain product name");
  }
 }
 Defaults();
