@@ -89,7 +89,7 @@ public partial class MatchEngine
         bool shoot=distance<shotRange && (nearest>1.5f || distance<16);
         if(wait<=0 && shoot)
         {
-            Vector2 shotTarget=ComputeCpuShotTarget(carrier.Position2D,!UserAttackingRight,Random.Shared.NextDouble(),Random.Shared.NextDouble(),carrier.Shooting,carrier.CurrentStamina);
+            Vector2 shotTarget=ComputeCpuShotTarget(carrier.Position2D,!UserAttackingRight,SimulationRandom.Next(),SimulationRandom.Next(),carrier.Shooting,carrier.CurrentStamina);
             var aim=shotTarget-carrier.Position2D;if(aim.LengthSquared()<.001f)aim=new Vector2(UserAttackingRight?-1:1,0);
             SnapshotOffsideAtKick(carrier);RecordBallTouch(carrier);
             Ball.Kick(Vector2.Normalize(aim),24+carrier.Shooting*.08f,1.6f,carrier);
