@@ -32,6 +32,7 @@ public partial class MatchEngine
         if (taker == null) return;
         var spot = penalty ? new Vector2(right ? Pitch.Length - 11 : 11, Pitch.Width / 2) : incidentPosition;
         spot = new Vector2(Math.Clamp(spot.X, .5f, Pitch.Length - .5f), Math.Clamp(spot.Y, .5f, Pitch.Width - .5f));
+        InterruptAttempt();
         _contactMotion.Clear(); _previousContactMotion.Clear();
         // Restart placement is not movement/contact momentum.
         foreach (var player in HomeTeam.Players.Concat(AwayTeam.Players)) player.Velocity = Vector2.Zero;
@@ -41,8 +42,8 @@ public partial class MatchEngine
         _shotContextValid = false;
         _commentaryPass = null;
         ActivePassTransit = null;
-        taker.Position2D = spot;
         taker.FacingDirection = new Vector2(right ? 1 : -1, 0);
+        taker.Position2D = spot - taker.FacingDirection * .35f;
         Ball.CatchOrTackle(taker);
         RecordBallTouch(taker);
         if (team == HomeTeam) ActiveUserPlayer = taker;
@@ -176,7 +177,7 @@ public partial class MatchEngine
         var shooter = restart.Taker;
         bool right = !UserAttackingRight;
         var goal = right ? Pitch.RightGoalCenter : Pitch.LeftGoalCenter;
-        goal.Y += ((float)Random.Shared.NextDouble() * 2 - 1) * 3.2f;
+        goal.Y += ((float)SimulationRandom.Next() * 2 - 1) * 3.2f;
         RecordBallTouch(shooter);
         SnapshotOffsideAtKick(shooter);
         _lastShotTargetY = goal.Y;
