@@ -39,7 +39,7 @@ public partial class MatchEngine
         float spread = (100 - shooter.Shooting) * (aerial ? .06f : .035f) + Math.Max(0,50-ComposureOf(shooter))*.07f;
         // Power charging trades accuracy for pace: a fully charged driven shot is faster but less precise, never a guaranteed goal.
         spread *= 1f + .7f * charge;
-        goal.Y += ((float)Random.Shared.NextDouble() * 2 - 1) * spread;
+        goal.Y += ((float)SimulationRandom.Next() * 2 - 1) * spread;
         float distance = Vector2.Distance(shooter.Position2D, goal);
         float speed = technique switch
         {
