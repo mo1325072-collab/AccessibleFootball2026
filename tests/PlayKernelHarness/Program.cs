@@ -207,6 +207,18 @@ foreach(bool secondHalf in new[]{false,true})
  Check(game.HomeTeam.Score==1&&game.Attempts.Count==1&&game.Attempts.Single().Outcome==AttemptOutcome.Goal,"untouched deflection crossing confirms one original attempt goal, no fabricated second launch");
  Check(game.StatisticsFor(game.HomeTeam).Shots==1&&game.StatisticsFor(game.HomeTeam).ShotsOnTarget==1&&game.StatisticsFor(game.HomeTeam).BlockedShots==0,"deflected goal final shot/target totals replace provisional block bucket once");
 }
+// An actual unheld keeper contact followed by the same untouched projectile entering the net.
+{
+ var game=Game(out _,out var events);var actor=game.ActiveUserPlayer;actor.Position2D=new(90,34);actor.FacingDirection=Vector2.UnitX;game.Ball.CatchOrTackle(actor);game.TryExecuteTechnique(ShotTechnique.Driven);
+ var keeper=game.AwayTeam.Players[0];keeper.Position2D=new(103,34);game.Ball.Position=new(103,34,.3f);game.Ball.Velocity=new(35,0,0);
+ var type=typeof(MatchEngine).Assembly.GetType("AccessibleFootball2026.Core.Simulation.SimulationRandom")!;var rng=type.GetField("Override",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static)!;rng.SetValue(null,(Func<double>)(()=>0));
+ Call(game,"CheckRefereeRules",new Vector3(102.6f,34,.3f));rng.SetValue(null,null);
+ Check(game.Attempts.Single().Outcome==AttemptOutcome.Saved&&game.Ball.Owner==null,"actual high-speed parry remains loose with provisional save identity");
+ game.Ball.Position=new(106,34,.2f);game.Ball.Velocity=new(12,0,0);Call(game,"CheckRefereeRules",new Vector3(104.5f,34,.2f));
+ Check(game.HomeTeam.Score==1&&game.Attempts.Single().Outcome==AttemptOutcome.Goal,"untouched keeper deflection goal retains same original attempt");
+ Check(game.StatisticsFor(game.AwayTeam).Saves==0&&game.PerformanceOf(keeper).Saves==0,"parry entering net has no final save credit in stats or rating");
+ Check(Math.Abs(game.ComposureOf(keeper)-69)<.001f,"parry-then-goal removes provisional confidence credit before conceded-goal effect");
+}
 // Shared pickup protection is symmetric and finite. Rechecking a controlled ball must not
 // refresh it; manual input remains an intervention and is never silenced by AI grace.
 foreach(bool home in new[]{false,true})
