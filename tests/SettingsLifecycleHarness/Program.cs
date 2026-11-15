@@ -56,6 +56,23 @@ var legacy=Path.Combine(root,"legacy.json");s.SettingsVersion=0;s.CommentaryEnab
 var previousFile=File.ReadAllText(file);MatchSettings.Load(legacy);
 Check(s.CommentaryEnabled&&s.CommentaryVoice==CommentaryVoiceOption.FaresAwad&&s.Commentator==CommentatorId.FaresAwad&&s.SettingsVersion==3,"legacy saved voice migrates to the single Fares commentator");
 Check(File.ReadAllText(file)==previousFile,"explicit legacy load does not write a different settings file");
+// Ordinary fouls never pause for Enter; only genuine VAR reviews do, and every VAR review ends with Enter after the narration.
+Defaults();s.AiVarEnabled=false;Persist();var foulMatch=Match();foulMatch.Update(.1f);
+var foulVictim=foulMatch.HomeTeam.Players[5];foulVictim.Position2D=new(50,Pitch.Width/2);
+foulMatch.AwardFoulRestart(foulVictim);
+Check(foulMatch.Restart!=null&&foulMatch.Restart.Kind==RestartKind.FreeKick,"ordinary foul still places the real free kick restart");
+Check(!foulMatch.AwaitingStoppageConfirmation,"ordinary foul never pauses play for Enter");
+s.AiVarEnabled=true;Persist();var varMatch=Match();varMatch.Update(.1f);
+bool homeRight=varMatch.UserAttackingRight;
+var boxVictim=varMatch.HomeTeam.Players[5];boxVictim.Position2D=new(homeRight?Pitch.Length-2:2,Pitch.Width/2);
+varMatch.AwardFoulRestart(boxVictim);
+Check(varMatch.VideoReviewPending,"box foul with VAR starts a genuine review instead of an instant whistle");
+Check(varMatch.Restart==null,"restart waits for the VAR decision instead of being guessed early");
+for(int i=0;i<80&&!varMatch.AwaitingStoppageConfirmation;i++)varMatch.Update(.1f);
+Check(varMatch.AwaitingStoppageConfirmation,"finished VAR narration holds play until Enter");
+Check(varMatch.Restart==null,"VAR decision is not applied before the user confirms with Enter");
+Check(varMatch.DismissStoppageReplay(),"Enter after the VAR narration dismisses the review");
+Check(varMatch.Restart!=null&&varMatch.Restart.Kind==RestartKind.Penalty,"confirmed VAR decision applies the penalty restart only after Enter");
 Defaults();
 Fixture("SFX/Crowd/CrowdAmbiance.wav");Fixture("stadium.wav");Fixture("chant.wav");Fixture("Anthems/ChampionsLeague.wav");Fixture("Commentary/FaresAwad/Intro/intro.wav");Fixture("Commentary/RaoufKhlif/Intro/intro.wav");
 s.CrowdVolumePercent=17;s.MasterVolumePercent=52; // Non-default loaded values must win over static audio defaults.
