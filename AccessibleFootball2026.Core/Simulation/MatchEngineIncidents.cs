@@ -448,7 +448,8 @@ public partial class MatchEngine
                 if(BeginVideoReview(VideoReviewCategory.Goal,()=>PenaliseOffside(true),T("قرار الفار: الهدف غير محتسب بسبب التسلل.","VAR decision: no goal, offside."),"offside"))return;
                 PenaliseOffside(true);return;
             }
-            if(BeginVideoReview(VideoReviewCategory.Goal,CheckRefereeRules,T("قرار الفار: الهدف صحيح ويحتسب.","VAR decision: goal confirmed."),"goal"))return;
+            // لا إيقاف لمراجعة كل هدف: الفحص صامت والمراجعة فقط لوقائع حاسمة (تسلل/خطأ) — بناءً على ملاحظة اللاعب 15 نوفمبر 2026.
+            // No VAR hold on routine goals: checks are silent; only decisive incidents (offside above) stop play.
             _isShotInProgress = false;
             if (ActivePassTransit != null)
             {
