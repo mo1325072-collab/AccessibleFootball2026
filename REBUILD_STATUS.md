@@ -36,3 +36,7 @@ Pickup grace remains finite1.4s anti-instant-retackle protection, inherited from
 4. Up/down is presently combined lateral locomotion plus aim while carrying. Original latest words confirm angle adjustment but do not clearly settle aim-only versus lateral+aim. Preserve this uncertainty for next awake clarification/native review, not a silent requirement change.
 5. Known pre-existing database harness issues are outside this no-roster-edit round.
 6. No merge into main, release tag or completion claim before integrated/native gate.
+
+## Post-checkpoint consumer correction 01:19 Cairo
+
+Actual35m/s unheld keeper-save sequence followed by untouched same-ball goal exposed stale provisional keeper save credit. The exact attempt now revokes its provisional save count from team/commentary stats and performance, and only the confidence gain that save applied before normal conceded-goal effect. Held/non-goal saves keep their credit. Kernel117, Settings485, Mechanics146, Commentary65 pass locally after correction. Native acceptance remains outstanding. Publication status above describes the earlier complete777ee4d checkpoint; verify newest commit before treating this appendix as remote verification.
