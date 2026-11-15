@@ -513,7 +513,7 @@ public class Program
                     $"Away player {p.Name} Y={p.Position2D.Y} out of pitch bounds!");
 
                 // Away players must be pushed outside center circle (X >= 52.5 + 11 = 63.5)
-                Assert(p.Position2D.X >= 63.4f, 
+                Assert(p.Position2D.X >= 63.4f,
                     $"Away player {p.Name} X={p.Position2D.X} inside or encroaching center circle!");
             }
 
@@ -608,16 +608,29 @@ public class Program
         Assert(awayGk != null && awayGk.Position2D.X <= 15.0f, 
             $"After HT, Away GK must be defending left goal (X <= 15), got {awayGk?.Position2D.X}");
 
-        // Active user player at center spot with facing direction towards left (-1, 0)
-        Assert(Math.Abs(engine.ActiveUserPlayer.Position2D.X - 52.5f) < 0.1f, "Active user at center spot");
+        // Kickoff alternates by period: this fixture's match started with the HOME kickoff (engine
+        // initial placement), so Law 8 gives the second-half kickoff to the AWAY team. The away
+        // taker stands on the center spot with the ball; after the side swap away attacks right (+1).
+        // The active user stays a home player at their own formation position, never teleported to
+        // the spot for a kickoff they do not take.
+        var kicker = engine.Ball.Owner;
+        Assert(kicker != null && engine.AwayTeam.Players.Contains(kicker),
+            "Second-half kickoff alternates the first-half taker: away player owns the ball");
+        Assert(Math.Abs(kicker!.Position2D.X - 52.5f) < 0.1f && Math.Abs(kicker.Position2D.Y - 34.0f) < 0.1f,
+            $"Second-half taker at the center spot, got {kicker.Position2D}");
+        Assert(kicker.FacingDirection.X > 0.0f,
+            $"Second-half away taker faces the home goal (right, +1) after the side swap, got {kicker.FacingDirection.X}");
+        Assert(engine.HomeTeam.Players.Contains(engine.ActiveUserPlayer) && engine.ActiveUserPlayer != kicker,
+            "Active user remains a home player and is not the second-half taker");
         Assert(engine.ActiveUserPlayer.FacingDirection.X < 0.0f, 
             $"Active user facing direction X must be negative (-1.0), got {engine.ActiveUserPlayer.FacingDirection.X}");
 
-        // Away players pushed towards their side (X < 52.5 - 11 = 41.5)
-        foreach (var opp in engine.AwayTeam.Players)
+        // The NON-kicking side (home, this half) keeps out of the center circle on its own side:
+        // home defends the right goal after the swap, so every home player starts at X >= 52.5 + 11 = 63.5.
+        foreach (var opp in engine.HomeTeam.Players)
         {
-            Assert(opp.Position2D.X <= 41.6f, 
-                $"After HT, Away player {opp.Name} X={opp.Position2D.X} encroaching center circle (expected <= 41.5)");
+            Assert(opp.Position2D.X >= 63.4f,
+                $"After HT, Home player {opp.Name} X={opp.Position2D.X} encroaching center circle (expected >= 63.5)");
         }
     }
 }
