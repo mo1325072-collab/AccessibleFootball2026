@@ -345,6 +345,9 @@ public partial class MatchEngine
         }
 
         if (State != MatchState.InPlay || AnalysisReplayPending) return;
+        // Only commanded locomotion feeds collision severity. Interpolation/teleports do not.
+        (_previousContactMotion,_contactMotion)=(_contactMotion,_previousContactMotion);
+        _contactMotion.Clear();
         if (Restart == null) EndSubstitutionStoppage();
         CaptureReplayFrame();
         if (Restart == null) TrackPlayFrame(deltaTime);
@@ -522,6 +525,8 @@ public partial class MatchEngine
         // الرادار التكتيكي اللحظي على الطلب (Space أو C)
         if (actions.Contains(GameAction.TacticalRadar)) ReportRequestedRadar();
 
+        ActiveUserPlayer.Velocity = _slideDurationTimer > 0 ? _slideImpulseVelocity : Vector2.Zero;
+        _contactMotion[ActiveUserPlayer] = ActiveUserPlayer.Velocity;
         Vector2 moveDir = Vector2.Zero;
         if (_slideDurationTimer <= 0.0f)
         {
@@ -559,7 +564,9 @@ public partial class MatchEngine
                 {
                     ActiveUserPlayer.FacingDirection = moveDir;
                 }
-                ActiveUserPlayer.Position2D += moveDir * moveSpeed * deltaTime;
+                ActiveUserPlayer.Velocity = moveDir * moveSpeed;
+                _contactMotion[ActiveUserPlayer] = ActiveUserPlayer.Velocity;
+                ActiveUserPlayer.Position2D += ActiveUserPlayer.Velocity * deltaTime;
                 ActiveUserPlayer.Position2D = new Vector2(
                     Math.Clamp(ActiveUserPlayer.Position2D.X, 0, Pitch.Length),
                     Math.Clamp(ActiveUserPlayer.Position2D.Y, 0, Pitch.Width)
@@ -945,11 +952,14 @@ public partial class MatchEngine
         if (carrier != null)
         {
             // المعادلة الحتمية العادلة لاستخلاص الكرة: مقارنة القرب من الكرة والقرب من جسم الخصم
-            if (distToBall < distToOpponent)
+            var contactIncident = CaptureLiveFoulIncident(ActiveUserPlayer, carrier, effectiveBall2D, reach,
+                isSlideTackle ? _slideImpulseVelocity : Vector2.Zero);
+            bool dangerousContact = distToOpponent < .6f && contactIncident.Severity == FoulContactSeverity.EndangersSafety;
+            if (distToBall < distToOpponent && !dangerousContact)
             {
                 // The later tactical specification requires attributes on the human path too.
                 // Ball-first geometry avoids an automatic foul; it does not guarantee beating a stronger carrier.
-                var duel = EvaluateTackleDuel(ActiveUserPlayer, carrier, effectiveBall2D, HomeTeam, AwayTeam, DifficultyLevel.Normal, counterTransitionActive:IsCounterTransition(AwayTeam));
+                var duel = EvaluateTackleDuel(ActiveUserPlayer, carrier, effectiveBall2D, HomeTeam, AwayTeam, DifficultyLevel.Normal, counterTransitionActive:IsCounterTransition(AwayTeam), tacklerContactMotion:ContactMotion(ActiveUserPlayer), carrierContactMotion:ContactMotion(carrier));
                 if (!duel.TacklerWon)
                 {
                     Publish(new MatchEvent(MatchEventType.TackleAttempted, isSlideTackle ? "انزلاق دون افتكاك الكرة" : "محاولة استخلاص دون افتكاك الكرة", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer),
@@ -992,7 +1002,8 @@ public partial class MatchEngine
                 string foulDesc = $"خطأ ضد {ActiveUserPlayer.Name} لعرقلة غير مشروعة{(isFromBehind ? " من الخلف" : "")}!";
                 Publish(new MatchEvent(MatchEventType.FoulCommitted, foulDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer), ("foul.intentional", false));
 
-                HandleFoulSanction(ActiveUserPlayer, carrier, isSlideTackle, isFromBehind);
+                HandleFoulSanction(ActiveUserPlayer, carrier, isSlideTackle, isFromBehind,
+                    contactIncident);
             }
         }
         else
@@ -1040,7 +1051,9 @@ public partial class MatchEngine
         DifficultyLevel diff,
         int? forcedRandomRoll = null,
         int? forcedFoulRoll = null,
-        bool counterTransitionActive = false)
+        bool counterTransitionActive = false,
+        Vector2? tacklerContactMotion = null,
+        Vector2? carrierContactMotion = null)
     {
         // 1. حساب الكفاءة والقدرة التقديرية للمدافع (Tackler Skill Score):
         // الدفاع (50%) + القوة البدنية (30%) + السرعة (20%) + معامل الإرهاق
@@ -1264,7 +1277,10 @@ public partial class MatchEngine
             ? (!tacklerWon && forcedFoulRoll.Value < foulDanger) || (isReckless && forcedFoulRoll.Value < 20)
             : bodyFirst && (isReckless || foulDanger >= 35);
         if(!forcedFoulRoll.HasValue && tacklerTeam.Tactics.Tackling==TacklingAggression.Cautious) isFoul=false;
-        bool severeInjuryRisk = isFoul && isReckless && isFromBehind;
+        bool dangerousContact = distToCarrier < .6f && CaptureFoulIncident(tackler,carrier,ballPos2D,
+            tacklerMotion:tacklerContactMotion,carrierMotion:carrierContactMotion).Severity == FoulContactSeverity.EndangersSafety;
+        isFoul |= dangerousContact;
+        bool severeInjuryRisk = isFoul && dangerousContact;
         if (isFoul || (!forcedRandomRoll.HasValue && bodyFirst)) tacklerWon = false;
 
         string reasonStr = reasons.Count > 0 ? string.Join("، ", reasons) : "صراع متكافئ";
@@ -1386,60 +1402,98 @@ public partial class MatchEngine
         return defendersBetween == 0;
     }
 
-    public void HandleFoulSanction(Player tackler, Player carrier, bool isSlideTackle, bool isFromBehind)
+    private Dictionary<Player,Vector2> _contactMotion = new();
+    private Dictionary<Player,Vector2> _previousContactMotion = new();
+    private Vector2 ContactMotion(Player player) => _contactMotion.TryGetValue(player,out var motion) ? motion
+        : _previousContactMotion.GetValueOrDefault(player);
+    private FoulIncident CaptureLiveFoulIncident(Player tackler,Player carrier,Vector2 ball,float reach=1.8f,Vector2? lunge=null)
+        => CaptureFoulIncident(tackler,carrier,ball,reach,lunge,ContactMotion(tackler),ContactMotion(carrier));
+
+    public enum FoulContactSeverity { Careless, Reckless, EndangersSafety }
+
+    // Physical snapshot, not a tactical-aggression label. Keep it through a deferred VAR review.
+    public sealed record FoulIncident(FoulContactSeverity Severity, bool BallChallenge, float ClosingSpeed);
+
+    public static FoulIncident CaptureFoulIncident(Player tackler, Player carrier, Vector2 ballPosition,
+        float challengeReach = 1.8f, Vector2? lungeVelocity = null, Vector2? tacklerMotion = null, Vector2? carrierMotion = null)
+    {
+        var toVictim = carrier.Position2D - tackler.Position2D;
+        var toBall = ballPosition - tackler.Position2D;
+        if (Vector2.Distance(ballPosition, carrier.Position2D) < .05f)
+        {
+            var facing = carrier.FacingDirection.LengthSquared() > .01f
+                ? Vector2.Normalize(carrier.FacingDirection) : Vector2.UnitX;
+            toBall = carrier.Position2D + facing * .35f - tackler.Position2D;
+        }
+        // A lunge replaces movement in this engine. Never add the same impulse twice.
+        var runningVelocity = tacklerMotion ?? tackler.Velocity;
+        var contactVelocity = lungeVelocity is { } lunge && lunge.LengthSquared() > runningVelocity.LengthSquared()
+            ? lunge : runningVelocity;
+        var approach = contactVelocity - (carrierMotion ?? carrier.Velocity);
+        float closing = toVictim.LengthSquared() > .0025f
+            ? Math.Max(0, Vector2.Dot(approach, Vector2.Normalize(toVictim))) : approach.Length();
+        // Game parameters, not IFAB numerical cutoffs. Scale against this player's normal
+        // locomotion so a faster player is not punished merely for a higher Speed rating.
+        // A closing impact above normal running is reckless. A fast committed approach plus
+        // a much larger relative impact endangers safety (e.g. sprinting into oncoming traffic).
+        // Victim motion alone cannot make a stationary tackler use excessive force.
+        float tacklerApproach = toVictim.LengthSquared() > .0025f
+            ? Vector2.Dot(contactVelocity, Vector2.Normalize(toVictim)) : contactVelocity.Length();
+        float normalRun = Math.Max(4f, tackler.Speed / 7.5f);
+        var severity = tacklerApproach < 1f ? FoulContactSeverity.Careless
+            : closing >= normalRun * 1.9f && tacklerApproach >= normalRun * 1.5f ? FoulContactSeverity.EndangersSafety
+            : closing >= normalRun * 1.25f ? FoulContactSeverity.Reckless : FoulContactSeverity.Careless;
+        float ballDistance = toBall.Length();
+        var ballDir = ballDistance > .01f ? toBall / ballDistance : Vector2.Zero;
+        bool facingBall = ballDistance < .2f || (tackler.FacingDirection.LengthSquared() > .01f
+            && Vector2.Dot(Vector2.Normalize(tackler.FacingDirection), ballDir) >= .5f);
+        float bodyAlongPath = Vector2.Dot(toVictim, ballDir);
+        float bodyPathDistance = (toVictim - ballDir * bodyAlongPath).Length();
+        bool bodyBlocksBall = bodyAlongPath > 0 && bodyAlongPath < ballDistance && bodyPathDistance < .3f;
+        bool ballChallenge = ballDistance <= challengeReach && facingBall && !bodyBlocksBall;
+        return new FoulIncident(severity, ballChallenge, closing);
+    }
+
+    public void HandleFoulSanction(Player tackler, Player carrier, bool isSlideTackle, bool isFromBehind,
+        FoulIncident? incident = null)
     {
         if (State == MatchState.GameOver) return;
+        incident ??= CaptureLiveFoulIncident(tackler, carrier, Ball.Position2D);
         bool isDogso = CheckDogso(tackler, carrier);
-        // قانون 12 الحالي: خطأ يمنع فرصة محققة داخل منطقة الجزاء أثناء محاولة لعب الكرة = إنذار فقط،
-        // لأن ركلة الجزاء تعوّض الفرصة؛ الطرد المباشر يبقى لحرمان الفرصة خارج المنطقة.
-        Team? sanctionCarrierTeam = TeamOf(carrier);
-        bool carrierAttackingRight = sanctionCarrierTeam == HomeTeam ? UserAttackingRight : !UserAttackingRight;
-        bool inPenaltyArea = (carrierAttackingRight
-                ? carrier.Position2D.X >= Pitch.Length - Pitch.PenaltyBoxDepth
-                : carrier.Position2D.X <= Pitch.PenaltyBoxDepth)
-            && carrier.Position2D.Y >= Pitch.PenaltyYMin && carrier.Position2D.Y <= Pitch.PenaltyYMax;
-        bool dogsoRed = isDogso && !inPenaltyArea;
-        if(dogsoRed && BeginVideoReview(VideoReviewCategory.DirectRedCard,()=>HandleFoulSanction(tackler,carrier,isSlideTackle,isFromBehind),
-            T($"قرار الفار: تأكيد المخالفة والطرد المباشر للاعب {tackler.Name}.",$"VAR decision: foul and direct red confirmed for {tackler.Name}."),"redCard"))return;
-        _foulVictim=carrier;
-        if(isSlideTackle) Count("stats.severeFouls");
+        Team? carrierTeam = TeamOf(carrier);
+        bool right = carrierTeam == HomeTeam ? UserAttackingRight : !UserAttackingRight;
+        var spot = carrier.Position2D;
+        bool penalty = (right ? spot.X >= Pitch.Length - Pitch.PenaltyBoxDepth : spot.X <= Pitch.PenaltyBoxDepth)
+            && spot.Y >= Pitch.PenaltyYMin && spot.Y <= Pitch.PenaltyYMax;
+        ApplyFoulIncident(tackler, carrier, incident, isDogso, penalty, spot);
+    }
 
-        if (dogsoRed)
-        {
+    private void ApplyFoulIncident(Player tackler, Player carrier, FoulIncident incident, bool isDogso,
+        bool penalty, Vector2 spot)
+    {
+        bool seriousFoulPlay = incident.Severity == FoulContactSeverity.EndangersSafety;
+        bool dogsoRed = isDogso && !(penalty && incident.BallChallenge);
+        if ((seriousFoulPlay || dogsoRed) && BeginVideoReview(VideoReviewCategory.DirectRedCard,
+            () => ApplyFoulIncident(tackler, carrier, incident, isDogso, penalty, spot),
+            T($"قرار الفار: تأكيد المخالفة والطرد المباشر للاعب {tackler.Name}.",
+                $"VAR decision: foul and direct red confirmed for {tackler.Name}."), "redCard")) return;
+        _foulVictim = carrier;
+        if (seriousFoulPlay) Count("stats.severeFouls");
+        if (seriousFoulPlay)
+            IssueCard(tackler, isDirectRed: true, reason: "لعب عنيف: تدخل يعرّض سلامة الخصم للخطر");
+        else if (dogsoRed)
             IssueCard(tackler, isDirectRed: true, reason: "منع فرصة هدف محقق (DOGSO)");
-        }
-        else if (isDogso)
-        {
-            // حرمان فرصة محققة داخل منطقة الجزاء أثناء محاولة لعب الكرة: إنذار وفق تعديل قانون 12
+        else if (isDogso || incident.Severity == FoulContactSeverity.Reckless)
             ReviewCardDecision(tackler,tackler,directRed:false,offenceConfirmed:true,clearErrorEvidence:false);
-        }
-        else if (isFromBehind && isSlideTackle)
-        {
-            // تدخل انزلاقي من الخلف: تهوّر يستوجب الإنذار. اتجاه التدخل وحده ليس قوة مفرطة تستوجب الطرد.
-            ReviewCardDecision(tackler,tackler,directRed:false,offenceConfirmed:true,clearErrorEvidence:false);
-        }
-        else if (sanctionCarrierTeam != null && IsCounterTransition(sanctionCarrierTeam))
-        {
-            // خطأ يوقف هجمة مرتدة واعدة: إنذار تكتيكي (إيقاف هجمة واعدة) وفق قانون 12
-            ReviewCardDecision(tackler,tackler,directRed:false,offenceConfirmed:true,clearErrorEvidence:false);
-        }
-        else if (PerformanceOf(tackler).Fouls >= 3)
-        {
-            // إصرار على ارتكاب المخالفات: إنذار وفق قانون 12
-            ReviewCardDecision(tackler,tackler,directRed:false,offenceConfirmed:true,clearErrorEvidence:false);
-        }
-        // غير ذلك: خطأ بلا مبالاة (careless) = ركلة حرة فقط دون عقوبة انضباطية وفق قانون 12.
-        // فجوة تصميمية موثقة: نموذج الصراع لا يسجّل شدة الاحتكاك، لذلك لا يمكن إثبات "القوة المفرطة"
-        // (الطرد للعب العنيف) من بيانات الواقعة؛ الطرد المباشر يقتصر على DOGSO خارج المنطقة.
-
+        // Careless contact carries no automatic card. Behind, slide, tactics and counter-transition
+        // are not disciplinary categories. SPA/persistence need their own incident evidence;
+        // neither a counter flag nor an arbitrary third-foul rule supplies that evidence.
         if (State == MatchState.GameOver) { _foulVictim = null; return; }
-        // Capture the restart before a seriously injured victim is substituted or leaves the pitch.
-        var incidentSpot = carrier.Position2D;
-        bool severeInjury = isSlideTackle && isFromBehind && TeamOf(tackler)?.Tactics.Tackling == TacklingAggression.Reckless;
-        if (!TryPlayAdvantage(carrier,isSlideTackle,isDogso)) AwardFoulRestart(carrier, incidentSpot);
-        if (isSlideTackle && carrier.IsActiveOnPitch)
-            ApplyInjury(carrier, severeInjury ? PlayerInjuryStatus.SevereInjury : PlayerInjuryStatus.MinorKnock);
-        _foulVictim=null;
+        if (!TryPlayAdvantage(carrier, incident.Severity != FoulContactSeverity.Careless, isDogso))
+            AwardFoulRestart(carrier, spot);
+        if (carrier.IsActiveOnPitch && incident.Severity != FoulContactSeverity.Careless)
+            ApplyInjury(carrier, seriousFoulPlay ? PlayerInjuryStatus.SevereInjury : PlayerInjuryStatus.MinorKnock);
+        _foulVictim = null;
     }
 
     public void IssueCard(Player player, bool isDirectRed, string reason = "")
