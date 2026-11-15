@@ -527,11 +527,11 @@ Check(keys.Contains(GameAction.StandTackle)&&!keys.Contains(GameAction.ShortPass
   var chargeRoot=Path.GetDirectoryName(chargeAnchor)!;
   var engineSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Core","Simulation","MatchEngine.cs"));
   Check(engineSrc.Contains("ConsumeReleasedCharge01(GameAction.ShortPass)")&&engineSrc.Contains("ConsumeReleasedCharge01(GameAction.Cross)")&&engineSrc.Contains("ConsumeReleasedCharge01(GameAction.Shoot)"),"engine consumes the released charge for pass, cross and shot");
-  Check(engineSrc.Contains("PublishChargeCues")&&engineSrc.Contains("KickChargeCue"),"engine publishes hold-charge cues while charging");
+  Check(!engineSrc.Contains("KickChargeCue"),"no charging tones: hold power works silently, only the executed kick is heard");
   var shotSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Core","Simulation","ShotTechniques.cs"));
   Check(shotSrc.Contains("1f + .35f * charge")&&shotSrc.Contains("1f + .7f * charge"),"charged driven shots gain speed but lose accuracy, never a guaranteed goal");
   var audioSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Audio","SmartAudioCoordinator.cs"));
-  Check(audioSrc.Contains("MatchEventType.KickChargeCue")&&audioSrc.Contains("PlayChargeMax"),"charge cues route to generated earcons");
+  Check(!audioSrc.Contains("KickChargeCue")&&!audioSrc.Contains("PlayChargeMax"),"audio layer carries no charge-start or full-charge cue");
  }
 }
 // Charged kicks move real ball physics: same engine, same positions, only hold duration changes.
