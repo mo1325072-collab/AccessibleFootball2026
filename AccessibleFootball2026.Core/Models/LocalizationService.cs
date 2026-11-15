@@ -28,7 +28,7 @@ public static class LocalizationService
         ["Tournaments"] = ("البطولات والدوريات", "Tournaments"),
         ["ExitGame"] = ("خروج", "Exit"),
         ["ExitFarewell"] = ("شكراً لك على اللعب. إلى اللقاء!", "Thank you for playing. Goodbye!"),
-        ["Welcome"] = ("مرحباً بك في كرة القدم الصوتية 2026.", "Welcome to Accessible Football 2026."),
+        ["Welcome"] = ("مرحباً بك في كرة القدم الصوتية.", "Welcome to Accessible Football."),
         ["Back"] = ("رجوع", "Back"),
         ["BackToMainMenu"] = ("رجوع للقائمة الرئيسية", "Back to Main Menu"),
         ["CancelAndBack"] = ("إلغاء والرجوع", "Cancel & Return"),
