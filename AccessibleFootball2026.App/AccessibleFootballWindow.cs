@@ -116,7 +116,7 @@ public class AccessibleFootballWindow : Form
 
         _hintLabel = new Label
         {
-            Text = "التحكم: الأسهم للتنقل | Enter للتأكيد | Esc للرجوع | Space للرادار التكتيكي",
+            Text = "التحكم: الأسهم للتنقل | Enter للتأكيد | Esc للرجوع",
             Dock = DockStyle.Bottom,
             Height = 45,
             Font = new Font("Segoe UI", 10F),
@@ -303,12 +303,11 @@ public class AccessibleFootballWindow : Form
         _displayListBox.Enabled = true;
         _displayListBox.Items.Clear();
         _displayListBox.Items.Add(T($"المباراة جارية الآن: {homeTeam.Name} ضد {awayTeam.Name}", $"Match: {homeTeam.Name} versus {awayTeam.Name}"));
-        _displayListBox.Items.Add(T("التحكم: S للتمرير | D للرفع والعرضيات | W للتسديد | A للبينية | Shift للجري | Ctrl لتبديل المدافع | Space للرادار", "S pass | D cross | W shoot | A through ball | Shift sprint | Ctrl switch | Space radar"));
-        _displayListBox.Items.Add(T("Q بينية عالية | K إبعاد | B عرضية أرضية | N القائم البعيد | T التشكيلة | R اقتراب بطيء ثم تسديد", "Q lofted through ball | K clear | B low cross | N far post | T lineup | R slow run-up"));
-        _displayListBox.Items.Add(T("التسديد: H رأسية | J مقصية | V على الطائر | L ساقطة | F مقوسة", "H header | J bicycle kick | V volley | L chip | F curved shot"));
+        _displayListBox.Items.Add(T("التحكم: الأسهم للحركة | Shift للجري | S للتمرير | D للرفع والعرضيات | W للتسديد | A للبينية", "Controls: Arrows move | Shift sprint | S pass | D cross | W shoot | A through ball"));
         _displayListBox.Items.Add(T("الدفاع: Ctrl لتبديل المدافع | S للاستخلاص الهادئ | W/D/A للاستخلاص القوي", "Defence: Ctrl switch | S standing tackle | W/D/A slide tackle"));
-        _displayListBox.Items.Add(T("التكتيك: Space أو C للرادار التكتيكي | Esc للإيقاف المؤقت | الانسحاب من قائمة الإيقاف", "Space or C radar | Esc pause | End match in pause menu"));
-        _displayListBox.SelectedIndex = 0;
+        _displayListBox.Items.Add(T("Esc للإيقاف المؤقت | الانسحاب من قائمة الإيقاف", "Esc pause | End match in pause menu"));
+        // القائمة أثناء اللعب للعرض فقط: بلا تحديد حتى لا تلتهم الأسهمَ تحديداً يقرؤه قارئ الشاشة أثناء التحكم باللاعب
+        _displayListBox.SelectionMode = SelectionMode.None;
         if (_displayListBox.CanFocus)
         {
             _displayListBox.Focus();
@@ -366,6 +365,7 @@ public class AccessibleFootballWindow : Form
     private void RefreshMenuDisplay()
     {
         if (_currentMenu == null) return;
+        _displayListBox.SelectionMode = SelectionMode.One;
         _displayListBox.Items.Clear();
         for (int i = 0; i < _currentMenu.Count; i++)
         {
@@ -386,8 +386,8 @@ public class AccessibleFootballWindow : Form
         _titleLabel.Text = "Accessible Football";
 
         _hintLabel.Text = MatchSettings.Current.Language == UiLanguage.English
-            ? "Controls: Arrows navigate | Enter confirms | Esc returns | Space tactical radar"
-            : "التحكم: الأسهم للتنقل | Enter للتأكيد | Esc للرجوع | Space للرادار التكتيكي";
+            ? "Controls: Arrows navigate | Enter confirms | Esc returns"
+            : "التحكم: الأسهم للتنقل | Enter للتأكيد | Esc للرجوع";
     }
 
     public void OpenMainMenu()
@@ -831,9 +831,9 @@ public class AccessibleFootballWindow : Form
                        "زر D للرفع أو التمريرة العالية والعرضية إلى داخل منطقة الجزاء. " +
                        "زر W للتسديد القوي والمباشر نحو المرمى. " +
                        "زر A للتمريرة البينية في المساحة. " +
-                       "زر المسافة أو C لتشغيل الرادار التكتيكي وسماع مكان الكرة والمسافة نحو المرمى. " +
+                       "وأنت بلا كرة: Ctrl للتبديل لأقرب مدافع، S للاستخلاص الهادئ، W أو D أو A للاستخلاص القوي. " +
                        "زر Escape لفتح قائمة الإيقاف المؤقت والتبديلات وتعديل التكتيك. " +
-                       "زر Q للتمريرة البينية العالية. للانسحاب اختر إنهاء المباراة من قائمة الإيقاف المؤقت.", "Arrows move and aim. Shift sprints. S passes, D crosses, W shoots, A through ball, Q lofted through ball. Space or C radar. Escape pauses for tactics and substitutions.");
+                       "للانسحاب اختر إنهاء المباراة من قائمة الإيقاف المؤقت.", "Arrows move and aim. Shift sprints. S passes, D crosses, W shoots, A through ball. Off the ball: Ctrl switches defender, S standing tackle, W/D/A slide tackle. Escape pauses for tactics and substitutions.");
         _screenReader.Speak(guide);
     }
 
@@ -1074,7 +1074,7 @@ public class AccessibleFootballWindow : Form
         _inputHandler.Reset();
         _displayListBox.Enabled=true;
         _displayListBox.Focus();
-        _hintLabel.Text=T("Space أو C للرادار. Escape للإيقاف", "Space or C radar. Escape pauses");
+        _hintLabel.Text=T("الأسهم للحركة | Shift للجري | S تمرير | D عرضية | W تسديد | A بينية | Ctrl تبديل مدافع | Escape للإيقاف", "Arrows move | Shift sprint | S pass | D cross | W shoot | A through ball | Ctrl switch | Escape pauses");
         _lastFrameTime=DateTime.UtcNow;
         SoundEffectsPlayer.PlayWhistle();
         if (_commentaryEngine.ActiveCommentator.Id==CommentatorId.FaresAwad)
@@ -1300,7 +1300,7 @@ public class AccessibleFootballWindow : Form
             ? T("ركلة الخصم. الأسهم لضبط اتجاه الحارس. يمين أو يسار مع W أو S للارتماء؛ دون اتجاه للثبات في المنتصف.", "Opponent kick. Arrows aim your keeper. Hold left/right with W or S to dive; no direction stays central.")
             : T("ركلتك. فوق وتحت يعدلان زاوية اتجاهك مثل اللعب. يمين أو يسار مع W للتسديد في الزاوية، أو S لكرة هادئة متقنة. دون اتجاه تسدد في المنتصف.", "Your kick. Up/down turn your aim as in play. Hold right/left with W for a corner shot, or S for precise lower power. No aim shoots centrally.");
         _displayListBox.Items.Add(instructions);
-        _displayListBox.SelectedIndex = 0;
+        _displayListBox.SelectionMode = SelectionMode.None;
         _statusLabel.Text = instructions;
         _displayListBox.Focus();
         _screenReader.Speak(instructions);
@@ -1582,8 +1582,7 @@ public class AccessibleFootballWindow : Form
         Keys.Up or Keys.Down or Keys.Left or Keys.Right => true,
         Keys.ShiftKey or Keys.LShiftKey or Keys.RShiftKey or Keys.Shift => true,
         Keys.ControlKey or Keys.LControlKey or Keys.RControlKey or Keys.Control => true,
-        Keys.D or Keys.W or Keys.S or Keys.A or Keys.H or Keys.J or Keys.V or Keys.L or Keys.F or Keys.K or Keys.B or Keys.N or Keys.T or Keys.R or Keys.Q => true,
-        Keys.Space or Keys.C => true,
+        Keys.D or Keys.W or Keys.S or Keys.A => true,
         _ => false
     };
 }
