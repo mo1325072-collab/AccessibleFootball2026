@@ -16,7 +16,7 @@ foreach(bool assisted in new[]{true,false})
 {
  var(m,ev,input)=Fresh();m.AutomaticGoalRestart=false;
  if(assisted)typeof(MatchEngine).GetProperty("PreviousKicker")!.SetValue(m,m.HomeTeam.Players.First(p=>p!=m.ActiveUserPlayer));
- m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)});
  Check(m.RequestCoachPraiseForLastTeamGoal()==assisted,assisted?"Actual teammate-assisted goal permits coach team praise":"Unassisted goal cannot claim a team-play coach response");
  Check(!m.RequestCoachPraiseForLastTeamGoal(),"Coach team-goal response never repeats for the same goal");
  Check(m.State==MatchState.GoalCelebration,"Coach response does not release live play before audio completion");
@@ -27,7 +27,7 @@ foreach(bool assisted in new[]{true,false})
  var(m,ev,input)=Fresh();m.AutomaticGoalRestart=false;
  typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m,m.AwayTeam.Players[3]);
  typeof(MatchEngine).GetProperty("PreviousKicker")!.SetValue(m,m.HomeTeam.Players[4]);
- m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)});
  Check(ev.Last(e=>e.Type==MatchEventType.GoalScored).GoalData!.IsOwnGoal&&!m.RequestCoachPraiseForLastTeamGoal(),"Own-goal attribution cannot become team-assisted coach praise");
 }
 foreach(var technique in new[]{ShotTechnique.Header,ShotTechnique.Bicycle,ShotTechnique.Volley})
@@ -76,7 +76,7 @@ foreach(var technique in new[]{ShotTechnique.Driven,ShotTechnique.Lob,ShotTechni
 }
 {
  var(m,ev,input)=Fresh();m.AutomaticGoalRestart=false;m.Ball.Position=new Vector3(105.1f,34,1);
- typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)});
  m.Update(10);Check(m.State==MatchState.GoalCelebration,"Audio-owned goal does not restart on fixed timer");
  m.CompleteGoalCelebration();Check(m.State==MatchState.InPlay,"Completed audio sequence resumes play once");int count=ev.Count;m.CompleteGoalCelebration();Check(ev.Count==count,"Stale goal completion cannot award or restart again");
 }
@@ -111,7 +111,7 @@ foreach(var technique in new[]{ShotTechnique.Driven,ShotTechnique.Lob,ShotTechni
  Check(!ev.Any(e=>e.Type==MatchEventType.Offside),"No speculative offside commentary at planned pass target");
  m.Ball.Owner=null;m.Ball.Position=new Vector3(receiver.Position2D,0);m.TryControlIncomingBall(receiver,testRoll:1);
  m.Ball.Owner=null;m.Ball.Position=new Vector3(105.1f,34,1);
- typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)});
  Check(m.HomeTeam.Score==0,"Actual offside involvement prevents score increment");
  Check(ev.Any(e=>e.Type==MatchEventType.GoalDisallowed),"Actual offside goal produces disallowed-goal event");
  Check(m.Restart?.Kind==RestartKind.IndirectFreeKick,"Offside awards indirect, never penalty restart");
@@ -124,7 +124,7 @@ foreach(var technique in new[]{ShotTechnique.Driven,ShotTechnique.Lob,ShotTechni
  m.CheckOffsideTrap(m.HomeTeam,m.AwayTeam,p,new Vector2(99,34));
  m.Ball.Owner=null;m.Ball.Position=new Vector3(p.Position2D,0);m.TryControlIncomingBall(p,testRoll:1);
  m.Ball.Owner=null;m.Ball.Position=new Vector3(105.1f,34,1);
- typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)});
  Check(m.HomeTeam.Score==1&&!ev.Any(e=>e.Type==MatchEventType.GoalDisallowed),"Onside at actual kick stays valid despite future target behind line");
 }
 {
@@ -145,7 +145,7 @@ foreach(var technique in new[]{ShotTechnique.Driven,ShotTechnique.Lob,ShotTechni
  var defender=m.AwayTeam.Players[5];
  typeof(MatchEngine).GetMethod("RecordBallTouch",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(m,new object[]{defender,false});
  m.Ball.Owner=null;m.Ball.Position=new Vector3(p.Position2D,0);m.TryControlIncomingBall(p,testRoll:1);
- m.Ball.Owner=null;m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ m.Ball.Owner=null;m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)});
  Check(m.HomeTeam.Score==0,"Opponent deflection does not erase offside phase");
 }
 {
@@ -154,7 +154,7 @@ foreach(var technique in new[]{ShotTechnique.Driven,ShotTechnique.Lob,ShotTechni
  m.CheckOffsideTrap(m.HomeTeam,m.AwayTeam,p,p.Position2D);
  typeof(MatchEngine).GetMethod("RecordBallTouch",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(m,new object[]{m.AwayTeam.Players[5],true});
  m.Ball.Owner=null;m.Ball.Position=new Vector3(p.Position2D,0);m.TryControlIncomingBall(p,testRoll:1);
- m.Ball.Owner=null;m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ m.Ball.Owner=null;m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)});
  Check(m.HomeTeam.Score==1,"Opponent deliberate control clears prior offside phase");
 }
 {
@@ -262,7 +262,7 @@ foreach(bool onTarget in new[]{true,false})
  m.Ball.Position=new Vector3(100,onTarget?34:45,1);m.Ball.Velocity=new Vector3(25,0,0);
  typeof(MatchEngine).GetMethod("RememberShotDeflection",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(m,null);
  var defender=m.AwayTeam.Players[4];typeof(MatchEngine).GetMethod("RecordBallTouch",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(m,new object[]{defender,false});
- m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(m,null);
+ m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)});
  var g=ev.Last(e=>e.Type==MatchEventType.GoalScored).GoalData!;
  Check(onTarget?g.Scorer==shooter&&!g.IsOwnGoal:g.Scorer==defender&&g.IsOwnGoal,onTarget?"On-target shot deflection retains original scorer":"Off-target shot redirected in is an own goal, not attacker goal");
 }
@@ -292,7 +292,7 @@ foreach(bool onTarget in new[]{true,false})
 {
  // Reaction model: represented coach/player states come only from actual match causes
  var(m,ev,input)=Fresh();m.AutomaticGoalRestart=false;
- void Score(string side){ bool home=side=="home"; typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m, home?m.HomeTeam.Players[9]:m.AwayTeam.Players[9]); m.Ball.Position=new Vector3(home?105.1f:-.1f,34,1); typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null); }
+ void Score(string side){ bool home=side=="home"; typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m, home?m.HomeTeam.Players[9]:m.AwayTeam.Players[9]); m.Ball.Position=new Vector3(home?105.1f:-.1f,34,1); typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)}); }
  var pub=typeof(MatchEngine).GetMethods(BindingFlags.NonPublic|BindingFlags.Instance).Single(x=>x.Name=="Publish");
  Score("home");
  var g1=ev.Last(e=>e.Type==MatchEventType.GoalScored);
@@ -320,7 +320,7 @@ foreach(bool onTarget in new[]{true,false})
 {
  var(m,ev,input)=Fresh();
  typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m,m.AwayTeam.Players[3]);
- m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null);
+ m.Ball.Position=new Vector3(105.1f,34,1);typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)});
  var og=ev.Last(e=>e.Type==MatchEventType.GoalScored);
  Check(og.GoalData!.IsOwnGoal&&og.Context.Facts["player.reaction"]=="devastated","Actual own goal models the scorer's represented devastation");
 }
@@ -339,7 +339,7 @@ foreach(bool onTarget in new[]{true,false})
 {
  var(m,ev,input)=Fresh();m.AutomaticGoalRestart=false;
  var star=m.HomeTeam.Players[9];
- for(int i=0;i<2;i++){ typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m,star); m.Ball.Position=new Vector3(105.1f,34,1); typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,null); m.CompleteGoalCelebration(); }
+ for(int i=0;i<2;i++){ typeof(MatchEngine).GetProperty("LastKicker")!.SetValue(m,star); m.Ball.Position=new Vector3(105.1f,34,1); typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(m,new object[]{new Vector3(52.5f,34,1)}); m.CompleteGoalCelebration(); }
  var benchPlayer=new Player(999,"Bench",33,SpecificPosition.ST,75,75,75,75,75); m.HomeTeam.Bench.Add(benchPlayer);
  Check(m.MakeSubstitution(m.HomeTeam,star,benchPlayer),"Actual substitution of the star executes");
  var sub=ev.Last(e=>e.Type==MatchEventType.SubstitutionMade);
