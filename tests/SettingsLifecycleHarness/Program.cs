@@ -382,6 +382,67 @@ Check(reducedRoster.Players.Count==9,"red cards and substitutions shrink the eli
 var reducedFirst=reducedRoster.Players[4];
 Check(reducedRoster.OrderTakers(new List<Player>{reducedFirst,reducedRoster.Players[0],reducedRoster.Players[8],reducedRoster.Players[2],reducedRoster.Players[5]}),"five picks are accepted from the reduced eligible pool");
 Check(reducedRoster.Taker(9)==reducedFirst,"with nine eligible players the first taker repeats on the tenth kick only");
+// Keeper release regression: a near launch must escape the releasing keeper, for either side.
+foreach(bool keeperHome in new[]{false,true})
+{
+ Defaults();s.AiVarEnabled=false;Persist();var km=Match();km.Update(.02f);
+ typeof(MatchEngine).GetField("_kickoffProtectionTimer",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(km,0f);
+ typeof(MatchEngine).GetProperty("ActiveUserPlayer")!.SetValue(km,km.HomeTeam.Players[1]);
+ foreach(var p in km.HomeTeam.Players.Concat(km.AwayTeam.Players))p.Position2D=new(52,10);
+ var kt=keeperHome?km.HomeTeam:km.AwayTeam;var keeper=kt.Players.First(p=>p.Role==PlayerRole.Goalkeeper);
+ bool defendingRight=keeperHome?!km.UserAttackingRight:km.UserAttackingRight;
+ keeper.Position2D=new(defendingRight?Pitch.Length-4:4,Pitch.Width/2);
+ km.Ball.CatchOrTackle(keeper);Call(km,"RecordBallTouch",keeper,true);
+ typeof(MatchEngine).GetField("_gkHoldTimer",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(km,keeperHome?2.99f:1.19f);
+ int before=km.StatisticsFor(kt).Passes;
+ Call(km,"UpdatePlayersAI",.02f);
+ Check(km.Ball.Owner==null,$"{(keeperHome?"home":"away")} keeper releases the ball after hold time");
+ Check(km.StatisticsFor(kt).Passes==before+1,$"{(keeperHome?"home":"away")} keeper distribution counts one actual pass attempt");
+ km.Ball.Update(.02f);Call(km,"UpdatePlayersAI",.02f);
+ Check(km.Ball.Owner!=keeper,$"{(keeperHome?"home":"away")} keeper does not re-catch own launch next frame");
+}
+// Keeper collection stays live for every legitimate ball: back-pass, opponent shot, and any ball touched by another player after his own release.
+foreach(bool keeperHome in new[]{false,true})
+{
+ Defaults();s.AiVarEnabled=false;Persist();var km=Match();km.Update(.02f);
+ typeof(MatchEngine).GetField("_kickoffProtectionTimer",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(km,0f);
+ typeof(MatchEngine).GetProperty("ActiveUserPlayer")!.SetValue(km,km.HomeTeam.Players[1]);
+ var kt=keeperHome?km.HomeTeam:km.AwayTeam;var opp=keeperHome?km.AwayTeam:km.HomeTeam;
+ var keeper=kt.Players.First(p=>p.Role==PlayerRole.Goalkeeper);
+ bool defendingRight=keeperHome?!km.UserAttackingRight:km.UserAttackingRight;
+ float gkx=defendingRight?Pitch.Length-4:4;
+ keeper.Position2D=new(gkx,Pitch.Width/2);
+
+ // Back-pass: teammate deliberately passes to keeper; collection must work.
+ var tp=kt.Players.First(p=>p.Role!=PlayerRole.Goalkeeper);tp.Position2D=new(gkx+(defendingRight?-8:8),Pitch.Width/2);
+ km.Ball.Position=new System.Numerics.Vector3(tp.Position2D.X,tp.Position2D.Y,0);
+ km.Ball.CatchOrTackle(tp);Call(km,"RecordBallTouch",tp,true);
+ km.Ball.Kick(new Vector2(defendingRight?1:-1,0),6f,0f,tp);Call(km,"RecordBallTouch",tp,true);
+ km.Ball.Position=new System.Numerics.Vector3(gkx+(defendingRight?-1f:1f),Pitch.Width/2,0);
+ km.Ball.Velocity=new System.Numerics.Vector3(defendingRight?1f:-1f,0,0);
+ Call(km,"UpdatePlayersAI",.02f);
+ Check(km.Ball.Owner==keeper,$"{(keeperHome?"home":"away")} keeper collects a teammate back-pass");
+
+ typeof(MatchEngine).GetProperty("ActiveUserPlayer")!.SetValue(km,km.HomeTeam.Players[1]);
+ // Opponent shot: deliberate opponent touch, then slow ball near keeper; collection must work.
+ var os=opp.Players.First(p=>p.Role!=PlayerRole.Goalkeeper);
+ km.Ball.CatchOrTackle(os);Call(km,"RecordBallTouch",os,true);
+ km.Ball.Kick(new Vector2(defendingRight?1:-1,0),2f,0f,os);Call(km,"RecordBallTouch",os,true);
+ km.Ball.Position=new System.Numerics.Vector3(gkx+(defendingRight?-1.2f:1.2f),Pitch.Width/2,0);
+ km.Ball.Velocity=new System.Numerics.Vector3(defendingRight?0.5f:-0.5f,0,0);
+ Call(km,"UpdatePlayersAI",.02f);
+ Check(km.Ball.Owner==keeper,$"{(keeperHome?"home":"away")} keeper collects after a deliberate opponent touch");
+
+ typeof(MatchEngine).GetProperty("ActiveUserPlayer")!.SetValue(km,km.HomeTeam.Players[1]);
+ // Penalty-area edge launch still escapes: keeper standing on the box line.
+ keeper.Position2D=new(defendingRight?Pitch.Length-Pitch.PenaltyBoxDepth:Pitch.PenaltyBoxDepth,Pitch.Width/2);
+ km.Ball.CatchOrTackle(keeper);Call(km,"RecordBallTouch",keeper,true);
+ typeof(MatchEngine).GetField("_gkHoldTimer",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(km,keeperHome?2.99f:1.19f);
+ Call(km,"UpdatePlayersAI",.02f);
+ km.Ball.Update(.02f);Call(km,"UpdatePlayersAI",.02f);
+ Check(km.Ball.Owner!=keeper,$"{(keeperHome?"home":"away")} keeper box-line launch is not re-caught");
+}
+
 // IFAB 2026/27: only a clearly incorrect second caution with clear-error evidence is reviewable.
 Defaults();s.AiVarEnabled=true;Persist();
 var secondCardMatch=Match();secondCardMatch.Update(.1f);
