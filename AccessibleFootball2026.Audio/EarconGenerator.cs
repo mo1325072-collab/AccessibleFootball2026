@@ -22,8 +22,6 @@ public static class EarconGenerator
         EnsureEarconExists(Path.Combine(earconsDir, "ThrowIn.wav"), "ThrowIn");
         EnsureEarconExists(Path.Combine(earconsDir, "PlayerSwitch.wav"), "PlayerSwitch");
         EnsureEarconExists(Path.Combine(earconsDir, "TackleMissed.wav"), "TackleMissed");
-        EnsureEarconExists(Path.Combine(earconsDir, "ChargeStart.wav"), "ChargeStart");
-        EnsureEarconExists(Path.Combine(earconsDir, "ChargeMax.wav"), "ChargeMax");
     }
 
     public static void EnsureEarconExists(string path, string earconName)
@@ -60,12 +58,6 @@ public static class EarconGenerator
                 break;
             case "TackleMissed":
                 GenerateTackleMissed(path);
-                break;
-            case "ChargeStart":
-                GenerateChargeStart(path);
-                break;
-            case "ChargeMax":
-                GenerateChargeMax(path);
                 break;
         }
     }
@@ -234,40 +226,6 @@ public static class EarconGenerator
             double env = Math.Exp(-t * 90.0);
             double wave = Math.Sin(2.0 * Math.PI * 1100.0 * t);
             s[i] = (short)Math.Clamp(wave * env * 16000, -32768, 32767);
-        }
-        WriteWav(path, s, sr);
-    }
-
-    // 10. ChargeStart: soft low confirmation blip 520 Hz, 45ms — a hold has started charging kick power
-    public static void GenerateChargeStart(string path)
-    {
-        int sr = 44100;
-        int n = (int)(sr * 0.045);
-        short[] s = new short[n];
-        for (int i = 0; i < n; i++)
-        {
-            double t = (double)i / sr;
-            double env = Math.Exp(-t * 55.0);
-            double wave = Math.Sin(2.0 * Math.PI * 520.0 * t);
-            s[i] = (short)Math.Clamp(wave * env * 14000, -32768, 32767);
-        }
-        WriteWav(path, s, sr);
-    }
-
-    // 11. ChargeMax: bright rising two-step blip 780 Hz -> 1560 Hz, 140ms — kick power fully charged
-    public static void GenerateChargeMax(string path)
-    {
-        int sr = 44100;
-        int n = (int)(sr * 0.14);
-        short[] s = new short[n];
-        for (int i = 0; i < n; i++)
-        {
-            double t = (double)i / sr;
-            double f = t < 0.07 ? 780.0 : 1560.0;
-            double local = t < 0.07 ? t : t - 0.07;
-            double env = Math.Exp(-local * 45.0);
-            double wave = Math.Sin(2.0 * Math.PI * f * t);
-            s[i] = (short)Math.Clamp(wave * env * 15000, -32768, 32767);
         }
         WriteWav(path, s, sr);
     }
