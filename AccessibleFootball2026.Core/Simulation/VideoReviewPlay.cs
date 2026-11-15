@@ -2,7 +2,7 @@ using AccessibleFootball2026.Core.Models;
 namespace AccessibleFootball2026.Core.Simulation;
 
 /// <summary>IFAB 2026/27 categories. Corner correction is an optional immediate competition rule, not a delayed review.</summary>
-public enum VideoReviewCategory { Goal, Penalty, DirectRedCard, ClearlyIncorrectSecondCaution, MistakenIdentity }
+public enum VideoReviewCategory { Goal, Penalty, DirectRedCard, MistakenIdentity }
 public partial class MatchEngine
 {
     private static string T(string arabic,string english) => MatchSettings.Current.Language==UiLanguage.Arabic?arabic:english;
@@ -37,14 +37,13 @@ public partial class MatchEngine
     {
         if(TeamOf(shownPlayer)==null || TeamOf(observedOffender)==null || !observedOffender.IsActiveOnPitch)return false;
         bool mistaken=shownPlayer!=observedOffender;
-        bool wrongSecond=shownPlayer.YellowCards==1 && !directRed && !offenceConfirmed;
-        if((mistaken||wrongSecond)&&clearErrorEvidence&&MatchSettings.Current.AiVarEnabled)
+        // الإنذار الثاني ليس من فئات الفار الرسمية (الطرد المباشر فقط) — IFAB VAR protocol. أُزيلت المراجعة بناءً على ملاحظة اللاعب 15 نوفمبر 2026.
+        // Second cautions are not an official VAR category (IFAB protocol: direct reds only); review removed per player feedback 15 Nov 2026.
+        if(mistaken&&clearErrorEvidence&&MatchSettings.Current.AiVarEnabled)
         {
-            var category=mistaken?VideoReviewCategory.MistakenIdentity:VideoReviewCategory.ClearlyIncorrectSecondCaution;
-            string verdict=mistaken?T($"قرار الفار: تصحيح هوية اللاعب. المخالفة على {observedOffender.Name} وليست على {shownPlayer.Name}.",
-                $"VAR decision: mistaken identity corrected. The offender is {observedOffender.Name}, not {shownPlayer.Name}."):
-                T("قرار الفار: إلغاء الإنذار الثاني الخاطئ. لا توجد بطاقة حمراء.","VAR decision: incorrect second caution cancelled. No red card.");
-            return BeginVideoReview(category,()=>{if(offenceConfirmed)IssueCard(observedOffender,directRed);},verdict,wrongSecond?"noRedCard":"identityCorrected");
+            string verdict=T($"قرار الفار: تصحيح هوية اللاعب. المخالفة على {observedOffender.Name} وليست على {shownPlayer.Name}.",
+                $"VAR decision: mistaken identity corrected. The offender is {observedOffender.Name}, not {shownPlayer.Name}.");
+            return BeginVideoReview(VideoReviewCategory.MistakenIdentity,()=>{if(offenceConfirmed)IssueCard(observedOffender,directRed);},verdict,"identityCorrected");
         }
         if(offenceConfirmed)IssueCard(shownPlayer,directRed);
         return false;
