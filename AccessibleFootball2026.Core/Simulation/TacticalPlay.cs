@@ -122,8 +122,21 @@ public partial class MatchEngine
         }
         var toGoal=goal-carrier.Position2D;var direction=toGoal.LengthSquared()>.001f?Vector2.Normalize(toGoal):new Vector2(UserAttackingRight?-1:1,0);
         carrier.FacingDirection=direction;
-        _contactMotion[carrier]=direction*(carrier.Speed*.065f*FatigueMovementMultiplier(carrier));
-        carrier.Position2D+=_contactMotion[carrier]*dt;
+        // تصادم بدني: الحامل يتوقف عندما يسد مدافع منزلي طريقه أمامه بدل اختراق جسمه
+        bool bodyBlockedAhead=HomeTeam.Players.Any(p=>p.IsActiveOnPitch&&p.Role!=PlayerRole.Goalkeeper
+            &&(p.Position2D-carrier.Position2D).LengthSquared()>0.000001f
+            &&(p.Position2D-carrier.Position2D).Length()<0.55f
+            &&Vector2.Dot(Vector2.Normalize(p.Position2D-carrier.Position2D),direction)>0.2f);
+        if(bodyBlockedAhead)
+        {
+            carrier.Velocity=Vector2.Zero;
+            _contactMotion[carrier]=Vector2.Zero;
+        }
+        else
+        {
+            _contactMotion[carrier]=direction*(carrier.Speed*.065f*FatigueMovementMultiplier(carrier));
+            carrier.Position2D+=_contactMotion[carrier]*dt;
+        }
         Ball.CatchOrTackle(carrier);
     }
 }
