@@ -18,11 +18,11 @@ public enum GameAction
     // الدفاع
     SwitchPlayer,   // Ctrl (Left / Right)
     StandTackle,    // S
-    SlideTackle,    // D / W / A
+    SlideTackle,    // D
     
     // النظام
     Pause,          // Escape
-    TacticalRadar,   // Space / C (الرادار التكتيكي اللحظي على الطلب)
+    TacticalRadar,   // Space (الرادار التكتيكي اللحظي على الطلب)
     Header, BicycleKick, Volley, LobShot, CurledShot, Clearance, GroundCross, FarPostCross, RequestLineup, SlowRunUp, LoftedThroughBall
 }
 
@@ -33,6 +33,7 @@ public interface IInputHandler
     void HandleKeyDown(int keyCode, bool isPossession) { }
     void HandleKeyUp(int keyCode) { }
     void Reset() { }
+    void InvalidatePossessionActions() { }
     /// <summary>Current in-progress hold-charge fraction for a chargeable action (0..1), or -1 when that action is not being charged.</summary>
     float ActiveCharge01(GameAction action) => -1f;
     /// <summary>Charge fraction (0..1) of a charged action released in the latest poll; consumes it so each release applies once.</summary>
