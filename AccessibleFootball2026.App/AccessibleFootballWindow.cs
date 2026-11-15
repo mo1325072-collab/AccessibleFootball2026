@@ -304,7 +304,7 @@ public class AccessibleFootballWindow : Form
         _displayListBox.Items.Clear();
         _displayListBox.Items.Add(T($"المباراة جارية الآن: {homeTeam.Name} ضد {awayTeam.Name}", $"Match: {homeTeam.Name} versus {awayTeam.Name}"));
         _displayListBox.Items.Add(T("التحكم: الأسهم للحركة | Shift للجري | S للتمرير | D للرفع والعرضيات | W للتسديد | A للبينية", "Controls: Arrows move | Shift sprint | S pass | D cross | W shoot | A through ball"));
-        _displayListBox.Items.Add(T("الدفاع: Ctrl لتبديل المدافع | S للاستخلاص الهادئ | W/D/A للاستخلاص القوي", "Defence: Ctrl switch | S standing tackle | W/D/A slide tackle"));
+        _displayListBox.Items.Add(T("الدفاع: Ctrl لتبديل المدافع | S للاستخلاص الهادئ | W/D/A للاستخلاص القوي", "Defence: Ctrl switch | S standing tackle | D slide tackle"));
         _displayListBox.Items.Add(T("Esc للإيقاف المؤقت | الانسحاب من قائمة الإيقاف", "Esc pause | End match in pause menu"));
         // القائمة أثناء اللعب للعرض فقط: بلا تحديد حتى لا تلتهم الأسهمَ تحديداً يقرؤه قارئ الشاشة أثناء التحكم باللاعب
         _displayListBox.SelectionMode = SelectionMode.None;
@@ -831,9 +831,9 @@ public class AccessibleFootballWindow : Form
                        "زر D للرفع أو التمريرة العالية والعرضية إلى داخل منطقة الجزاء. " +
                        "زر W للتسديد القوي والمباشر نحو المرمى. " +
                        "زر A للتمريرة البينية في المساحة. " +
-                       "وأنت بلا كرة: Ctrl للتبديل لأقرب مدافع، S للاستخلاص الهادئ، W أو D أو A للاستخلاص القوي. " +
+                       "وأنت بلا كرة: Ctrl للتبديل لأقرب مدافع، S للاستخلاص الهادئ، D للزحلقة. " +
                        "زر Escape لفتح قائمة الإيقاف المؤقت والتبديلات وتعديل التكتيك. " +
-                       "للانسحاب اختر إنهاء المباراة من قائمة الإيقاف المؤقت.", "Arrows move and aim. Shift sprints. S passes, D crosses, W shoots, A through ball. Off the ball: Ctrl switches defender, S standing tackle, W/D/A slide tackle. Escape pauses for tactics and substitutions.");
+                       "للانسحاب اختر إنهاء المباراة من قائمة الإيقاف المؤقت.", "Arrows move and aim. Shift sprints. S passes, D crosses, W shoots, A through ball. Off the ball: Ctrl switches defender, S standing tackle, D slide tackle. Escape pauses for tactics and substitutions.");
         _screenReader.Speak(guide);
     }
 
@@ -1582,7 +1582,7 @@ public class AccessibleFootballWindow : Form
         Keys.Up or Keys.Down or Keys.Left or Keys.Right => true,
         Keys.ShiftKey or Keys.LShiftKey or Keys.RShiftKey or Keys.Shift => true,
         Keys.ControlKey or Keys.LControlKey or Keys.RControlKey or Keys.Control => true,
-        Keys.D or Keys.W or Keys.S or Keys.A => true,
+        Keys.D or Keys.W or Keys.S or Keys.A or Keys.Space => true,
         _ => false
     };
 }
