@@ -11,7 +11,7 @@ public partial class MatchEngine
     private ShotTechnique _currentShotTechnique = ShotTechnique.Driven;
 
     /// <summary>Technique is a real physical action. A failed height/range check never emits its commentary event.</summary>
-    public bool TryExecuteTechnique(ShotTechnique technique)
+    public bool TryExecuteTechnique(ShotTechnique technique, float charge01 = 0f)
     {
         if (State != MatchState.InPlay || !ActiveUserPlayer.IsActiveOnPitch) return false;
         var shooter = ActiveUserPlayer;
@@ -35,7 +35,10 @@ public partial class MatchEngine
         Vector2 goal = UserAttackingRight ? Pitch.RightGoalCenter : Pitch.LeftGoalCenter;
         float aim = Math.Clamp(shooter.FacingDirection.Y, -.9f, .9f);
         goal.Y = Math.Clamp(goal.Y + aim * 3.5f, Pitch.GoalYMin + .25f, Pitch.GoalYMax - .25f);
+        float charge = technique == ShotTechnique.Driven ? Math.Clamp(charge01, 0f, 1f) : 0f;
         float spread = (100 - shooter.Shooting) * (aerial ? .06f : .035f) + Math.Max(0,50-ComposureOf(shooter))*.07f;
+        // Power charging trades accuracy for pace: a fully charged driven shot is faster but less precise, never a guaranteed goal.
+        spread *= 1f + .7f * charge;
         goal.Y += ((float)Random.Shared.NextDouble() * 2 - 1) * spread;
         float distance = Vector2.Distance(shooter.Position2D, goal);
         float speed = technique switch
@@ -45,7 +48,7 @@ public partial class MatchEngine
             ShotTechnique.Lob => Math.Clamp(distance * 1.3f, 12, 24),
             ShotTechnique.Volley => 27 + shooter.Shooting * .10f,
             ShotTechnique.Curled => 25 + shooter.Shooting * .08f,
-            _ => 30 + shooter.Shooting * .12f
+            _ => (30 + shooter.Shooting * .12f) * (1f + .35f * charge)
         };
         float vertical = technique switch
         {
@@ -54,7 +57,7 @@ public partial class MatchEngine
             ShotTechnique.Lob => Math.Clamp(distance * .32f, 4, 8),
             ShotTechnique.Volley => .6f,
             ShotTechnique.Curled => 1.6f,
-            _ => 1.8f
+            _ => 1.8f + .9f * charge
         };
         _lastShotTargetY = goal.Y;
         Ball.Kick(goal - shooter.Position2D, speed, vertical, shooter);
