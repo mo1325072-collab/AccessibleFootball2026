@@ -24,6 +24,10 @@ public partial class MatchEngine
 
     private void ResetPeriodPlayState()
     {
+        InterruptAttempt();
+        _inputHandler.Reset();
+        _slideDurationTimer = 0; _slidingPlayer = null; _slideImpulseVelocity = Vector2.Zero;
+        _tackleCooldownTimer = 0; _aiTackleCooldownTimer = 0; _switchCooldownSeconds = 0;
         _videoDecision=null;_videoVerdict=null;_videoVerdictAnnounced=false;_videoSeconds=0;
         _tacticalDecisionWait.Clear();
         _transitionTeamId=null;_transitionUntil=0;_tacticalLastOwnerTeamId=null;
@@ -66,8 +70,8 @@ public partial class MatchEngine
         }
         var kicker = preferredKicker?.IsActiveOnPitch == true && team.Players.Contains(preferredKicker) ? preferredKicker : team.Players.FirstOrDefault(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper);
         if (kicker == null) return;
-        kicker.Position2D = Pitch.CenterSpot;
         kicker.FacingDirection = new Vector2(team == HomeTeam == UserAttackingRight ? 1 : -1, 0);
+        kicker.Position2D = Pitch.CenterSpot - kicker.FacingDirection * .35f;
         Ball.CatchOrTackle(kicker);
         RecordBallTouch(kicker);
         if (team == HomeTeam) ActiveUserPlayer = kicker;
