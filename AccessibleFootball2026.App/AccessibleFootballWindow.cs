@@ -86,7 +86,7 @@ public class AccessibleFootballWindow : Form
 
     private void InitializeWindowComponents()
     {
-        Text = "Accessible Football 2026 - كرة القدم الصوتية للمكفوفين";
+        Text = "Accessible Football - كرة القدم الصوتية للمكفوفين";
         Size = new Size(850, 600);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(20, 24, 32);
@@ -380,8 +380,8 @@ public class AccessibleFootballWindow : Form
     private void UpdateWindowHeadings()
     {
         Text = MatchSettings.Current.Language == UiLanguage.English
-            ? "Accessible Football 2026 - Audio Football for the Blind"
-            : "Accessible Football 2026 - كرة القدم الصوتية للمكفوفين";
+            ? "Accessible Football - Audio Football for the Blind"
+            : "Accessible Football - كرة القدم الصوتية للمكفوفين";
 
         _titleLabel.Text = "Accessible Football 2026/2027";
 
