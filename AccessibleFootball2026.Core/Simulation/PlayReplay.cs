@@ -12,6 +12,7 @@ public partial class MatchEngine
         var frames=_replayFrames.ToArray();
         if(frames.Length<2 || frames[^1].ElapsedSeconds<=frames[0].ElapsedSeconds)return;
         var analysis=new MatchEvent(type,"إعادة صوتية لمسار الكرة") {Context=facts.With(("replay.available",true))};
+        _inputHandler.Reset();
         AnalysisReplayPending=true;
         OnAnalysisReplayReady.Invoke(new PlayReplay(Array.AsReadOnly(frames),analysis));
     }
