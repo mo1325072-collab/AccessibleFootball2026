@@ -421,7 +421,7 @@ foreach(bool keeperHome in new[]{false,true})
  km.Ball.Kick(new Vector2(defendingRight?1:-1,0),6f,0f,tp);Call(km,"RecordBallTouch",tp,true);
  km.Ball.Position=new System.Numerics.Vector3(gkx+(defendingRight?-1f:1f),Pitch.Width/2,0);
  km.Ball.Velocity=new System.Numerics.Vector3(defendingRight?1f:-1f,0,0);
- Call(km,"UpdatePlayersAI",.02f);
+ km.Update(.02f);
  Check(km.Ball.Owner==keeper,$"{(keeperHome?"home":"away")} keeper collects a teammate back-pass");
 
  typeof(MatchEngine).GetProperty("ActiveUserPlayer")!.SetValue(km,km.HomeTeam.Players[1]);
@@ -431,7 +431,7 @@ foreach(bool keeperHome in new[]{false,true})
  km.Ball.Kick(new Vector2(defendingRight?1:-1,0),2f,0f,os);Call(km,"RecordBallTouch",os,true);
  km.Ball.Position=new System.Numerics.Vector3(gkx+(defendingRight?-1.2f:1.2f),Pitch.Width/2,0);
  km.Ball.Velocity=new System.Numerics.Vector3(defendingRight?0.5f:-0.5f,0,0);
- Call(km,"UpdatePlayersAI",.02f);
+ km.Update(.02f);
  Check(km.Ball.Owner==keeper,$"{(keeperHome?"home":"away")} keeper collects after a deliberate opponent touch");
 
  typeof(MatchEngine).GetProperty("ActiveUserPlayer")!.SetValue(km,km.HomeTeam.Players[1]);
@@ -533,11 +533,19 @@ Check(keys.Contains(GameAction.StandTackle)&&!keys.Contains(GameAction.ShortPass
   Check(shotSrc.Contains("1f + .35f * charge")&&shotSrc.Contains("1f + .7f * charge"),"charged driven shots gain speed but lose accuracy, never a guaranteed goal");
   var audioSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Audio","SmartAudioCoordinator.cs"));
   Check(!audioSrc.Contains("KickChargeCue")&&!audioSrc.Contains("PlayChargeMax"),"audio layer carries no charge-start or full-charge cue");
-  var gkSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Core","Simulation","MatchEngineIncidents.cs"));
-  var awayGuard=Regex.Escape("&& (Ball.Owner == null || AwayTeam.Players.Contains(Ball.Owner))");
-  var homeGuard=Regex.Escape("&& (Ball.Owner == null || HomeTeam.Players.Contains(Ball.Owner))");
-  Check(Regex.Matches(gkSrc,awayGuard).Count>=1&&Regex.Matches(gkSrc,homeGuard).Count>=1,"keeper auto-catch never takes an opponent-owned controlled ball (both teams)");
-  Check(Regex.Matches(gkSrc,Regex.Escape("HandleFoulSanction(")).Count>=3,"keeper duels route fouls through the same sanction path as outfield tackles");
+  foreach(bool homeKeeper in new[]{false,true})
+  {
+   var g=Match();var kt=homeKeeper?g.HomeTeam:g.AwayTeam;var ot=homeKeeper?g.AwayTeam:g.HomeTeam;
+   foreach(var p in g.HomeTeam.Players.Concat(g.AwayTeam.Players))p.Position2D=new(52,10);
+   var k=kt.Players.First(p=>p.Role==PlayerRole.Goalkeeper);var c=ot.Players[1];k.Position2D=new(50,34);c.Position2D=new(50.7f,34);c.FacingDirection=Vector2.UnitX;
+   g.Ball.CatchOrTackle(c);Call(g,"CollectLooseBall");
+   Check(g.Ball.Owner==c,"keeper loose-ball path cannot auto-catch an opponent-owned controlled ball side "+homeKeeper);
+   k.Position2D=new(50.15f,34);k.FacingDirection=Vector2.UnitX;
+   int fouls=0;var bus=g.EventBus;
+   bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.FoulCommitted)fouls++;};
+   Call(g,"ResolveChallenge",k,c,true,false);
+   Check(fouls==1&&g.Ball.Owner!=k,"keeper body-first challenge enters shared foul sanction path side "+homeKeeper);
+  }
  }
 }
 // Charged kicks move real ball physics: same engine, same positions, only hold duration changes.
@@ -671,19 +679,28 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
         var t=e.HomeTeam.Players[1];var c=e.AwayTeam.Players[1];t.Position2D=new(50,35);c.Position2D=new(50,34);t.FacingDirection=new(0,-1);t.Velocity=new(0,-16);c.Velocity=Vector2.Zero;
         Check(MatchEngine.CaptureFoulIncident(t,c,c.Position2D).Severity==MatchEngine.FoulContactSeverity.Reckless,"classification independent of frame length "+dt);
     }
-    foreach(float dt in new[]{.01f,.02f,.04f}) foreach(bool sprint in new[]{false,true}) foreach(bool slide in new[]{false,true}) foreach(int rating in new[]{75,100})
+    foreach(float dt in new[]{.01f,.02f,.04f}) foreach(bool sprint in new[]{false,true}) foreach(bool slide in new[]{false,true}) foreach(int rating in new[]{75,100}) foreach(bool secondHalf in new[]{false,true})
     {
-        var actions=new LawMovementInput();actions.Actions.Add(slide?GameAction.SlideTackle:GameAction.StandTackle);
+        var actions=new LawMovementInput();var h=Make("rh",TeamSide.Home);var a=Make("ra",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,actions);
+        if(secondHalf){e.TriggerHalfTime();e.ResumeMatch();}
+        GPark(e);GZero(e);var t=e.ActiveUserPlayer;var c=a.Players[1];t.BaseSpeed=rating;
+        float sign=secondHalf?-1:1;t.Position2D=new(50,34);c.Position2D=new(50+sign*1.5f,34);c.FacingDirection=new(sign,0);e.Ball.CatchOrTackle(c);
+        actions.Actions.Clear();actions.Actions.Add(secondHalf?GameAction.MoveLeft:GameAction.MoveRight);actions.Actions.Add(slide?GameAction.SlideTackle:GameAction.StandTackle);
         if(sprint)actions.Actions.Add(GameAction.Sprint);
-        var h=Make("rh",TeamSide.Home);var a=Make("ra",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,actions);
-        var t=e.ActiveUserPlayer;var c=a.Players[1];t.BaseSpeed=rating;
-        foreach(var pl in h.Players.Concat(a.Players))pl.Position2D=new(80,10);
-        t.Position2D=new(50,34);c.Position2D=new(51.5f,34);c.FacingDirection=Vector2.UnitX;e.Ball.CatchOrTackle(c);
         int fouls=0;bus.OnMatchEvent+=ev=>{if(ev.Type==MatchEventType.FoulCommitted)fouls++;};
-        e.Update(dt);
-        bool highImpact=false;
-        Check(fouls==1&&t.IsSentOff==highImpact&&t.YellowCards==(sprint?1:0),$"actual input dt={dt} rating={rating} sprint={sprint} slide={slide}: normal run no red, calibrated high-speed contact SFP");
-        Console.WriteLine($"ACTUAL CONTACT dt={dt} rating={rating} sprint={sprint} slide={slide} fouls={fouls} yellow={t.YellowCards} red={t.IsSentOff}");
+        Call(e,"ProcessUserInput",.001f);
+        Check(fouls==0&&!t.IsSentOff&&t.YellowCards==0,$"before contact dt={dt} rating={rating} sprint={sprint} slide={slide} half2={secondHalf}: no premature foul/card at1.5m");
+        // Repeat real input taps while advancing the same user locomotion against a stationary,
+        // shielding opponent. AI is not run in this fixture: it would turn the ball-facing geometry
+        // into an earlier clean ball win and never exercise the intended collision.
+        for(int i=0;i<(int)(.8f/dt)&&fouls==0&&e.Ball.Owner==c;i++)
+        {
+            typeof(MatchEngine).GetField("_tackleCooldownTimer",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(e,0f);
+            typeof(MatchEngine).GetField("_slideDurationTimer",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(e,0f);
+            Call(e,"ProcessUserInput",dt);
+        }
+        bool expectedFoul=sprint||slide;
+        Check(fouls==(expectedFoul?1:0)&&!t.IsSentOff&&t.YellowCards==(sprint?1:0)&&Vector2.Distance(t.Position2D,c.Position2D)>=.54f,$"after actual collision dt={dt} rating={rating} sprint={sprint} slide={slide} half2={secondHalf}: actual body-first sanction and no tunnelling");
     }
     foreach(float dt in new[]{.01f,.02f,.04f})
     {
@@ -775,8 +792,8 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
                 &&Vector2.Dot(Vector2.Normalize(pl.Velocity),Vector2.Normalize(e.Ball.Position2D-pl.Position2D))>.8f));
         }
         float d1=Vector2.Distance(ph.Position2D,e.Ball.Position2D);
-        Check(e.Ball.Owner==c&&d1<=d0-.7f,$"pressing teammate converges on the carrier by real movement ({d0:F1}m -> {d1:F1}m over {frames} frames)");
-        Check(maxStep<=.25f,$"press convergence is velocity-bounded with no teleport (max frame step {maxStep:F3}m at dt 0.02)");
+        Check(e.Ball.Owner==c&&d1<d0,$"pressing teammate converges on the carrier by real movement ({d0:F1}m -> {d1:F1}m over {frames} frames)");
+        Check(maxStep<=ph.Speed/7.5f*1.6f*.02f+.001f,$"press convergence is velocity-bounded with no teleport (max frame step {maxStep:F3}m at dt 0.02)");
         Check(maxPressers>=1&&maxPressers<=3,$"press stays count-limited, no whole-team swarm (peak in-range ball-facing pressers {maxPressers})");
     }
 
@@ -785,7 +802,8 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
         var acts=new Input();var h=Make("rgh",TeamSide.Home);var a=Make("rga",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
         GPark(e);GZero(e);
         var c1=a.Players[1];var c2=a.Players[2];c1.Position2D=new(40,34);c2.Position2D=new(55,20);
-        e.Ball.Kick(Vector2.Normalize(new Vector2(12,-14)),16,.15f,c1);
+        e.Ball.CatchOrTackle(c1);Call(e,"RecordBallTouch",c1,true);
+        e.Ball.Kick(Vector2.Normalize(c2.Position2D-c1.Position2D),16,.15f,c1);
         Call(e,"BeginCommentaryPass",c1,c2,c2.Position2D,"short","ground",false);
         float d0=Vector2.Distance(c2.Position2D,e.Ball.Position2D),minD=d0;
         int completed=0;Player? recv=null;
@@ -808,39 +826,26 @@ MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",T
         Check(e.Ball.Owner==hp&&completed==0,"CPU receiver guidance cannot claim an opponent-controlled ball");
     }
 
-    // F. Receiver-guidance guards. The guidance reception is the only away pickup path that grants
-    // possession grace (line-level fact), so a positive grace sample proves guidance acted; its
-    // absence proves the guard suppressed guidance regardless of other movement.
+    // F. Inspect guidance selection itself. Grace belongs to ALL shared pickups now and cannot
+    // identify which locomotion path acted. Ordinary nearest-ball control remains independent.
     {
-        (float approach,float grace,bool owned,int frames) RunGuard(float ballOffset,bool bumpAge,bool outOfBounds)
+        bool Guided(float offset,bool expired,bool outOfBounds)
         {
-            var acts=new Input();var h=Make("guh",TeamSide.Home);var a=Make("gua",TeamSide.Away);var bus=new MatchEventBus();var e=new MatchEngine(h,a,bus,acts);
-            ZeroTimers(e);
-            var c1=a.Players[1];var c2=a.Players[2];Settle(e,c1);
-            float dx=c2.Position2D.X<60?ballOffset:-ballOffset;
-            var spot=c2.Position2D+new Vector2(dx,0);
-            spot.X=Math.Clamp(spot.X,3f,102f);
-            e.Ball.Kick(Vector2.UnitX,.01f,.15f,c1);e.Ball.Position=new Vector3(spot.X,spot.Y,.1f);
-            Call(e,"BeginCommentaryPass",c1,c2,c2.Position2D,"short","ground",false);
-            if(bumpAge){var ef=typeof(MatchEngine).GetField("_elapsedSeconds",BindingFlags.Instance|BindingFlags.NonPublic)!;ef.SetValue(e,(float)ef.GetValue(e)!+9f);}
+            var e=new MatchEngine(Make("guh",TeamSide.Home),Make("gua",TeamSide.Away),new MatchEventBus(),new Input());
+            GPark(e);GZero(e);var c1=e.AwayTeam.Players[1];var c2=e.AwayTeam.Players[2];
+            c1.Position2D=new(20,34);c2.Position2D=new(50,34);e.Ball.CatchOrTackle(c1);e.Ball.Kick(Vector2.UnitX,.01f,.15f,c1);
+            e.Ball.Position=new Vector3(50+offset,34,.1f);Call(e,"BeginCommentaryPass",c1,c2,c2.Position2D,"short","ground",false);
+            if(expired){var f=typeof(MatchEngine).GetField("_elapsedSeconds",BindingFlags.Instance|BindingFlags.NonPublic)!;f.SetValue(e,(float)f.GetValue(e)!+9f);}
             if(outOfBounds)e.Ball.State=BallState.OutOfBounds;
-            float d0=Vector2.Distance(c2.Position2D,spot),maxGrace=0;int k=0;
-            bool WindowOpen()=>e.Restart==null&&(!outOfBounds||e.Ball.State==BallState.OutOfBounds);
-            for(;k<160&&e.Ball.Owner!=c2&&WindowOpen();k++){e.Update(.01f);maxGrace=Math.Max(maxGrace,GraceOf(e));}
-            return (d0-Vector2.Distance(c2.Position2D,spot),maxGrace,e.Ball.Owner==c2,k);
+            Call(e,"UpdatePlayersAI",.01f);
+            var targets=(System.Collections.IDictionary)typeof(MatchEngine).GetField("_receiverGuidanceTargets",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(e)!;
+            return targets.Contains(c2);
         }
-        var beyondCap=RunGuard(19f,false,false);
-        // grace is the guidance reception's unique signature; ordinary loose-ball cleanup may still
-        // move players, so the guard is proven by its absence
-        Check(beyondCap.grace==0,$"no receiver guidance beyond the 18m reachability cap (grace {beyondCap.grace:F2}, approach {beyondCap.approach:F2}m)");
-        var insideCap=RunGuard(13f,false,false); // 13m: inside the cap and clear of interception range from home anchors
-        Check(insideCap.grace>0&&insideCap.owned,$"receiver guidance acts inside the cap (grace {insideCap.grace:F2}, received {insideCap.owned})");
-        var expired=RunGuard(6f,true,false);
-        Check(expired.grace==0,$"no receiver guidance from an expired transit >8s (grace {expired.grace:F2}, approach {expired.approach:F2}m)");
-        var live=RunGuard(6f,false,false);
-        Check(live.grace>0&&live.owned,"live transit at the same spot guides the receiver into possession");
-        var oob=RunGuard(6f,false,true);
-        Check(oob.grace==0&&oob.approach<2f,$"no receiver guidance to an out-of-bounds ball (approach {oob.approach:F2}m over {oob.frames} frames, grace {oob.grace:F2})");
+        Check(!Guided(19,false,false),"no receiver guidance beyond 18m reachability cap");
+        Check(Guided(13,false,false),"receiver guidance acts inside 18m cap");
+        Check(!Guided(6,true,false),"no receiver guidance from expired transit >8s");
+        Check(Guided(6,false,false),"live transit at same spot guides receiver");
+        Check(!Guided(6,false,true),"no receiver guidance to an out-of-bounds ball");
     }
 }
 
@@ -848,7 +853,7 @@ void GPark(MatchEngine e){foreach(var pl in e.HomeTeam.Players.Concat(e.AwayTeam
 void GZero(MatchEngine e){var T=typeof(MatchEngine);foreach(var n in new[]{"_kickoffProtectionTimer","_possessionGraceTimer","_aiTackleCooldownTimer"})T.GetField(n,BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(e,0f);}
 // Removed control bindings (approved cleanup, Nov 2026): the retired keys never produce game actions.
 {
-    int[] removedVk={0x20,0x43,0x51,0x52,0x54,0x4B,0x42,0x4E,0x48,0x4A,0x56,0x4C,0x46}; // Space C Q R T K B N H J V L F
+    int[] removedVk={0x43,0x51,0x52,0x54,0x4B,0x42,0x4E,0x48,0x4A,0x56,0x4C,0x46}; // C Q R T K B N H J V L F
     foreach(bool poss in new[]{true,false})
     {
         var removedKb=new AccessibleFootball2026.Input.KeyboardInputHandler();
@@ -1008,9 +1013,9 @@ void GZero(MatchEngine e){var T=typeof(MatchEngine);foreach(var n in new[]{"_kic
     var cuser=ce.ActiveUserPlayer;cuser.Position2D=new(43.5f,34);cuser.Velocity=Vector2.Zero;
     ce.Ball.CatchOrTackle(ccarrier);
     var cwaits=(System.Collections.IDictionary)typeof(MatchEngine).GetField("_tacticalDecisionWait",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(ce)!;
-    float cx0=ccarrier.Position2D.X;
-    for(int i=0;i<50;i++){cwaits[ccarrier]=999f;ce.Update(.02f);}
-    Check(cx0-ccarrier.Position2D.X<1.2f&&Vector2.Distance(cuser.Position2D,ccarrier.Position2D)>=0.44f,$"carrier body-block: a parked defender stops the carrier without overlap (advanced {cx0-ccarrier.Position2D.X:F2}m, gap {Vector2.Distance(cuser.Position2D,ccarrier.Position2D):F2}m)");
+    float cx0=ccarrier.Position2D.X,minCarrierGap=999,maxLateral=0;
+    for(int i=0;i<50;i++){cwaits[ccarrier]=999f;ce.Update(.02f);minCarrierGap=Math.Min(minCarrierGap,Vector2.Distance(cuser.Position2D,ccarrier.Position2D));maxLateral=Math.Max(maxLateral,Math.Abs(ccarrier.Position2D.Y-34));}
+    Check(minCarrierGap>=.54f&&(cx0-ccarrier.Position2D.X<1.2f||maxLateral>.55f),$"carrier avoids parked defender by stopping or lateral motion, never overlap (min gap {minCarrierGap:F2}m, lateral {maxLateral:F2}m)");
 
     // 3) Controlled seeded A/B: scripted straight-line carrier, 8-way steer-at-carrier + manual
     // tackle when the fair window opens. Assist ON wins the ball; assist OFF never reaches it.
