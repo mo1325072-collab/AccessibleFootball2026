@@ -74,7 +74,7 @@ public partial class MatchEngine
 
     public float TackleCooldownRemaining => _tackleCooldownTimer;
     public float SlideDurationRemaining => _slideDurationTimer;
-    public bool IsSliding => _slideDurationTimer > 0.0f;
+    public bool IsSliding => _slideDurationTimer > 0.0f && _slidingPlayer == ActiveUserPlayer;
     public float PossessionGraceRemaining => _possessionGraceTimer;
     public float AiTackleCooldownRemaining => _aiTackleCooldownTimer;
 
@@ -82,8 +82,10 @@ public partial class MatchEngine
     private float _slideDurationTimer = 0.0f;
     private float _possessionGraceTimer = 0.0f;
     private float _aiTackleCooldownTimer = 0.0f;
+    private Player? _slidingPlayer;
+    private bool _slideContactResolved;
     private Vector2 _slideImpulseVelocity = Vector2.Zero;
-    private DateTime _lastSwitchTime = DateTime.MinValue;
+    private float _switchCooldownSeconds;
 
     public void GrantPossessionGrace(float seconds = 1.4f)
     {
@@ -148,6 +150,7 @@ public partial class MatchEngine
     {
         if (State is MatchState.HalfTime or MatchState.GameOver or MatchState.Paused) return;
         BeginSubstitutionStoppage();
+        _inputHandler.Reset();
         _stateBeforePause = State;
         State = MatchState.Paused;
         Publish(new MatchEvent(MatchEventType.MatchPaused, "إيقاف مؤقت"));
@@ -245,54 +248,16 @@ public partial class MatchEngine
 
     public void ReportTacticalRadar()
     {
-        string T(string ar, string en) => LocalizationService.Text(ar, en);
-        string zone = T(CurrentZone.ToArabicAnnouncement(), CurrentZone.ToEnglishAnnouncement());
-        if (Restart is { } restart)
-        {
-            string kind = restart.Kind switch
-            {
-                RestartKind.Penalty => T("ركلة جزاء", "Penalty"),
-                RestartKind.IndirectFreeKick => T("ركلة حرة غير مباشرة", "Indirect free kick"),
-                RestartKind.Corner => T("ركنية", "Corner"),
-                RestartKind.ThrowIn => T("رمية تماس", "Throw-in"),
-                RestartKind.GoalKick => T("ضربة مرمى", "Goal kick"),
-                _ => T("ركلة حرة", "Free kick")
-            };
-            bool attackingRight = restart.Team == HomeTeam ? UserAttackingRight : !UserAttackingRight;
-            int distance = (int)Vector2.Distance(restart.Spot, attackingRight ? Pitch.RightGoalCenter : Pitch.LeftGoalCenter);
-            string description = T($"{kind}، {restart.Team.Name}، {restart.Taker.Name}، المرمى: {distance} م",
-                $"{kind}, {restart.Team.Name}, {restart.Taker.Name}, goal {distance} m");
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, description, CurrentZone));
-            return;
-        }
-        if (Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner))
-        {
-            int distance = (int)Vector2.Distance(Ball.Position2D, UserAttackingRight ? Pitch.RightGoalCenter : Pitch.LeftGoalCenter);
-            string description = T($"{Ball.Owner.Name}، {zone}، المرمى: {distance} م", $"{Ball.Owner.Name}, {zone}, goal {distance} m");
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, description, CurrentZone));
-        }
-        else if (Ball.Owner != null && AwayTeam.Players.Contains(Ball.Owner))
-        {
-            int distance = (int)Vector2.Distance(Ball.Position2D, UserAttackingRight ? Pitch.LeftGoalCenter : Pitch.RightGoalCenter);
-            string description = T($"{Ball.Owner.Name} ({AwayTeam.Name})، {zone}، مرماك: {distance} م",
-                $"{Ball.Owner.Name} ({AwayTeam.Name}), {zone}, your goal {distance} m");
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, description, CurrentZone));
-        }
-        else
-        {
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, T($"كرة حرة في {zone}.", $"Loose ball, {zone}."), CurrentZone));
-        }
-    }
-
-    private void ReportRequestedRadar()
-    {
-        if (DateTime.UtcNow - _lastRadarTime <= TimeSpan.FromMilliseconds(1200)) return;
-        _lastRadarTime = DateTime.UtcNow;
-        ReportTacticalRadar();
+        bool own = Ball.Owner is { } owner && HomeTeam.Players.Contains(owner);
+        var target = own == UserAttackingRight ? Pitch.RightGoalCenter : Pitch.LeftGoalCenter;
+        int distance = (int)Vector2.Distance(Ball.Position2D, target);
+        string description = Ball.Owner is { } holder
+            ? LocalizationService.Text($"{holder.Name}، {distance} متر", $"{holder.Name}, {distance} metres")
+            : LocalizationService.Text("الكرة حرة", "Loose ball");
+        Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, description, CurrentZone));
     }
 
     private readonly IInputHandler _inputHandler;
-    private DateTime _lastRadarTime = DateTime.MinValue;
 
     // تتبع آخر لاعبين لمسوا الكرة لحساب صانع الهدف (الأسيست)
     public Player? LastKicker { get; private set; }
@@ -306,6 +271,7 @@ public partial class MatchEngine
         AwayTeam.Side = TeamSide.Away;
         EventBus = eventBus;
         _inputHandler = inputHandler;
+        Ball.ControlChanged += _inputHandler.InvalidatePossessionActions;
 
         HomeTeam.MatchAttackingRight = true;
         AwayTeam.MatchAttackingRight = false;
@@ -322,7 +288,32 @@ public partial class MatchEngine
     public void Update(float deltaTime)
     {
         if (!float.IsFinite(deltaTime) || deltaTime <= 0) return;
-        if (UpdateVideoReview(deltaTime)) return;
+        // Ball/body/keeper/rule checks share a bounded simulation clock, not the render interval.
+        // Stoppages get one update only; no queued real-time remainder can leak through a hold.
+        if (State != MatchState.InPlay || Restart != null || AnalysisReplayPending || VideoReviewPending || AwaitingStoppageConfirmation)
+        { Tick(deltaTime); return; }
+        var framePositions = HomeTeam.Players.Concat(AwayTeam.Players).ToDictionary(p => p, p => p.Position2D);
+        float remaining = deltaTime;
+        while (remaining > .000001f)
+        {
+            float step = Math.Min(.02f, remaining);
+            Tick(step);
+            remaining -= step;
+            if (State != MatchState.InPlay || Restart != null || AnalysisReplayPending || VideoReviewPending || AwaitingStoppageConfirmation) break;
+        }
+        if (remaining <= .000001f && State == MatchState.InPlay && Restart == null)
+            foreach (var player in framePositions.Keys) player.Velocity = (player.Position2D - framePositions[player]) / deltaTime;
+    }
+
+    private void Tick(float deltaTime)
+    {
+        if (!float.IsFinite(deltaTime) || deltaTime <= 0) return;
+        if (UpdateVideoReview(deltaTime))
+        {
+            _inputHandler.InvalidatePossessionActions();
+            _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
+            return;
+        }
         if (PendingInjuryPlayer != null)
         {
             _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
@@ -336,6 +327,8 @@ public partial class MatchEngine
             // Held incidents freeze play, not explicit information requests. Consume unsafe queued
             // actions here so a shot/tackle tapped during narration cannot fire after dismissal.
             var heldActions = _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
+            if (heldActions.Contains(GameAction.TacticalRadar)) ReportTacticalRadar();
+            _inputHandler.InvalidatePossessionActions();
             return;
         }
         if (State == MatchState.GoalCelebration)
@@ -348,6 +341,7 @@ public partial class MatchEngine
         // Only commanded locomotion feeds collision severity. Interpolation/teleports do not.
         (_previousContactMotion,_contactMotion)=(_contactMotion,_previousContactMotion);
         _contactMotion.Clear();
+        _switchCooldownSeconds = Math.Max(0, _switchCooldownSeconds - deltaTime);
         if (Restart == null) EndSubstitutionStoppage();
         CaptureReplayFrame();
         if (Restart == null) TrackPlayFrame(deltaTime);
@@ -392,6 +386,7 @@ public partial class MatchEngine
             {
                 if (!_fullTimeAnnounced)
                 {
+                    InterruptAttempt();
                     _fullTimeAnnounced = true;
                     string ftMsg = $"صافرة نهاية المباراة! النتيجة النهائية: {HomeTeam.Name} {HomeTeam.Score} - {AwayTeam.Score} {AwayTeam.Name}";
                     bool continues = HomeTeam.Score == AwayTeam.Score && (ExtraTimeAllowed || ShootoutAllowed);
@@ -429,6 +424,7 @@ public partial class MatchEngine
         {
             if (!_extraTimeHalfReached && MatchTimeMinutes >= 105.0f)
             {
+                InterruptAttempt();
                 _extraTimeHalfReached = true;
                 MatchTimeMinutes = 105;
                 State = MatchState.HalfTime;
@@ -440,6 +436,7 @@ public partial class MatchEngine
             }
             if (MatchTimeMinutes >= 120.0f)
             {
+                InterruptAttempt();
                 if (HomeTeam.Score == AwayTeam.Score && ShootoutAllowed)
                 {
                     State = MatchState.PenaltyShootout;
@@ -474,21 +471,25 @@ public partial class MatchEngine
         if (_slideDurationTimer > 0.0f)
         {
             _slideDurationTimer = Math.Max(0.0f, _slideDurationTimer - deltaTime);
-            ActiveUserPlayer.Position2D += _slideImpulseVelocity * deltaTime;
-            ActiveUserPlayer.Position2D = new Vector2(
-                Math.Clamp(ActiveUserPlayer.Position2D.X, 0, Pitch.Length),
-                Math.Clamp(ActiveUserPlayer.Position2D.Y, 0, Pitch.Width)
-            );
+            if (_slideDurationTimer == 0) _slidingPlayer = null;
         }
 
         if (UpdateAdvantage()) return;
         bool runUp=UpdateRunUp(deltaTime);
         if (Restart!=null && _runUpPlayer!=null)return;
         if (Restart!=null && UpdateRestart(deltaTime)) return;
+        if (_slideDurationTimer > 0 && _slidingPlayer is { IsActiveOnPitch: true } slider && slider != ActiveUserPlayer)
+            MovePlayer(slider, _slideImpulseVelocity, Math.Min(deltaTime, _slideDurationTimer));
         var positionsBefore=HomeTeam.Players.Concat(AwayTeam.Players).ToDictionary(p=>p,p=>p.Position2D);
         if(!runUp) ProcessUserInput(deltaTime);
         if (State != MatchState.InPlay || Restart != null || VideoReviewPending) return;
         UpdatePlayersAI(deltaTime);
+        if (_slideDurationTimer > 0 && !_slideContactResolved && _slidingPlayer is { IsActiveOnPitch: true } sliding &&
+            Ball.Owner is { } challenged && TeamOf(sliding) != TeamOf(challenged) && Vector2.Distance(sliding.Position2D, challenged.Position2D) <= .85f)
+        {
+            _slideContactResolved = true;
+            ResolveChallenge(sliding, challenged, true, manual: true);
+        }
         if (State == MatchState.GameOver || VideoReviewPending) return;
         foreach(var player in positionsBefore.Keys)
             player.Velocity=deltaTime>0?(player.Position2D-positionsBefore[player])/deltaTime:Vector2.Zero;
@@ -499,6 +500,7 @@ public partial class MatchEngine
         UpdateClearanceOutcome();
         CheckPitchZone();
         CheckRefereeRules(previousBall);
+        if (State == MatchState.InPlay && Restart == null && !VideoReviewPending) CollectLooseBall();
 
         // ترشيد استدعاء صوت الجماهير لمنع تقطيع الصوت
         _crowdUpdateTimer += deltaTime;
@@ -520,165 +522,11 @@ public partial class MatchEngine
             return;
         }
 
-
-        ActiveUserPlayer.Velocity = _slideDurationTimer > 0 ? _slideImpulseVelocity : Vector2.Zero;
-        _contactMotion[ActiveUserPlayer] = ActiveUserPlayer.Velocity;
-        Vector2 moveDir = Vector2.Zero;
-        if (_slideDurationTimer <= 0.0f)
-        {
-            float moveSpeed = (ActiveUserPlayer.Speed / 7.5f) * FatigueMovementMultiplier(ActiveUserPlayer);
-            if (actions.Contains(GameAction.Sprint))
-            {
-                moveSpeed *= 1.6f;
-            }
-
-            if (actions.Contains(GameAction.MoveUp)) moveDir.Y -= 1.0f;
-            if (actions.Contains(GameAction.MoveDown)) moveDir.Y += 1.0f;
-            if (actions.Contains(GameAction.MoveLeft)) moveDir.X -= 1.0f;
-            if (actions.Contains(GameAction.MoveRight)) moveDir.X += 1.0f;
-
-            if (hasPossession && Ball.Owner == ActiveUserPlayer)
-            {
-                if (actions.Contains(GameAction.MoveUp))
-                {
-                    AdjustAimingAngle(-0.9f * deltaTime);
-                }
-                else if (actions.Contains(GameAction.MoveDown))
-                {
-                    AdjustAimingAngle(0.9f * deltaTime);
-                }
-            }
-
-            if (moveDir.Length() > 0)
-            {
-                moveDir = Vector2.Normalize(moveDir);
-                Vector2? assistFacing = null;
-                // A tackle actually EXECUTING this tick skips assistance (true foul evidence);
-                // a held tackle key during the cooldown does not - the attempt won't run anyway.
-                bool tackleExecuting = (actions.Contains(GameAction.StandTackle) || actions.Contains(GameAction.SlideTackle))
-                    && _tackleCooldownTimer <= 0.0f;
-                if (_defensiveApproachAssistStrength > 0.001f && !hasPossession && !tackleExecuting
-                    && Ball.Owner is { } ballCarrier && AwayTeam.Players.Contains(ballCarrier))
-                {
-                    // Defensive approach assistance (simulation parameters, not a rules claim):
-                    // when the player steers roughly at the ball carrier (alignment cone ~32 deg),
-                    // curve the run toward a FAIR ball-side containment point: 0.70m ahead of the
-                    // carrier along his movement/facing, where the ball (0.35m ahead of the carrier)
-                    // sits ~0.35m from the player and a manual tackle reaches it cleanly instead of
-                    // charging through the carrier's body. Physical movement only: speed stays the
-                    // capped moveSpeed, tackling stays manual, no teleport, no audio; steering
-                    // anywhere outside the cone is untouched. A committed tackle this tick skips
-                    // assistance entirely: the challenge must use the player's true approach
-                    // velocity so foul/contact evidence is never bent by the steering curve.
-                    Vector2 toCarrier = ballCarrier.Position2D - ActiveUserPlayer.Position2D;
-                    float carrierDistance = toCarrier.Length();
-                    if (carrierDistance > 1e-3f && Vector2.Dot(moveDir, toCarrier / carrierDistance) >= 0.85f)
-                    {
-                        // Jockeying: in duel range the defender FACES the carrier, not his own run
-                        // direction - head-on geometry for the manual tackle, never from-behind.
-                        if (carrierDistance <= 2.0f)
-                            assistFacing = toCarrier / carrierDistance;
-                        Vector2 carrierDir = ballCarrier.Velocity.Length() > 0.6f
-                            ? Vector2.Normalize(ballCarrier.Velocity)
-                            : (ballCarrier.FacingDirection.Length() > 0.1f ? Vector2.Normalize(ballCarrier.FacingDirection) : Vector2.Zero);
-                        if (carrierDir != Vector2.Zero)
-                        {
-                            Vector2 fairPoint = ballCarrier.Position2D + carrierDir * 0.70f;
-                            Vector2 toFair = fairPoint - ActiveUserPlayer.Position2D;
-                            float fairDistance = toFair.Length();
-                            Vector2 dirToFair = fairDistance > 1e-4f ? toFair / fairDistance : carrierDir;
-                            // Route around the carrier's body: when the straight line to the fair
-                            // point passes through his body disc (chasing from behind/side), steer
-                            // for a waypoint beside the carrier first - on the side the player is
-                            // already on - instead of pushing into his back, where the moving fair
-                            // point can never be reached.
-                            Vector2 relCarrier = ballCarrier.Position2D - ActiveUserPlayer.Position2D;
-                            float alongPath = Vector2.Dot(relCarrier, dirToFair);
-                            bool bodyInPath = fairDistance > 0.25f
-                                && Vector2.Dot(relCarrier, carrierDir) > 0.15f
-                                && alongPath > 0 && alongPath < fairDistance + 0.45f
-                                && (relCarrier - dirToFair * alongPath).Length() < 0.55f;
-                            // Pursuit lead: aim where the moving fair point will be, not where it
-                            // is, so a sprinting player actually closes on a moving carrier.
-                            float leadTime = Math.Clamp(fairDistance / moveSpeed, 0f, 0.4f);
-                            Vector2 steerTarget = fairPoint + ballCarrier.Velocity * leadTime;
-                            if (bodyInPath)
-                            {
-                                Vector2 lateral = ActiveUserPlayer.Position2D - ballCarrier.Position2D;
-                                lateral -= carrierDir * Vector2.Dot(lateral, carrierDir);
-                                Vector2 perpDir = lateral.LengthSquared() > 1e-6f
-                                    ? Vector2.Normalize(lateral)
-                                    : new Vector2(-carrierDir.Y, carrierDir.X);
-                                steerTarget = ballCarrier.Position2D + perpDir * 1.0f + carrierDir * 0.3f;
-                            }
-                            // Parked on the fair point: hold the position instead of letting the
-                            // raw steer drag the player into the carrier's body; the carrier then
-                            // runs into the block or must play the ball.
-                            if (!bodyInPath && fairDistance <= 0.25f)
-                                moveDir = Vector2.Zero;
-                            Vector2 toTarget = steerTarget - ActiveUserPlayer.Position2D;
-                            if (toTarget.LengthSquared() > 1e-6f && (bodyInPath || fairDistance > 0.25f))
-                            {
-                                // The correction strengthens on the final approach: far away the
-                                // player's own steering dominates; in tackle range the curve
-                                // delivers him to the ball side instead of the carrier's body.
-                                float blend = Math.Clamp(_defensiveApproachAssistStrength + 0.5f * (1f - carrierDistance / 6f), _defensiveApproachAssistStrength, 0.9f);
-                                moveDir = Vector2.Normalize(Vector2.Lerp(moveDir, Vector2.Normalize(toTarget), blend));
-                            }
-                            // No speed easing near the fair point: an eased approach can never
-                            // catch a point that recedes at carrier speed. The player arrives at
-                            // full (capped) speed; the body separation and the carrier's body-block
-                            // stop turn the arrival into a physical standoff in front of the ball.
-
-                        }
-                    }
-                }
-                if (assistFacing is { } jockeyFace)
-                {
-                    ActiveUserPlayer.FacingDirection = jockeyFace;
-                }
-                else if (hasPossession && Ball.Owner == ActiveUserPlayer && (actions.Contains(GameAction.MoveUp) || actions.Contains(GameAction.MoveDown)))
-                {
-                    // FacingDirection تم ضبطها بدقة مثلثية في AdjustAimingAngle ولا تحتاج لإعادة تطبيع مشوهة
-                }
-                else if (moveDir.LengthSquared() > 1e-6f)
-                {
-                    ActiveUserPlayer.FacingDirection = moveDir;
-                }
-                ActiveUserPlayer.Velocity = moveDir * moveSpeed;
-                _contactMotion[ActiveUserPlayer] = ActiveUserPlayer.Velocity;
-                ActiveUserPlayer.Position2D += ActiveUserPlayer.Velocity * deltaTime;
-                // فصل بدني: أجسام اللاعبين صلبة - لا يخترق المدافع جسم لاعب خصم (خارج الاستحواذ فقط)
-                if (Ball.Owner != ActiveUserPlayer)
-                {
-                    foreach (var opp in AwayTeam.Players)
-                    {
-                        if (!opp.IsActiveOnPitch) continue;
-                        var awayFromBody = ActiveUserPlayer.Position2D - opp.Position2D;
-                        float bodyDist = awayFromBody.Length();
-                        if (bodyDist < 0.45f && bodyDist > 0.0001f)
-                            ActiveUserPlayer.Position2D = opp.Position2D + awayFromBody / bodyDist * 0.45f;
-                    }
-                }
-                ActiveUserPlayer.Position2D = new Vector2(
-                    Math.Clamp(ActiveUserPlayer.Position2D.X, 0, Pitch.Length),
-                    Math.Clamp(ActiveUserPlayer.Position2D.Y, 0, Pitch.Width)
-                );
-
-                // فحص الاقتراب من حدود الملعب وخطوط التماس
-                _boundaryTimer += deltaTime;
-                if (_boundaryTimer >= 0.8f)
-                {
-                    bool nearTouchline = ActiveUserPlayer.Position2D.Y <= 2.5f || ActiveUserPlayer.Position2D.Y >= Pitch.Width - 2.5f;
-                    bool nearGoalLine = ActiveUserPlayer.Position2D.X <= 2.5f || ActiveUserPlayer.Position2D.X >= Pitch.Length - 2.5f;
-                    if (nearTouchline || nearGoalLine)
-                    {
-                        _boundaryTimer = 0.0f;
-                        OnNearBoundary?.Invoke();
-                    }
-                }
-            }
-        }
+        if (actions.Contains(GameAction.TacticalRadar)) ReportTacticalRadar();
+        // Switch is a separate edge, never a modifier of movement or a tackle key.
+        // Apply it before locomotion so this same tick moves the selected defender.
+        if (!hasPossession && actions.Contains(GameAction.SwitchPlayer)) SwitchToClosestPlayer();
+        Vector2 moveDir = MoveUser(actions, hasPossession, deltaTime);
 
 
         if (hasPossession && Ball.Owner == ActiveUserPlayer)
@@ -702,11 +550,6 @@ public partial class MatchEngine
         }
         else
         {
-            if (actions.Contains(GameAction.SwitchPlayer))
-            {
-                SwitchToClosestPlayer();
-            }
-
             if (actions.Contains(GameAction.StandTackle))
             {
                 ExecuteStandTackle();
@@ -721,6 +564,7 @@ public partial class MatchEngine
     private string _lastTouchMethod = "play";
     private void RecordBallTouch(Player kicker, bool deliberatelyControlled = true)
     {
+        if (deliberatelyControlled && _attempts.Live != null) InterruptAttempt();
         ObserveOffsideTouch(kicker, deliberatelyControlled);
         _lastTouchMethod = "play";
         if (deliberatelyControlled)
@@ -916,13 +760,8 @@ public partial class MatchEngine
 
     public void SwitchToClosestPlayer()
     {
-        // F9: منع التبديل السريع جداً إذا تكرر الاستدعاء في نفس الإطار (Debounce guard)
-        DateTime now = DateTime.UtcNow;
-        if ((now - _lastSwitchTime).TotalMilliseconds < 200)
-        {
-            return;
-        }
-        _lastSwitchTime = now;
+        if (_switchCooldownSeconds > 0) return;
+        _switchCooldownSeconds = .2f;
 
         Player? closest = null;
         float minDist = float.MaxValue;
@@ -963,7 +802,7 @@ public partial class MatchEngine
 
     public void ExecuteStandTackle()
     {
-        if (_tackleCooldownTimer > 0.0f) return;
+        if (Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner) || _tackleCooldownTimer > 0.0f) return;
         _tackleCooldownTimer = 0.4f;
 
         PerformTackleAttempt(isSlideTackle: false, reach: 1.8f);
@@ -971,14 +810,16 @@ public partial class MatchEngine
 
     public void ExecuteSlideTackle()
     {
-        if (_tackleCooldownTimer > 0.0f) return;
+        if (Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner) || _tackleCooldownTimer > 0.0f) return;
         _tackleCooldownTimer = 0.9f;
         _slideDurationTimer = 0.3f;
+        _slidingPlayer = ActiveUserPlayer;
+        _slideContactResolved = false;
 
         Vector2 facing = ActiveUserPlayer.FacingDirection.Length() > 0.1f 
             ? Vector2.Normalize(ActiveUserPlayer.FacingDirection) 
             : new Vector2(1.0f, 0.0f);
-        _slideImpulseVelocity = facing * 4.0f; // F10: إضافة قوة اندفاع +4.0م/ث في اتجاه الوجه لمدة 0.3 ثانية
+        _slideImpulseVelocity = facing * Math.Max(4, ContactMotion(ActiveUserPlayer).Length()); // Preserve the real approach speed; no invented impact boost.
 
         PerformTackleAttempt(isSlideTackle: true, reach: 2.8f);
     }
@@ -990,124 +831,22 @@ public partial class MatchEngine
 
     private void PerformTackleAttempt(bool isSlideTackle, float reach)
     {
-        // ميزة إضافية لمدى الاستخلاص للمدافعين المتميزين (Defending Reach Bonus)
-        float defReachBonus = Math.Max(0.0f, (ActiveUserPlayer.Defending - 65) * 0.012f);
-        reach += defReachBonus;
-
-        Vector2 ball2D = new(Ball.Position.X, Ball.Position.Y);
-        Player? carrier = (Ball.Owner != null && AwayTeam.Players.Contains(Ball.Owner)) ? Ball.Owner : null;
-
-        float distToOpponent = carrier != null 
-            ? Vector2.Distance(ActiveUserPlayer.Position2D, carrier.Position2D) 
-            : float.MaxValue;
-
-        // If carrier is holding the ball and ball position equals carrier position, project ball to carrier's feet
-        Vector2 effectiveBall2D = ball2D;
-        if (carrier != null && Vector2.Distance(ball2D, carrier.Position2D) < 0.05f)
+        var actor = ActiveUserPlayer;
+        if (Ball.Owner is { } carrier && AwayTeam.Players.Contains(carrier))
         {
-            Vector2 carrierFacing = carrier.FacingDirection.Length() > 0.1f 
-                ? Vector2.Normalize(carrier.FacingDirection) 
-                : new Vector2(-1.0f, 0.0f);
-            effectiveBall2D = carrier.Position2D + carrierFacing * 0.35f;
-        }
-
-        float distToBall = Vector2.Distance(ActiveUserPlayer.Position2D, effectiveBall2D);
-        float reachCheckDist = carrier != null ? distToOpponent : distToBall;
-
-        // F11: إذا كان التدخل بعيداً عن المدى المطلوب، إعلان المسافة الرقمية بدقة وبدون تلميحات تعليمية
-        if (reachCheckDist > reach)
-        {
-            if (isSlideTackle)
-            {
-                Publish(new MatchEvent(MatchEventType.TackleAttempted, "انزلاق", CurrentZone, spatialPan: CalculateBallPan()));
-            }
-
-            string outOfReachMsg = carrier != null 
-                ? $"بعيد عن حامل الكرة: {distToOpponent:F1} متر"
-                : $"بعيد: {distToBall:F1} م";
-            Publish(new MatchEvent(MatchEventType.TacticalRadarInfo, outOfReachMsg), ("radar.reason", "tackleMissed"));
+            ResolveChallenge(actor, carrier, isSlideTackle, manual: true);
             return;
         }
-
-        // إذا كان هناك حامل للكرة من الفريق المنافس
-        if (carrier != null)
+        // A defensive key on a loose ball uses the same eligibility as ordinary control.
+        // It cannot swallow an airborne shot or acquire a distant ball.
+        if (Ball.Owner == null && TryControlIncomingBall(actor))
         {
-            var contactIncident = CaptureLiveFoulIncident(ActiveUserPlayer, carrier, effectiveBall2D, reach,
-                isSlideTackle ? _slideImpulseVelocity : Vector2.Zero);
-            bool dangerousContact = distToOpponent < .6f && contactIncident.Severity == FoulContactSeverity.EndangersSafety;
-            // تصنيف الالتحام هندسياً بمسار الانقضاض لا بمجرد مقارنة المسافات: إن لم يعترض جسم الحامل
-            // مسار الكرة فالالتحام على الكرة (صراع افتكاك)، وإن اعترضه فهو التحام بالجسم من الخلف (خطأ)،
-            // مع استثناء الالتحام قريب المدى بسرعة اقتراب عادية (خطف من عند القدمين) — الاندفاع السريع عبر الجسم يبقى خطأً.
-            // تبقى بوابة الاحتكاك الخطر كما اعتُمدت في معايرة التدخلات.
-            Vector2 tackleOrigin = ActiveUserPlayer.Position2D;
-            Vector2 lungePath = effectiveBall2D - tackleOrigin;
-            float lungeLenSq = Math.Max(lungePath.LengthSquared(), 1e-6f);
-            float bodyT = Math.Clamp(Vector2.Dot(carrier.Position2D - tackleOrigin, lungePath) / lungeLenSq, 0f, 1f);
-            float pathBodyGap = Vector2.Distance(carrier.Position2D, tackleOrigin + lungePath * bodyT);
-            bool bodyBlocked = pathBodyGap < .35f && bodyT < .999f;
-            bool closeQuarters = distToOpponent <= .75f && contactIncident.ClosingSpeed <= ActiveUserPlayer.Speed / 7.5f;
-            if ((!bodyBlocked || closeQuarters || distToBall < distToOpponent) && !dangerousContact)
-            {
-                // The later tactical specification requires attributes on the human path too.
-                // Ball-first geometry avoids an automatic foul; it does not guarantee beating a stronger carrier.
-                var duel = EvaluateTackleDuel(ActiveUserPlayer, carrier, effectiveBall2D, HomeTeam, AwayTeam, DifficultyLevel.Normal, counterTransitionActive:IsCounterTransition(AwayTeam), tacklerContactMotion:ContactMotion(ActiveUserPlayer), carrierContactMotion:ContactMotion(carrier));
-                if (!duel.TacklerWon)
-                {
-                    Publish(new MatchEvent(MatchEventType.TackleAttempted, isSlideTackle ? "انزلاق دون افتكاك الكرة" : "محاولة استخلاص دون افتكاك الكرة", CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer),
-                        ("tackle.sliding", isSlideTackle), ("tackle.won", false));
-                    return;
-                }
-                Ball.CatchOrTackle(ActiveUserPlayer);
-                RecordBallTouch(ActiveUserPlayer);
-                GrantPossessionGrace(1.4f);
-
-                // إبعاد الخصم المستخلص منه الكرة قليلاً لمنع التداخل الفوري
-                Vector2 pushAway = carrier.Position2D - ActiveUserPlayer.Position2D;
-                if (pushAway.Length() > 0.05f)
-                {
-                    carrier.Position2D += Vector2.Normalize(pushAway) * 1.5f;
-                }
-
-                string tackleStyle = isSlideTackle ? "بانزلاق أرضي" : "بتدخل هادئ";
-                string successDesc = $"استخلاص: {ActiveUserPlayer.Name} ({tackleStyle})";
-                Publish(new MatchEvent(MatchEventType.UserTackleSuccessful, successDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer),("tackle.sliding",isSlideTackle));
-            }
-            else
-            {
-                // ارتكاب خطأ / فاول لكون اللاعب أقرب لجسم الخصم منه للكرة
-                Ball.CatchOrTackle(carrier);
-                Ball.Velocity = Vector3.Zero;
-
-                Vector2 carrierFacing = carrier.FacingDirection.Length() > 0.1f 
-                    ? Vector2.Normalize(carrier.FacingDirection) 
-                    : new Vector2(-1.0f, 0.0f);
-                Vector2 tacklerFacing = ActiveUserPlayer.FacingDirection.Length() > 0.1f 
-                    ? Vector2.Normalize(ActiveUserPlayer.FacingDirection) 
-                    : new Vector2(1.0f, 0.0f);
-                Vector2 carrierToTackler = ActiveUserPlayer.Position2D - carrier.Position2D;
-                float behindDot = carrierToTackler.Length() > 0.05f 
-                    ? Vector2.Dot(carrierFacing, Vector2.Normalize(carrierToTackler)) 
-                    : 0.0f;
-                bool isFromBehind = behindDot < -0.2f || Vector2.Dot(carrierFacing, tacklerFacing) > 0.3f;
-
-                string foulDesc = $"خطأ ضد {ActiveUserPlayer.Name} لعرقلة غير مشروعة{(isFromBehind ? " من الخلف" : "")}!";
-                Publish(new MatchEvent(MatchEventType.FoulCommitted, foulDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer), ("foul.intentional", false));
-
-                HandleFoulSanction(ActiveUserPlayer, carrier, isSlideTackle, isFromBehind,
-                    contactIncident);
-            }
-        }
-        else
-        {
-            // الكرة حرة (بدون مالك) وضمن مدى الاستخلاص
-            Ball.CatchOrTackle(ActiveUserPlayer);
-            RecordBallTouch(ActiveUserPlayer);
             GrantPossessionGrace(1.4f);
-
-            string tackleStyle = isSlideTackle ? "بانزلاق أرضي" : "سيطرة هادئة";
-            string recoverDesc = $"استحواذ: {ActiveUserPlayer.Name} ({tackleStyle})";
-            Publish(new MatchEvent(MatchEventType.UserTackleSuccessful, recoverDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: ActiveUserPlayer),("tackle.sliding",isSlideTackle));
+            Publish(new MatchEvent(MatchEventType.UserTackleSuccessful, $"استحواذ: {actor.Name}", CurrentZone,
+                spatialPan: CalculateBallPan(), subjectPlayer: actor), ("tackle.sliding", isSlideTackle));
         }
+        else Publish(new MatchEvent(MatchEventType.TackleAttempted, "محاولة استخلاص", CurrentZone,
+            spatialPan: CalculateBallPan(), subjectPlayer: actor), ("tackle.won", false), ("tackle.sliding", isSlideTackle));
     }
 
     /// <summary>
@@ -1126,6 +865,7 @@ public partial class MatchEngine
     {
         public bool FromBehind { get; init; }
         public bool SlidingCommitment { get; init; }
+        public FoulIncident? Incident { get; init; }
     }
 
     /// <summary>
@@ -1146,250 +886,10 @@ public partial class MatchEngine
         Vector2? tacklerContactMotion = null,
         Vector2? carrierContactMotion = null)
     {
-        // 1. حساب الكفاءة والقدرة التقديرية للمدافع (Tackler Skill Score):
-        // الدفاع (50%) + القوة البدنية (30%) + السرعة (20%) + معامل الإرهاق
-        float tacklerStaminaFactor = Math.Clamp(tackler.Stamina / 100.0f, 0.60f, 1.0f);
-        float tacklerSkill = ((tackler.Defending * 0.50f) + (tackler.Physical * 0.30f) + (tackler.Speed * 0.20f)) * tacklerStaminaFactor;
-
-        // 2. حساب الكفاءة والقدرة التقديرية لحامل الكرة (Carrier Skill Score):
-        // المراوغة والتحكم (45%) + القوة البدنية لحجز الكرة (35%) + السرعة وخفة الحركة (20%) + معامل الإرهاق
-        float carrierStaminaFactor = Math.Clamp(carrier.Stamina / 100.0f, 0.60f, 1.0f);
-        float carrierSkill = ((carrier.Dribbling * 0.45f) + (carrier.Physical * 0.35f) + (carrier.Speed * 0.20f)) * carrierStaminaFactor;
-
-        // تطبيق معامل التناغم التكتيكي لحامل الكرة (بما في ذلك توافق الخطة مع التكتيك)
-        var carrierSynergy = carrierTeam.Tactics.CalculateSynergy(carrierTeam.CurrentFormation);
-        carrierSkill *= carrierSynergy.AdvantageMultiplier;
-
-        // تطبيق معامل التناغم التكتيكي للمدافع
-        var tacklerSynergy = tacklerTeam.Tactics.CalculateSynergy(tacklerTeam.CurrentFormation);
-
-        // قاعدة ذهبية: مستحيل ندي الأدفانتيدج التكتيكي للفريق الأضعف مهارياً لو بيلعب رجل لرجل (Man-to-Man)
-        // لأن الفوارق الفردية في الـ 1v1 بدون تغطية منطقة تفضح ضعف المدافع أمام المهاجم المهاري
-        float tacklerAdvantage = tacklerTeam.Tactics.Marking == DefensiveMarking.ManToMan && tacklerSkill < carrierSkill
-            ? Math.Min(tacklerSynergy.AdvantageMultiplier, 1.0f)
-            : tacklerSynergy.AdvantageMultiplier;
-        tacklerSkill *= tacklerAdvantage;
-
-        // فارق الطاقات الأساسي بين المدافع وحامل الكرة (Skill Differential)
-        float deltaSkill = tacklerSkill - carrierSkill;
-
-        // 3. التعديلات التكتيكية والموقعية (Tactical & Positional Modifiers):
-        float tacticalModifier = 0.0f;
-        List<string> reasons = new();
-
-        Vector2 relVec = carrier.Position2D - tackler.Position2D;
-        float distToCarrier = relVec.Length();
-        Vector2 dirToCarrier = distToCarrier > 0.05f 
-            ? Vector2.Normalize(relVec) 
-            : (tackler.FacingDirection.Length() > 0.1f ? Vector2.Normalize(tackler.FacingDirection) : new Vector2(1.0f, 0.0f));
-
-        Vector2 carrierFacing = carrier.FacingDirection.Length() > 0.1f 
-            ? Vector2.Normalize(carrier.FacingDirection) 
-            : new Vector2(1.0f, 0.0f);
-        Vector2 tacklerFacing = tackler.FacingDirection.Length() > 0.1f 
-            ? Vector2.Normalize(tackler.FacingDirection) 
-            : dirToCarrier;
-
-        // أ) حجز الكرة بالجسم (Body Shielding):
-        // إذا كان ظهر حامل الكرة في اتجاه المدافع، فالكرة في الأمام محمية بجسده
-        float shieldingDot = Vector2.Dot(carrierFacing, dirToCarrier);
-        bool isShielding = shieldingDot > 0.25f;
-        bool isFromBehind = shieldingDot > 0.45f || Vector2.Dot(carrierFacing, tacklerFacing) > 0.35f;
-
-        if (isShielding)
-        {
-            float shieldBonus = -18.0f - Math.Max(0.0f, (carrier.Physical - 75) * 0.30f);
-            tacticalModifier += shieldBonus;
-            reasons.Add("حجز جسدي للكرة");
-        }
-        else if (Vector2.Dot(carrierFacing, tacklerFacing) < -0.35f)
-        {
-            // مواجهة مباشرة وجهاً لوجه
-            tacticalModifier += 10.0f;
-            reasons.Add("مواجهة رأس برأس");
-        }
-        else
-        {
-            // زاوية جانبية مائلة
-            tacticalModifier -= 8.0f;
-            reasons.Add("زاوية تدخل مائلة");
-        }
-
-        // The ball is stored at the owner's centre. Use the same feet projection on CPU and human duels.
-        if(Vector2.Distance(ballPos2D,carrier.Position2D)<.05f)ballPos2D=carrier.Position2D+carrierFacing*.35f;
-        // ب) القرب من الكرة (Proximity to Ball):
-        float distToBall = Vector2.Distance(tackler.Position2D, ballPos2D);
-        if (distToBall < 0.65f)
-        {
-            tacticalModifier += 12.0f;
-            reasons.Add("قرب محكم من الكرة");
-        }
-        else if (distToBall > 1.10f)
-        {
-            tacticalModifier -= 12.0f;
-            reasons.Add("محاولة تدخل بأقصى مدى");
-        }
-
-        // ج) الضغط الجماعي والزيادة العددية للمدافعين (Supporting Pressers):
-        int supportingPressers = tacklerTeam.Players.Count(p =>
-            p != tackler &&
-            !p.IsSentOff &&
-            !p.IsOffPitch &&
-            p.Role != PlayerRole.Goalkeeper &&
-            Vector2.Distance(p.Position2D, carrier.Position2D) <= 3.6f);
-
-        if (supportingPressers > 0)
-        {
-            // في دفاع المنطقة تكون المساندة الجماعية كاملة، بينما في رقابة رجل لرجل يلتزم الزملاء بمراقبة خصومهم
-            float pressBonus = tacklerTeam.Tactics.Marking == DefensiveMarking.ManToMan
-                ? Math.Min(supportingPressers, 2) * 3.5f
-                : Math.Min(supportingPressers, 3) * 7.0f;
-            tacticalModifier += pressBonus;
-            reasons.Add($"ضغط جماعي ({supportingPressers} لاعب)");
-        }
-
-        // د) مساندة الزملاء لحامل الكرة لتفريغ الضغط (Carrier Outlets):
-        int supportingOutlets = carrierTeam.Players.Count(p =>
-            p != carrier &&
-            !p.IsSentOff &&
-            !p.IsOffPitch &&
-            p.Role != PlayerRole.Goalkeeper &&
-            Vector2.Distance(p.Position2D, carrier.Position2D) <= 4.0f);
-
-        if (supportingOutlets > 0)
-        {
-            float outletBonus = Math.Min(supportingOutlets, 2) * 4.0f;
-            tacticalModifier -= outletBonus;
-            reasons.Add("دعم تكتيكي قريب");
-        }
-
-        // هـ) تأثير مستويات شراسة العرقلة (Tackling Aggression):
-        float aggressionTackleBonus = 0.0f;
-        float baseFoulRisk = 12.0f;
-        bool isReckless = false;
-
-        switch (tacklerTeam.Tactics.Tackling)
-        {
-            case TacklingAggression.Cautious:
-                aggressionTackleBonus = -10.0f;
-                baseFoulRisk = 2.0f; // شبه مستحيل يرتكب فاول
-                reasons.Add("تدخل حذر");
-                break;
-            case TacklingAggression.Normal:
-                aggressionTackleBonus = 0.0f;
-                baseFoulRisk = 12.0f;
-                break;
-            case TacklingAggression.Moderate:
-                aggressionTackleBonus = +8.0f;
-                baseFoulRisk = 20.0f;
-                reasons.Add("التحام بدني قوي");
-                break;
-            case TacklingAggression.Aggressive:
-                aggressionTackleBonus = +16.0f;
-                baseFoulRisk = 35.0f;
-                reasons.Add("انزلاق حماسي شرس");
-                break;
-            case TacklingAggression.Reckless:
-                aggressionTackleBonus = +25.0f;
-                baseFoulRisk = 55.0f;
-                isReckless = true;
-                reasons.Add("اندفاع متهور");
-                break;
-        }
-        tacticalModifier += aggressionTackleBonus;
-
-        // و) تأثير شريط الضغط العالي ومصيدة التحضير القصير:
-        // إذا كان فريق المدافع يضغط عالي جداً (75+) وحامل الكرة يبني من الخلف (شريط التمرير < 35):
-        bool carrierRight=carrierTeam.MatchAttackingRight??carrierTeam.Side==TeamSide.Home;
-        float carrierLocalX=carrierRight?carrier.Position2D.X:Pitch.Length-carrier.Position2D.X;
-        if (tacklerTeam.Tactics.PressingIntensity > 75 && carrierTeam.Tactics.PassingDirectness < 35 && carrierLocalX<=18)
-        {
-            tacticalModifier += 14.0f;
-            reasons.Add("مصيدة الضغط العالي على بناء الهجمة القصير");
-        }
-
-        // ز) أسلوب وطريقة الدفاع (Zonal Marking vs Man-to-Man Marking):
-        if (tacklerTeam.Tactics.Marking == DefensiveMarking.ManToMan)
-        {
-            // في رقابة رجل لرجل (Man-to-Man): صراعات ثنائية فردية بحتة
-            if (deltaSkill < 0)
-            {
-                // الفارق الفردي يتضخم ضد المدافع الأضعف لغياب تغطية المنطقة
-                tacticalModifier += (deltaSkill * 0.25f);
-                reasons.Add("فشل رقابة رجل لرجل أمام تفوق المهارة الفردية للخصم");
-            }
-            else
-            {
-                // إذا كان المدافع متفوقاً أو نداً مهارياً وبدنياً، فالرقابة اللصيقة تخنق المهاجم
-                tacticalModifier += 8.0f;
-                reasons.Add("رقابة لصيقة رجل لرجل ناجحة");
-            }
-        }
-        else // Zonal Marking (دفاع منطقة)
-        {
-            // في دفاع المنطقة، التكتل وتغطية المساحات يعوضان فوارق المهارة الفردية للفرق الأقل قوة
-            if (deltaSkill < -8.0f)
-            {
-                // Taper the compensation instead of removing six points at an arbitrary
-                // skill threshold, which made a better defender suddenly worse.
-                tacticalModifier += Math.Clamp((-deltaSkill - 8) * .25f, 0, 6);
-                reasons.Add("تغطية دفاع المنطقة تعوض فارق المهارة الفردية");
-            }
-        }
-
-        // ح) تأثير أسلوب الهجمات المرتدة والون تاتش في التحولات:
-        if (counterTransitionActive && carrierTeam.Tactics.Focus == AttackingFocus.CounterAttack && carrierTeam.Tactics.Tempo >= 65)
-        {
-            tacticalModifier -= 14.0f;
-            reasons.Add("سرعة التحول الهجومي والون تاتش");
-        }
-
-        // ط) تعديل مستوى الصعوبة (تعديل طفيف لليقظة دون إلغاء تأثير الطاقات):
-        float diffModifier = diff switch
-        {
-            DifficultyLevel.Easy => -8.0f,
-            DifficultyLevel.Normal => 0.0f,
-            DifficultyLevel.Hard => +6.0f,
-            DifficultyLevel.Legendary => +12.0f,
-            _ => 0.0f
-        };
-
-        // حساب نسبة النجاح النهائية:
-        // النسبة المرجعية في الصراع المتكافئ 42%
-        float winProbability = 42.0f + (deltaSkill * 0.55f) + tacticalModifier + diffModifier;
-        winProbability = Math.Clamp(winProbability, 5.0f, 92.0f);
-
-        // Tactical_Design_Specs: identical positions and attributes have identical outcomes.
-        // Optional legacy rolls remain test fixtures only; production never samples a random die.
-        bool tacklerWon = forcedRandomRoll.HasValue ? forcedRandomRoll.Value < winProbability : winProbability >= 50;
-        float foulDanger = Math.Clamp(baseFoulRisk + (isFromBehind ? 25 : 0) - (tackler.Defending - 65) * .4f, 2, 85);
-        bool bodyFirst = distToCarrier < distToBall;
-        // الخطأ يتطلب احتكاكاً جسدياً حقيقياً: ملامسة مسار الجسم من مسافة بعيدة محاولة مشروعة
-        // لم تصل، وليست عرقلة. عتبة 0.9م تمثل تماساً فعلياً بين جسمي اللاعبين (معامل لعبة).
-        bool isFoul = forcedFoulRoll.HasValue
-            ? (!tacklerWon && forcedFoulRoll.Value < foulDanger) || (isReckless && forcedFoulRoll.Value < 20)
-            : bodyFirst && distToCarrier < 0.9f && (isReckless || foulDanger >= 35);
-        if(!forcedFoulRoll.HasValue && tacklerTeam.Tactics.Tackling==TacklingAggression.Cautious) isFoul=false;
-        bool dangerousContact = distToCarrier < .6f && CaptureFoulIncident(tackler,carrier,ballPos2D,
-            tacklerMotion:tacklerContactMotion,carrierMotion:carrierContactMotion).Severity == FoulContactSeverity.EndangersSafety;
-        isFoul |= dangerousContact;
-        bool severeInjuryRisk = isFoul && dangerousContact;
-        // حسم الصراع: الخطأ يمنع الفوز بالطبع، لكن مجرد ملامسة الجسم أولاً لم تعد خسارة آلية —
-        // الوصول الفعلي للكرة والزاوية والمهارات هما ما يقرران.
-        if (isFoul) tacklerWon = false;
-
-        string reasonStr = reasons.Count > 0 ? string.Join("، ", reasons) : "صراع متكافئ";
-
-        return new DuelResult(
-            tacklerWon,
-            isFoul,
-            severeInjuryRisk,
-            winProbability,
-            tacklerSkill,
-            carrierSkill,
-            tacticalModifier,
-            reasonStr
-        ) { FromBehind=isFromBehind, SlidingCommitment=tacklerTeam.Tactics.Tackling is TacklingAggression.Aggressive or TacklingAggression.Reckless };
+        return Play.ChallengeResolver.Evaluate(tackler, carrier, ballPos2D, tacklerTeam, carrierTeam, diff,
+            tacklerContactMotion ?? tackler.Velocity, carrierContactMotion ?? carrier.Velocity,
+            sliding: tacklerTeam.Tactics.Tackling is TacklingAggression.Aggressive or TacklingAggression.Reckless,
+            transition: counterTransitionActive, contestRoll: forcedRandomRoll, foulRoll: forcedFoulRoll);
     }
 
     /// <summary>
@@ -1429,7 +929,7 @@ public partial class MatchEngine
     /// </summary>
     public static bool ResolveGoalkeeperSaveAttempt(Player shooter, Player goalkeeper, double forcedRoll = -1.0)
     {
-        double roll = forcedRoll >= 0.0 ? forcedRoll : Random.Shared.NextDouble();
+        double roll = forcedRoll >= 0.0 ? forcedRoll : SimulationRandom.Next();
         return roll < ComputeSaveProbability(shooter, goalkeeper);
     }
 
@@ -1670,7 +1170,7 @@ public partial class MatchEngine
         // 5. نقل تحكم المستخدم إذا كان اللاعب المطرود تحت التحكم حالياً مع تجاوز مانع التكرار (Debounce)
         if (ActiveUserPlayer == player)
         {
-            _lastSwitchTime = DateTime.MinValue;
+            _switchCooldownSeconds = 0;
             SwitchToClosestPlayer();
             if (ActiveUserPlayer == player)
             {
@@ -1800,31 +1300,6 @@ public partial class MatchEngine
         var receiver = ActivePassTransit.IntendedReceiver;
         float distToBall = Vector2.Distance(receiver.Position2D, ball2D);
 
-        // 5. استلام الكرة التلقائي السلس عند وصول المستلم إلى الكرة (المسافة <= 2.2م والارتفاع <= 1.5م)
-        if (distToBall <= 2.2f && Ball.Position.Z <= 1.5f)
-        {
-            if (!TryControlIncomingBall(receiver))
-            {
-                if (ActivePassTransit != null) ActivePassTransit.IsActive=false;
-                ActivePassTransit=null;
-                return;
-            }
-            GrantPossessionGrace(1.4f);
-            ActiveUserPlayer = receiver;
-            ActivePassTransit.IsActive = false;
-            ActivePassTransit = null;
-
-            string zoneDesc = CurrentZone.ToArabicAnnouncement();
-            string receptionMsg = $"استلم {receiver.Name} الكرة بنجاح في {zoneDesc}.";
-            Publish(new MatchEvent(
-                MatchEventType.BallTrapped,
-                receptionMsg,
-                CurrentZone,
-                spatialPan: CalculateBallPan(), subjectPlayer: receiver
-            ));
-            return;
-        }
-
         // 4. حساب متجه القيادة والاعتراض والجري السريع نحو مسار الكرة القادمة
         Vector2 ballVel2D = new(Ball.Velocity.X, Ball.Velocity.Y);
         Vector2 interceptTarget;
@@ -1854,11 +1329,7 @@ public partial class MatchEngine
         {
             Vector2 runDir = Vector2.Normalize(toTarget);
             float sprintSpeed = (receiver.Speed / 6.5f) * 1.45f * FatigueMovementMultiplier(receiver);
-            receiver.Position2D += runDir * sprintSpeed * deltaTime;
-            receiver.Position2D = new Vector2(
-                Math.Clamp(receiver.Position2D.X, 1.0f, Pitch.Length - 1.0f),
-                Math.Clamp(receiver.Position2D.Y, 1.0f, Pitch.Width - 1.0f)
-            );
+            MoveAutonomousPlayer(receiver, runDir * Math.Min(sprintSpeed, toTarget.Length() / Math.Max(deltaTime, .0001f)), deltaTime);
         }
 
         var facingBall = ball2D - receiver.Position2D;
