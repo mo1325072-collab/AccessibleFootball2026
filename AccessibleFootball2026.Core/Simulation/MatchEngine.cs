@@ -1390,25 +1390,47 @@ public partial class MatchEngine
     {
         if (State == MatchState.GameOver) return;
         bool isDogso = CheckDogso(tackler, carrier);
-        bool reviewRed=isDogso || (isFromBehind && isSlideTackle);
-        if(reviewRed && BeginVideoReview(VideoReviewCategory.DirectRedCard,()=>HandleFoulSanction(tackler,carrier,isSlideTackle,isFromBehind),
+        // قانون 12 الحالي: خطأ يمنع فرصة محققة داخل منطقة الجزاء أثناء محاولة لعب الكرة = إنذار فقط،
+        // لأن ركلة الجزاء تعوّض الفرصة؛ الطرد المباشر يبقى لحرمان الفرصة خارج المنطقة.
+        Team? sanctionCarrierTeam = TeamOf(carrier);
+        bool carrierAttackingRight = sanctionCarrierTeam == HomeTeam ? UserAttackingRight : !UserAttackingRight;
+        bool inPenaltyArea = (carrierAttackingRight
+                ? carrier.Position2D.X >= Pitch.Length - Pitch.PenaltyBoxDepth
+                : carrier.Position2D.X <= Pitch.PenaltyBoxDepth)
+            && carrier.Position2D.Y >= Pitch.PenaltyYMin && carrier.Position2D.Y <= Pitch.PenaltyYMax;
+        bool dogsoRed = isDogso && !inPenaltyArea;
+        if(dogsoRed && BeginVideoReview(VideoReviewCategory.DirectRedCard,()=>HandleFoulSanction(tackler,carrier,isSlideTackle,isFromBehind),
             T($"قرار الفار: تأكيد المخالفة والطرد المباشر للاعب {tackler.Name}.",$"VAR decision: foul and direct red confirmed for {tackler.Name}."),"redCard"))return;
         _foulVictim=carrier;
         if(isSlideTackle) Count("stats.severeFouls");
 
-        if (isDogso)
+        if (dogsoRed)
         {
             IssueCard(tackler, isDirectRed: true, reason: "منع فرصة هدف محقق (DOGSO)");
         }
-        else if (isFromBehind && isSlideTackle)
+        else if (isDogso)
         {
-            IssueCard(tackler, isDirectRed: true, reason: "عرقلة عنيفة من الخلف");
-        }
-        else
-        {
-            // بطاقة صفراء للتدخل المتهور أو تعطيل هجمة واعدة
+            // حرمان فرصة محققة داخل منطقة الجزاء أثناء محاولة لعب الكرة: إنذار وفق تعديل قانون 12
             ReviewCardDecision(tackler,tackler,directRed:false,offenceConfirmed:true,clearErrorEvidence:false);
         }
+        else if (isFromBehind && isSlideTackle)
+        {
+            // تدخل انزلاقي من الخلف: تهوّر يستوجب الإنذار. اتجاه التدخل وحده ليس قوة مفرطة تستوجب الطرد.
+            ReviewCardDecision(tackler,tackler,directRed:false,offenceConfirmed:true,clearErrorEvidence:false);
+        }
+        else if (sanctionCarrierTeam != null && IsCounterTransition(sanctionCarrierTeam))
+        {
+            // خطأ يوقف هجمة مرتدة واعدة: إنذار تكتيكي (إيقاف هجمة واعدة) وفق قانون 12
+            ReviewCardDecision(tackler,tackler,directRed:false,offenceConfirmed:true,clearErrorEvidence:false);
+        }
+        else if (PerformanceOf(tackler).Fouls >= 3)
+        {
+            // إصرار على ارتكاب المخالفات: إنذار وفق قانون 12
+            ReviewCardDecision(tackler,tackler,directRed:false,offenceConfirmed:true,clearErrorEvidence:false);
+        }
+        // غير ذلك: خطأ بلا مبالاة (careless) = ركلة حرة فقط دون عقوبة انضباطية وفق قانون 12.
+        // فجوة تصميمية موثقة: نموذج الصراع لا يسجّل شدة الاحتكاك، لذلك لا يمكن إثبات "القوة المفرطة"
+        // (الطرد للعب العنيف) من بيانات الواقعة؛ الطرد المباشر يقتصر على DOGSO خارج المنطقة.
 
         if (State == MatchState.GameOver) { _foulVictim = null; return; }
         // Capture the restart before a seriously injured victim is substituted or leaves the pitch.
