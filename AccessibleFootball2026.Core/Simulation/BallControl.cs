@@ -11,15 +11,15 @@ public partial class MatchEngine
     /// <summary>First-touch error produces a real loose ball. The chance is tied to incoming speed and pressure.</summary>
     public bool TryControlIncomingBall(Player receiver, double? testRoll = null)
     {
-        if (receiver==_runUpPlayer)return false;
-        if (Ball.Owner != null || !receiver.IsActiveOnPitch || Ball.Position.Z > 1.5f || Vector2.Distance(receiver.Position2D,Ball.Position2D)>2.2f) return false;
-        if (_elapsedSeconds < _miscontrolUntil && receiver == _lastMiscontroller) return false;
-        var team=TeamOf(receiver);
-        if (team==null) return false;
-        bool pressured=(team==HomeTeam?AwayTeam:HomeTeam).Players.Any(p=>p.IsActiveOnPitch&&Vector2.Distance(p.Position2D,receiver.Position2D)<3);
-        float speed=Ball.Velocity.Length();
-        double errorChance = !pressured && speed <= 22 ? 0 : Math.Clamp((100-receiver.Dribbling)*.001 + Math.Max(0,speed-22)*.006+(pressured?.08:0),0,.35);
-        if ((testRoll??Random.Shared.NextDouble()) < errorChance)
+        if (receiver == _runUpPlayer) return false;
+        var team = TeamOf(receiver);
+        if (team == null) return false;
+        bool pressured = (team == HomeTeam ? AwayTeam : HomeTeam).Players.Any(p => p.IsActiveOnPitch && Vector2.Distance(p.Position2D, receiver.Position2D) < 3);
+        var decision = Play.PossessionArbiter.Evaluate(Ball, receiver, _isShotInProgress,
+            _elapsedSeconds < _miscontrolUntil && receiver == _lastMiscontroller, pressured, testRoll ?? SimulationRandom.Next());
+        if (decision is not (Play.BallControlDecision.Controlled or Play.BallControlDecision.Miscontrol)) return false;
+        float speed = Ball.Velocity.Length();
+        if (decision == Play.BallControlDecision.Miscontrol)
         {
             _lastMiscontroller=receiver;
             _miscontrolPressured=pressured;
@@ -36,6 +36,23 @@ public partial class MatchEngine
         Ball.CatchOrTackle(receiver);
         RecordBallTouch(receiver);
         return true;
+    }
+
+    private void CollectLooseBall()
+    {
+        if (Ball.Owner != null || _isShotInProgress) return;
+        var candidates = HomeTeam.Players.Concat(AwayTeam.Players).Where(p =>
+            (p != LastKicker || Ball.Velocity.Length() <= 2) &&
+            (p != _lastMiscontroller || _elapsedSeconds >= _miscontrolUntil));
+        var receiver = Play.PossessionArbiter.NearestEligible(Ball, candidates, _isShotInProgress);
+        if (receiver == null || !TryControlIncomingBall(receiver)) return;
+        _ballFreeTimer = 0;
+        _gkHoldTimer = 0;
+        if (ActivePassTransit != null) { ActivePassTransit.IsActive = false; ActivePassTransit = null; }
+        if (HomeTeam.Players.Contains(receiver)) ActiveUserPlayer = receiver;
+        GrantPossessionGrace(1.4f);
+        Publish(new MatchEvent(MatchEventType.BallTrapped, $"استلم {receiver.Name} الكرة", CurrentZone,
+            spatialPan: CalculateBallPan(), subjectPlayer: receiver), ("control.fromOpponent", false));
     }
 
     public void RequestLineup()
