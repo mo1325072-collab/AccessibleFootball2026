@@ -95,13 +95,15 @@ public static class SoundEffectsPlayer
     private static bool _crowdRequested;
     private static string? _stadiumAcousticPath;
     private static int _crowdIntensity = 350;
-    private static float _crowdDucking = 1f;
+    // مستوى ثابت معقول للجماهير تحت التعليق: خفض مقصود للمكسب، بلا أي خفض مؤقت (No ducking)
+    private const float CrowdBedGain = 0.55f;
+    private const float CrowdOneShotGain = 0.5f;
     private static bool _commentaryEnabled = true;
     private static readonly Dictionary<string, float> _activeOneShots = new();
     private static readonly Dictionary<string, float> _activeOneShotPans = new();
     private static float ChannelVolume(string alias) => alias == "comm_voice" ? (_commentaryEnabled ? GetEffectiveCommentaryVolume() : 0)
         : alias == "lineup_music" ? GetEffectiveMusicVolume()
-        : IsCrowdOneShot(alias) ? GetEffectiveCrowdVolume() * _crowdDucking : GetEffectiveSfxVolume();
+        : IsCrowdOneShot(alias) ? GetEffectiveCrowdVolume() * CrowdOneShotGain : GetEffectiveSfxVolume();
     private static bool IsCrowdOneShot(string alias) => alias == "chant_ch" || alias.StartsWith("crowd_", StringComparison.Ordinal);
     public static bool IsCrowdActive
     {
@@ -109,7 +111,7 @@ public static class SoundEffectsPlayer
         {
             lock (_lock)
             {
-                if (_matchSoundsPaused || GetEffectiveCrowdVolume() * _crowdDucking <= .001f) return false;
+                if (_matchSoundsPaused || GetEffectiveCrowdVolume() <= .001f) return false;
                 if (_crowdPlaying && !_crowdPaused) return true;
                 // A real chant/reaction is crowd even without a continuous bed. Stale entries,
                 // paused channels, failed status queries and intentional music are not evidence.
@@ -463,7 +465,7 @@ public static class SoundEffectsPlayer
         if (string.IsNullOrWhiteSpace(path) || IsConfirmedMusicalBed(path)) return;
         SendMci("close crowd");
         if (MciPlayback.SendString($"open \"{path}\" type mpegvideo alias crowd", null, 0, IntPtr.Zero) != 0) return;
-        int volume = Math.Clamp((int)(_crowdIntensity * _crowdDucking * GetEffectiveCrowdVolume()), 0, 1000);
+        int volume = Math.Clamp((int)(_crowdIntensity * CrowdBedGain * GetEffectiveCrowdVolume()), 0, 1000);
         if (MciPlayback.SendString($"setaudio crowd volume to {volume}", null, 0, IntPtr.Zero) != 0) { SendMci("close crowd"); return; }
         if (MciPlayback.SendString("play crowd repeat", null, 0, IntPtr.Zero) != 0) { SendMci("close crowd"); return; }
         _crowdPlaying = true;
@@ -548,28 +550,13 @@ public static class SoundEffectsPlayer
         }
     }
 
-    public static void SetCrowdDucking(float factor)
-    {
-        lock (_lock)
-        {
-            _crowdDucking = Math.Clamp(factor, 0, 1);
-            UpdateCrowdChannel(force: true);
-            // Chants and reactions are independent MCI aliases, not part of the ambience loop.
-            foreach (string alias in _activeOneShots.Keys.Where(IsCrowdOneShot).ToArray())
-            {
-                int volume = Math.Clamp((int)(ChannelVolume(alias) * _activeOneShots[alias] * 1000), 0, 1000);
-                ApplyOneShotVolume(alias, volume, _activeOneShotPans.TryGetValue(alias, out var pan) ? pan : null);
-            }
-        }
-    }
-
     private static void UpdateCrowdChannel(bool force)
     {
         if (GetEffectiveCrowdVolume() <= .001f) { CloseCrowdChannel(); return; }
         if (!_crowdRequested || _crowdPaused) return; // Saving in a menu must not start a match ambience.
         StartRequestedCrowd();
         if (!_crowdPlaying) return;
-        int volume = Math.Clamp((int)(_crowdIntensity * _crowdDucking * GetEffectiveCrowdVolume()), 0, 1000);
+        int volume = Math.Clamp((int)(_crowdIntensity * CrowdBedGain * GetEffectiveCrowdVolume()), 0, 1000);
         var now = DateTime.UtcNow;
         if (!force && Math.Abs(volume - _lastReportedCrowdVol) < 30 && (now - _lastCrowdVolChange).TotalMilliseconds < 250) return;
         _lastReportedCrowdVol = volume; _lastCrowdVolChange = now;
