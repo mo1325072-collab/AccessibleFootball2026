@@ -44,7 +44,7 @@ File.WriteAllText(Path.Combine(root,"commentary_context.json"),"broken");Check(!
 Team Team(string id, TeamSide side) { var t = new Team(id, id, side); for(int i=0;i<11;i++) t.Players.Add(new Player(i + (side == TeamSide.Home ? 100 : 200), "P"+i, i+1, i==0 ? SpecificPosition.GK : SpecificPosition.ST,75,75,75,75,75));return t; }
 var home=Team("h",TeamSide.Home);var away=Team("a",TeamSide.Away);var bus=new MatchEventBus();var events=new List<MatchEvent>();bus.OnMatchEvent += events.Add;
 var match=new MatchEngine(home,away,bus,new Input());
-void Goal() { match.Ball.Position = new Vector3(Pitch.Length+.1f,Pitch.Width/2,1); typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(match,null); }
+void Goal() { match.Ball.Position = new Vector3(Pitch.Length+.1f,Pitch.Width/2,1); typeof(MatchEngine).GetMethod("CheckRefereeRules",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(match,new object[]{new Vector3(52.5f,34,1)}); }
 Goal(); var goal=events.Last(e=>e.Type==MatchEventType.GoalScored);
 Check(match.LastGoalReplay!=null && match.LastGoalReplay.Frames.Count>0,"Actual goal freezes sampled ball trajectory");
 var replay=match.LastGoalReplay!;
