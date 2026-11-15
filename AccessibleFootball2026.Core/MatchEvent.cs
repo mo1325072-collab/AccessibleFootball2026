@@ -55,7 +55,9 @@ public enum MatchEventType
     FreeKickAwarded, FreeKickReady, FreeKickTaken,
     DribbleSuccessful, Clearance, ShotBlocked, ControlLost,
     SubstitutionPlanned, RefereeProtest, GoalDisallowed, MissAnalysis, OffsideAnalysis,
-    Advantage, BallOut, LineupRequested, TrophyWon, CoachInstruction, CoachPraise, CoachWideInstruction, MatchAbandoned, VideoReviewStarted, VideoReviewDecision
+    Advantage, BallOut, LineupRequested, TrophyWon, CoachInstruction, CoachPraise, CoachWideInstruction, MatchAbandoned, VideoReviewStarted, VideoReviewDecision,
+    // A shot stopped before its result, not a missed chance. Appended to preserve event values.
+    ShotInterrupted
 }
 
 /// <summary>
