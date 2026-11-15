@@ -5,6 +5,22 @@ public partial class MatchEngine
 {
     private readonly AttemptLedger _attempts = new();
     public IReadOnlyList<ShotAttempt> Attempts => _attempts.Attempts;
+    private readonly Dictionary<long, (Player Keeper, float ConfidenceCredit)> _provisionalSaveCredits = new();
+
+    private void RevokeProvisionalSave(long attemptId)
+    {
+        if (!_provisionalSaveCredits.Remove(attemptId, out var credit)) return;
+        PerformanceOf(credit.Keeper).RevokeSave();
+        var team = TeamOf(credit.Keeper);
+        if (team != null)
+        {
+            var statistics = StatisticsFor(team);
+            statistics.Saves = Math.Max(0, statistics.Saves - 1);
+            _teamSaves[team.Id] = Math.Max(0, _teamSaves.GetValueOrDefault(team.Id) - 1);
+        }
+        _commentaryStatistics["stats.saves"] = Math.Max(0, _commentaryStatistics.GetValueOrDefault("stats.saves") - 1);
+        _confidence[credit.Keeper] = Math.Clamp(_confidence.GetValueOrDefault(credit.Keeper, 75) - credit.ConfidenceCredit, 10, 100);
+    }
 
     private void InterruptAttempt()
     {
@@ -46,12 +62,18 @@ public partial class MatchEngine
             // A measured on-target shot that deflects into the net remains the same attempt.
             bool deflected = e.Context.TryGet("goal.deflectedShot", out var value) && value == "true";
             if (deflected) confirmedDeflection = _attempts.ConfirmDeflectedGoal(goal.Scorer, goal.ScoringTeam);
+            if (confirmedDeflection != null) RevokeProvisionalSave(confirmedDeflection.Id);
             if (confirmedDeflection == null) _attempts.Begin(goal.Scorer, goal.ScoringTeam, MatchTimeMinutes);
         }
         var resolved = confirmedDeflection ?? _attempts.Resolve(outcome.Value);
         // Synthetic public audio triggers may still play without fabricating measured stats.
         if (resolved == null) return e.Type == MatchEventType.GoalScored || e.SubjectPlayer == null && e.Type is MatchEventType.GoalkeeperSave or MatchEventType.WoodworkHit;
         _isShotInProgress = false;
+        if (resolved.Outcome == AttemptOutcome.Saved && e.SubjectPlayer is { } keeper)
+        {
+            float confidence = _confidence.GetValueOrDefault(keeper, 75);
+            _provisionalSaveCredits[resolved.Id] = (keeper, Math.Clamp(confidence + 3, 10, 100) - confidence);
+        }
         e.Context = e.Context.With(("attempt.id", resolved.Id), ("attempt.team", resolved.Team.Id),
             ("attempt.outcome", resolved.Outcome), ("attempt.shooter", resolved.Shooter.Id));
         return true;
