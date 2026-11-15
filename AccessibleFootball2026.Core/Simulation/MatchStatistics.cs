@@ -8,6 +8,10 @@ public sealed class TeamMatchStatistics
     public int Shots { get; internal set; }
     public int ShotsOnTarget { get; internal set; }
     public int ShotsOffTarget { get; internal set; }
+    // Annulled play (e.g. an offside-disallowed goal) and whistle-stopped attempts are truthful
+    // terminal states of their own: neither is an official shot on or off target.
+    public int ShotsAnnulled { get; internal set; }
+    public int ShotsInterrupted { get; internal set; }
     public int Interceptions { get; internal set; }
     public int BlockedShots { get; internal set; }
     public int Woodwork { get; internal set; }
@@ -56,6 +60,19 @@ public partial class MatchEngine
                 _shotOutcomeRecorded = true;
             }
         }
+        if (e.Type == MatchEventType.GoalDisallowed)
+        {
+            // An annulled goal is annulled play, not an official shot on target: the attempt's
+            // truthful terminal state is "annulled". Only a still-live registered shot resolves
+            // into the annulled bucket; an annulled crossing without a registered shot is not an
+            // invented attempt (it is already recorded by the offside stat itself).
+            var disallowedTeam = TeamOf(e.SubjectPlayer) ?? (_shotShooter != null ? TeamOf(_shotShooter) : null);
+            if (disallowedTeam != null && !_shotOutcomeRecorded && _isShotInProgress)
+            {
+                StatisticsFor(disallowedTeam).ShotsAnnulled++;
+                _shotOutcomeRecorded = true;
+            }
+        }
         if (e.Type == MatchEventType.GoalkeeperSave)
         {
             // A save is the registered shot's on-target outcome, attributed to the shooter's team.
@@ -73,6 +90,7 @@ public partial class MatchEngine
         {
             case MatchEventType.ShotTaken: s.Shots++; break;
             case MatchEventType.MissedChance: s.ShotsOffTarget++; break;
+            case MatchEventType.ShotInterrupted: s.ShotsInterrupted++; _shotOutcomeRecorded = true; break;
             case MatchEventType.PassIntercepted: s.Interceptions++; break;
             case MatchEventType.ShotBlocked: s.BlockedShots++; break;
             case MatchEventType.WoodworkHit: s.Woodwork++; break;
@@ -112,7 +130,9 @@ public partial class MatchEngine
             T($"الدقيقة {(int)MatchTimeMinutes}. {(IsExtraTime ? "الوقت الإضافي" : HalfTimeReached ? "الشوط الثاني" : "الشوط الأول")}", $"Minute {(int)MatchTimeMinutes}. {(IsExtraTime ? "Extra time" : HalfTimeReached ? "Second half" : "First half")}"),
             Both(T("الخطة", "Formation"), T(HomeTeam.CurrentFormation.ToArabicName(), HomeTeam.CurrentFormation.ToEnglishName()), T(AwayTeam.CurrentFormation.ToArabicName(), AwayTeam.CurrentFormation.ToEnglishName())),
             Both(T("الاستحواذ على الكرة أثناء اللعب الفعلي", "Possession during active play"), hp, ap),
-            Both(T("التسديدات", "Shots"), h.Shots, a.Shots), Both(T("التسديدات على المرمى", "Shots on target"), h.ShotsOnTarget, a.ShotsOnTarget),
+            // Displayed official totals exclude annulled invalid play and whistle-stopped attempts:
+            // neither has an official target result, and internal lifecycle buckets are not official totals.
+            Both(T("التسديدات", "Shots"), h.Shots - h.ShotsAnnulled - h.ShotsInterrupted, a.Shots - a.ShotsAnnulled - a.ShotsInterrupted), Both(T("التسديدات على المرمى", "Shots on target"), h.ShotsOnTarget, a.ShotsOnTarget),
             Both(T("التسديدات خارج المرمى", "Shots off target"), h.ShotsOffTarget, a.ShotsOffTarget),
             Both(T("التمريرات المعترضة", "Interceptions"), h.Interceptions, a.Interceptions),
             Both(T("التسديدات التي صدها المدافع", "Blocked shots"), h.BlockedShots, a.BlockedShots), Both(T("القائم والعارضة", "Woodwork"), h.Woodwork, a.Woodwork),
@@ -152,6 +172,9 @@ public partial class MatchEngine
         if (PendingInjuryPlayer != null) return false;
         if (State is MatchState.Paused or MatchState.HalfTime or MatchState.GameOver) return false;
         if (!AwaitingStoppageConfirmation && !AnalysisReplayPending && State != MatchState.GoalCelebration) return false;
+        // Consume anything tapped during the hold before play resumes: a charged shot released
+        // after the last held poll must never fire on the first live tick.
+        _ = _inputHandler.PollCurrentActions(Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner));
         AwaitingStoppageConfirmation = false;
         CompleteAnalysisReplay();
         if (State == MatchState.GoalCelebration) CompleteGoalCelebration();
