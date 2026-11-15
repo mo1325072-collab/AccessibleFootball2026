@@ -83,7 +83,7 @@ public partial class MatchEngine
     private float _possessionGraceTimer = 0.0f;
     private float _aiTackleCooldownTimer = 0.0f;
     private Vector2 _slideImpulseVelocity = Vector2.Zero;
-    private DateTime _lastSwitchTime = DateTime.MinValue;
+    private float _playerSwitchCooldownSeconds;
 
     public void GrantPossessionGrace(float seconds = 1.4f)
     {
@@ -206,6 +206,7 @@ public partial class MatchEngine
     public void TriggerHalfTime()
     {
         if (HalfTimeReached || State == MatchState.GameOver) return;
+        ResolveShotAtWhistle();
         State = MatchState.HalfTime;
         AwaitingStoppageConfirmation = false;
         CompleteAnalysisReplay();
@@ -356,6 +357,8 @@ public partial class MatchEngine
         {
             _kickoffProtectionTimer -= deltaTime;
         }
+        // Game-time decay in the in-play tick only: pause, held restarts and replays freeze it.
+        if (_playerSwitchCooldownSeconds > 0.0f) _playerSwitchCooldownSeconds -= deltaTime;
 
         // حساب سرعة مرور وقت المباراة وفق إعدادات المستخدم
         float durationMinutes = Math.Max(1, MatchSettings.Current.MatchDurationMinutes);
@@ -393,6 +396,7 @@ public partial class MatchEngine
                 if (!_fullTimeAnnounced)
                 {
                     _fullTimeAnnounced = true;
+                    ResolveShotAtWhistle();
                     string ftMsg = $"صافرة نهاية المباراة! النتيجة النهائية: {HomeTeam.Name} {HomeTeam.Score} - {AwayTeam.Score} {AwayTeam.Name}";
                     bool continues = HomeTeam.Score == AwayTeam.Score && (ExtraTimeAllowed || ShootoutAllowed);
                     if(!continues)State=MatchState.GameOver;
@@ -429,6 +433,7 @@ public partial class MatchEngine
         {
             if (!_extraTimeHalfReached && MatchTimeMinutes >= 105.0f)
             {
+                ResolveShotAtWhistle();
                 _extraTimeHalfReached = true;
                 MatchTimeMinutes = 105;
                 State = MatchState.HalfTime;
@@ -440,6 +445,7 @@ public partial class MatchEngine
             }
             if (MatchTimeMinutes >= 120.0f)
             {
+                ResolveShotAtWhistle();
                 if (HomeTeam.Score == AwayTeam.Score && ShootoutAllowed)
                 {
                     State = MatchState.PenaltyShootout;
@@ -917,12 +923,12 @@ public partial class MatchEngine
     public void SwitchToClosestPlayer()
     {
         // F9: منع التبديل السريع جداً إذا تكرر الاستدعاء في نفس الإطار (Debounce guard)
-        DateTime now = DateTime.UtcNow;
-        if ((now - _lastSwitchTime).TotalMilliseconds < 200)
+        // Game-time cooldown, not wall-clock: the simulation must be deterministic headless.
+        if (_playerSwitchCooldownSeconds > 0.0f)
         {
             return;
         }
-        _lastSwitchTime = now;
+        _playerSwitchCooldownSeconds = 0.2f;
 
         Player? closest = null;
         float minDist = float.MaxValue;
@@ -1429,7 +1435,7 @@ public partial class MatchEngine
     /// </summary>
     public static bool ResolveGoalkeeperSaveAttempt(Player shooter, Player goalkeeper, double forcedRoll = -1.0)
     {
-        double roll = forcedRoll >= 0.0 ? forcedRoll : Random.Shared.NextDouble();
+        double roll = forcedRoll >= 0.0 ? forcedRoll : SimulationRandom.Next();
         return roll < ComputeSaveProbability(shooter, goalkeeper);
     }
 
@@ -1670,7 +1676,7 @@ public partial class MatchEngine
         // 5. نقل تحكم المستخدم إذا كان اللاعب المطرود تحت التحكم حالياً مع تجاوز مانع التكرار (Debounce)
         if (ActiveUserPlayer == player)
         {
-            _lastSwitchTime = DateTime.MinValue;
+            _playerSwitchCooldownSeconds = 0.0f;
             SwitchToClosestPlayer();
             if (ActiveUserPlayer == player)
             {
@@ -1708,6 +1714,7 @@ public partial class MatchEngine
                 if (!CanMakeSubstitution(playerTeam) || !playerTeam.Bench.Any(playerTeam.CanEnterAsSubstitute))
                     LeavePitchInjured(player, playerTeam);
                 // The user, not a strongest-compatible-player heuristic, owns the replacement choice.
+                // With no legal reserve the pending entry remains as a truthful continue-short acknowledgment.
             }
             else if (!ExecuteForcedSubstitution(playerTeam, player))
             {
