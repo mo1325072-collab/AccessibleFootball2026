@@ -492,6 +492,108 @@ kb.HandleKeyUp(0x11);kb.HandleKeyDown(0x11,false);keys=kb.PollCurrentActions(fal
 Check(keys.Contains(GameAction.SwitchPlayer),"fresh Ctrl after release switches once again");
 kb.Reset();keys=kb.PollCurrentActions(false);
 Check(keys.Count==0,"focus/pause Reset clears pending and held actions without a stale burst");
+// Hold-to-charge kick power contract: possession S/W/D charge while held and fire once on release.
+double fakeNow=0.0;
+var chargeKb=new AccessibleFootball2026.Input.KeyboardInputHandler(()=>fakeNow);
+chargeKb.HandleKeyDown(0x57,true);
+keys=chargeKb.PollCurrentActions(true);
+Check(!keys.Contains(GameAction.Shoot),"held shot charges without firing on press");
+fakeNow=0.1;chargeKb.HandleKeyUp(0x57);keys=chargeKb.PollCurrentActions(true);
+Check(keys.Contains(GameAction.Shoot)&&chargeKb.ConsumeReleasedCharge01(GameAction.Shoot)==0f,"quick tap fires a normal-power shot on release");
+chargeKb.HandleKeyDown(0x57,true);fakeNow=1.0;
+Check(Math.Abs(chargeKb.ActiveCharge01(GameAction.Shoot)-0.52f)<0.05f,"charge progress is queryable while the key is held");
+keys=chargeKb.PollCurrentActions(true);
+Check(!keys.Contains(GameAction.Shoot),"still no shot while the key remains held");
+chargeKb.HandleKeyUp(0x57);keys=chargeKb.PollCurrentActions(true);
+Check(keys.Contains(GameAction.Shoot)&&Math.Abs(chargeKb.ConsumeReleasedCharge01(GameAction.Shoot)-0.52f)<0.05f,"a 0.9s hold releases a mid-power charged shot");
+keys=chargeKb.PollCurrentActions(true);
+Check(!keys.Contains(GameAction.Shoot)&&chargeKb.ConsumeReleasedCharge01(GameAction.Shoot)==0f,"a charged release fires exactly once with no stale repeat");
+chargeKb.HandleKeyDown(0x44,true);fakeNow=3.2;
+Check(chargeKb.ActiveCharge01(GameAction.Cross)>=1f,"charge caps at full power after 1.5s");
+chargeKb.HandleKeyUp(0x44);keys=chargeKb.PollCurrentActions(true);
+Check(keys.Contains(GameAction.Cross)&&chargeKb.ConsumeReleasedCharge01(GameAction.Cross)>=1f,"a long cross hold releases a fully charged high cross");
+chargeKb.HandleKeyDown(0x53,true);fakeNow=4.0;chargeKb.Reset();chargeKb.HandleKeyUp(0x53);
+keys=chargeKb.PollCurrentActions(true);
+Check(!keys.Contains(GameAction.ShortPass),"pause/focus Reset drops a stale charge so no pass fires after");
+var offballKb=new AccessibleFootball2026.Input.KeyboardInputHandler(()=>fakeNow);
+offballKb.HandleKeyDown(0x53,false);keys=offballKb.PollCurrentActions(false);
+Check(keys.Contains(GameAction.StandTackle)&&!keys.Contains(GameAction.ShortPass),"off-ball S still fires a stand tackle instantly on press");
+// Charge wiring contract: the engine consumes the released charge and scales the real kicks; cue is an earcon, never speech.
+{
+ var dir=AppContext.BaseDirectory;string? chargeAnchor=null;
+ for(int up=0;up<12&&dir!=null;up++){var c=Path.Combine(dir,"Build-Complete.py");if(File.Exists(c)){chargeAnchor=c;break;}dir=Path.GetDirectoryName(dir);}
+ if(chargeAnchor==null){Console.WriteLine("SKIP charge wiring checks outside the repo checkout");}
+ else{
+  var chargeRoot=Path.GetDirectoryName(chargeAnchor)!;
+  var engineSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Core","Simulation","MatchEngine.cs"));
+  Check(engineSrc.Contains("ConsumeReleasedCharge01(GameAction.ShortPass)")&&engineSrc.Contains("ConsumeReleasedCharge01(GameAction.Cross)")&&engineSrc.Contains("ConsumeReleasedCharge01(GameAction.Shoot)"),"engine consumes the released charge for pass, cross and shot");
+  Check(engineSrc.Contains("PublishChargeCues")&&engineSrc.Contains("KickChargeCue"),"engine publishes hold-charge cues while charging");
+  var shotSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Core","Simulation","ShotTechniques.cs"));
+  Check(shotSrc.Contains("1f + .35f * charge")&&shotSrc.Contains("1f + .7f * charge"),"charged driven shots gain speed but lose accuracy, never a guaranteed goal");
+  var audioSrc=File.ReadAllText(Path.Combine(chargeRoot,"AccessibleFootball2026.Audio","SmartAudioCoordinator.cs"));
+  Check(audioSrc.Contains("MatchEventType.KickChargeCue")&&audioSrc.Contains("PlayChargeMax"),"charge cues route to generated earcons");
+ }
+}
+// Charged kicks move real ball physics: same engine, same positions, only hold duration changes.
+float ShotSpeed(float charge){var m=Match();m.Update(.1f);var shooter=m.ActiveUserPlayer;shooter.Position2D=new(75,34);m.Ball.CatchOrTackle(shooter);m.Ball.Position=new(75,34,0);m.ExecuteShot(charge);return m.Ball.Velocity.Length();}
+Check(ShotSpeed(0f)>10f,"a tap shot still fires at normal power");
+Check(ShotSpeed(1f)>ShotSpeed(0f)*1.25f,"a fully charged shot is physically faster than a tap");
+float PassSpeed(float charge){var m=Match();m.Update(.1f);var passer=m.ActiveUserPlayer;passer.Position2D=new(50,34);m.Ball.CatchOrTackle(passer);m.Ball.Position=new(50,34,0);m.ExecutePass(new Vector2(1,0),false,false,charge);return m.Ball.Velocity.Length();}
+Check(PassSpeed(1f)>PassSpeed(0f)*1.35f,"a fully charged pass is physically faster than a tap pass");
+float CrossLift(float charge){var m=Match();m.Update(.1f);var crosser=m.ActiveUserPlayer;crosser.Position2D=new(85,50);m.Ball.CatchOrTackle(crosser);m.Ball.Position=new(85,50,0);m.ExecuteCross(CrossStyle.Center,charge);return m.Ball.Velocity.Z;}
+Check(CrossLift(1f)-CrossLift(0f)>3.5f,"a long cross hold physically raises the cross into a high lob");
+// Charge transition/regression contracts on the real engine path.
+MatchEngine ChargeMatch(IInputHandler h)=>new(Make("h",TeamSide.Home),Make("a",TeamSide.Away),new MatchEventBus(),h);
+{
+ double engNow=0.0;
+ var engKb=new AccessibleFootball2026.Input.KeyboardInputHandler(()=>engNow);
+ var em=ChargeMatch(engKb);em.Update(.1f);
+ var owner=em.ActiveUserPlayer;owner.Position2D=new(50,34);em.Ball.CatchOrTackle(owner);em.Ball.Position=new(50,34,0);
+ engKb.HandleKeyDown(0x53,true);
+ em.Ball.CatchOrTackle(em.AwayTeam.Players[4]);
+ engNow=0.6;engKb.HandleKeyUp(0x53);em.Update(.02f);
+ Check(!em.IsPassInTransit,"a charged pass released after losing the ball mid-hold never launches");
+ em.Ball.CatchOrTackle(owner);em.Ball.Position=new(50,34,0);
+ engKb.HandleKeyDown(0x53,true);engNow=1.1;engKb.HandleKeyUp(0x53);em.Update(.02f);
+ Check(em.IsPassInTransit,"a fresh charged pass fires normally after regaining the ball");
+}
+{
+ double sw=0.0;
+ var swKb=new AccessibleFootball2026.Input.KeyboardInputHandler(()=>sw);
+ var sm=ChargeMatch(swKb);sm.Update(.1f);
+ var teammate=sm.HomeTeam.Players.First(p=>p.IsActiveOnPitch&&p!=sm.ActiveUserPlayer);
+ sm.Ball.CatchOrTackle(teammate);sm.Ball.Position=new(50,34,0);
+ swKb.HandleKeyDown(0x53,true);swKb.HandleKeyDown(0x11,true);
+ sm.Update(.02f);
+ sw=0.5;swKb.HandleKeyUp(0x53);swKb.HandleKeyUp(0x11);sm.Update(.02f);
+ Check(!sm.IsPassInTransit,"charging while a teammate owns the ball never launches a pass after a player switch");
+}
+{
+ double mq=0.0;
+ var mqKb=new AccessibleFootball2026.Input.KeyboardInputHandler(()=>mq);
+ mqKb.HandleKeyDown(0x53,true);mq=0.4;mqKb.HandleKeyUp(0x53);
+ mqKb.HandleKeyDown(0x57,true);mq=0.8;mqKb.HandleKeyUp(0x57);
+ var set=mqKb.PollCurrentActions(true);
+ Check(set.Contains(GameAction.ShortPass)&&set.Contains(GameAction.Shoot),"S and W charged releases queue together in one poll");
+ Check(mqKb.ConsumeReleasedCharge01(GameAction.ShortPass)>0f&&mqKb.ConsumeReleasedCharge01(GameAction.Shoot)>0f,"each queued charged release keeps its own charge fraction");
+ Check(mqKb.ConsumeReleasedCharge01(GameAction.ShortPass)==0f&&mqKb.ConsumeReleasedCharge01(GameAction.Shoot)==0f,"charge consumption is single-use with nothing left stale");
+ mqKb.HandleKeyDown(0x53,true);mq=1.0;mqKb.HandleKeyUp(0x53);mqKb.HandleKeyDown(0x53,true);mq=1.4;mqKb.HandleKeyUp(0x53);
+ set=mqKb.PollCurrentActions(true);
+ Check(set.Contains(GameAction.ShortPass)&&Math.Abs(mqKb.ConsumeReleasedCharge01(GameAction.ShortPass)-0.12f)<0.05f,"rapid release and repress between polls collapses to one action with the latest charge");
+}
+{
+ double ch=0.0;
+ var chKb=new AccessibleFootball2026.Input.KeyboardInputHandler(()=>ch);
+ chKb.HandleKeyDown(0x57,true);chKb.HandleKeyDown(0x11,true);chKb.HandleKeyDown(0x11,true);
+ var chSet=chKb.PollCurrentActions(true);
+ Check(chSet.Contains(GameAction.SwitchPlayer)&&!chSet.Contains(GameAction.Shoot),"Ctrl fires once during a shot charge while the shot keeps charging");
+ chKb.HandleKeyDown(0x11,true);
+ chSet=chKb.PollCurrentActions(true);
+ Check(!chSet.Contains(GameAction.SwitchPlayer),"held Ctrl never repeats while a charge is in progress");
+ ch=0.5;chKb.HandleKeyUp(0x57);chKb.HandleKeyUp(0x11);
+ chSet=chKb.PollCurrentActions(true);
+ Check(chSet.Contains(GameAction.Shoot),"the charged shot still fires on release after the Ctrl hold ends");
+}
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
 sealed class Input:IInputHandler{public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>new();public bool IsActionTriggered(GameAction action,bool possession)=>false;}
