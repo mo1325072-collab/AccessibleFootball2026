@@ -86,10 +86,17 @@ public partial class MatchEngine
         float wait=(_tacticalDecisionWait.TryGetValue(carrier,out var remaining)?remaining:TacticalDecisionInterval(team,carrier))-dt;
         _tacticalDecisionWait[carrier]=wait;
         float shotRange=team.Tactics.Focus==AttackingFocus.ShootOnSight?31:24;
-        bool shoot=distance<shotRange && (nearest>1.5f || distance<16);
+        var shotDirection = distance > .001f ? (goal - carrier.Position2D) / distance : Vector2.UnitX;
+        bool laneBlocked = HomeTeam.Players.Where(p => p.IsActiveOnPitch && p.Role != PlayerRole.Goalkeeper).Any(p =>
+        {
+            var offset = p.Position2D - carrier.Position2D;
+            float along = Vector2.Dot(offset, shotDirection);
+            return along > .3f && along < Math.Min(distance, 8) && (offset - shotDirection * along).Length() < .9f;
+        });
+        bool shoot=distance<shotRange && (!laneBlocked || distance<16);
         if(wait<=0 && shoot)
         {
-            Vector2 shotTarget=ComputeCpuShotTarget(carrier.Position2D,!UserAttackingRight,Random.Shared.NextDouble(),Random.Shared.NextDouble(),carrier.Shooting,carrier.CurrentStamina);
+            Vector2 shotTarget=ComputeCpuShotTarget(carrier.Position2D,!UserAttackingRight,SimulationRandom.Next(),SimulationRandom.Next(),carrier.Shooting,carrier.CurrentStamina);
             var aim=shotTarget-carrier.Position2D;if(aim.LengthSquared()<.001f)aim=new Vector2(UserAttackingRight?-1:1,0);
             SnapshotOffsideAtKick(carrier);RecordBallTouch(carrier);
             Ball.Kick(Vector2.Normalize(aim),24+carrier.Shooting*.08f,1.6f,carrier);
@@ -122,21 +129,7 @@ public partial class MatchEngine
         }
         var toGoal=goal-carrier.Position2D;var direction=toGoal.LengthSquared()>.001f?Vector2.Normalize(toGoal):new Vector2(UserAttackingRight?-1:1,0);
         carrier.FacingDirection=direction;
-        // تصادم بدني: الحامل يتوقف عندما يسد مدافع منزلي طريقه أمامه بدل اختراق جسمه
-        bool bodyBlockedAhead=HomeTeam.Players.Any(p=>p.IsActiveOnPitch&&p.Role!=PlayerRole.Goalkeeper
-            &&(p.Position2D-carrier.Position2D).LengthSquared()>0.000001f
-            &&(p.Position2D-carrier.Position2D).Length()<0.55f
-            &&Vector2.Dot(Vector2.Normalize(p.Position2D-carrier.Position2D),direction)>0.2f);
-        if(bodyBlockedAhead)
-        {
-            carrier.Velocity=Vector2.Zero;
-            _contactMotion[carrier]=Vector2.Zero;
-        }
-        else
-        {
-            _contactMotion[carrier]=direction*(carrier.Speed*.065f*FatigueMovementMultiplier(carrier));
-            carrier.Position2D+=_contactMotion[carrier]*dt;
-        }
+        MoveAutonomousPlayer(carrier, direction * (carrier.Speed * .065f * FatigueMovementMultiplier(carrier)), dt);
         Ball.CatchOrTackle(carrier);
     }
 }
