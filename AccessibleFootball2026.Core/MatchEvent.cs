@@ -24,6 +24,7 @@ public enum MatchEventType
     PenaltyShootoutStarted,
     BallTrapped,
     TackleAttempted,
+    KickChargeCue,           // Hold-to-charge tactile feedback (earcon only, never spoken)
     HalfTime,
     YellowCard,
     RedCard,
@@ -144,4 +145,3 @@ public class MatchEventBus
         OnMatchEvent?.Invoke(matchEvent);
     }
 }
-
