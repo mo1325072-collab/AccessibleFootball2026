@@ -7,7 +7,7 @@ namespace AccessibleFootball2026.Audio;
 
 /// <summary>
 /// منسق الصوت الذكي:
-/// 1. خفض صوت الجماهير (Audio Ducking).
+/// 1. مستوى جماهير ثابت معقول بلا أي خفض مؤقت (No crowd ducking, بطلب المستخدم).
 /// 2. منع التكرار مع المعلق.
 /// 3. بعد الهدف: انتظار انتهاء صرخة المعلق الحماسية، ثم إعلان قارئ الشاشة لمسجل الهدف والأسيست، ثم استئناف اللعب.
 /// 4. طابور التحديث الأخير للكرة (Latest-State Drop Queue).
@@ -29,7 +29,6 @@ public class SmartAudioCoordinator
     /// </summary>
     public static bool SilenceLiveMatchSpeech { get; set; } = true;
 
-    public event Action<float>? OnCrowdVolumeDucking;
     private int _videoSpeechCount;
     public bool HasPendingVideoAnnouncement => Volatile.Read(ref _videoSpeechCount)>0;
     public event Action? OnGoalSequenceCompleted; // إشارة للمحرك باستئناف اللعب بعد اكتمال إعلان الهدف
@@ -359,7 +358,6 @@ public class SmartAudioCoordinator
             _goalCancellation = cancellation;
             HasPendingGoalAnnouncement = true;
         }
-        bool ducking = false;
         try
         {
             await Task.Delay(handledByCommentary ? 600 : 500, cancellation.Token);
@@ -371,7 +369,6 @@ public class SmartAudioCoordinator
                 cancellation.Token.ThrowIfCancellationRequested();
                 if (AccessibleFootball2026.Core.Models.MatchSettings.Current.ScreenReaderSpokenEventsEnabled)
                 {
-                    BeginReaderDucking(); ducking = true;
                     _goalReaderActive = true;
                     speech = _screenReader.SpeakUntilFinishedAsync(goalData.ToOfficialAnnouncement() + ". اضغط إنتر لإنهاء الإعادة واستئناف المباراة.");
                 }
@@ -387,7 +384,6 @@ public class SmartAudioCoordinator
         catch { /* Reader failure must not leave a held announcement flagged forever. */ }
         finally
         {
-            if (ducking) EndReaderDucking();
             lock (_goalSpeechLock)
             {
                 if (ReferenceEquals(_goalCancellation,cancellation))
@@ -397,34 +393,19 @@ public class SmartAudioCoordinator
         }
     }
 
-    private readonly object _duckingLock = new();
-    private int _readerDuckingUsers;
-    private void BeginReaderDucking()
-    {
-        lock (_duckingLock)
-            if (++_readerDuckingUsers == 1) OnCrowdVolumeDucking?.Invoke(.2f);
-    }
-    private void EndReaderDucking()
-    {
-        lock (_duckingLock)
-            if (--_readerDuckingUsers == 0) OnCrowdVolumeDucking?.Invoke(1f);
-    }
-
     private async void SpeakVideoAnnouncement(string text)
     {
         Interlocked.Increment(ref _videoSpeechCount);
-        BeginReaderDucking();
         try { await _screenReader.SpeakUntilFinishedAsync(text, interrupt:true); }
         catch { }
-        finally { EndReaderDucking();Interlocked.Decrement(ref _videoSpeechCount); }
+        finally { Interlocked.Decrement(ref _videoSpeechCount); }
     }
 
     private async void SpeakWithDucking(string text, bool explicitRequest = false)
     {
+        // الاسم تاريخي: لا يوجد أي خفض لصوت الجماهير؛ الجماهير بمستوى ثابت بطلب المستخدم
         if (!explicitRequest && !AccessibleFootball2026.Core.Models.MatchSettings.Current.ScreenReaderSpokenEventsEnabled) return;
-        BeginReaderDucking();
         try { await _screenReader.SpeakUntilFinishedAsync(text, interrupt: true); }
-        catch { /* A failed/cancelled reader still releases its own ducking claim. */ }
-        finally { EndReaderDucking(); }
+        catch { /* A failed/cancelled reader still completes its own speech claim. */ }
     }
 }
