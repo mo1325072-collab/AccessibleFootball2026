@@ -217,13 +217,18 @@ public class KeyboardInputHandler : IInputHandler
             if (_hasReceivedEvents)
             {
                 // 1. استهلاك الأوامر الفردية المقيدة بالطابور اللحظي
+                // الأمر المشحون/المؤجل يُسقط إذا انقلبت حالة الاستحواذ بعد ضغطة المفتاح:
+                // لا تسديدة مشحونة تنطلق بعد فقدان الكرة، ولا التحام يطلق وقد صارت الكرة معنا.
                 while (_pendingDiscreteActions.Count > 0)
                 {
-                    actions.Add(_pendingDiscreteActions.Dequeue());
+                    var pending = _pendingDiscreteActions.Dequeue();
+                    if (isPossession ? IsDefenseOnlyAction(pending) : IsPossessionOnlyAction(pending)) continue;
+                    actions.Add(pending);
                 }
                 while (_pendingChargedActions.Count > 0)
                 {
                     (GameAction chargedAction, float charge) = _pendingChargedActions.Dequeue();
+                    if (isPossession ? IsDefenseOnlyAction(chargedAction) : IsPossessionOnlyAction(chargedAction)) continue;
                     actions.Add(chargedAction);
                     _releasedChargesThisPoll[chargedAction] = charge;
                 }
@@ -251,6 +256,15 @@ public class KeyboardInputHandler : IInputHandler
 
         return actions;
     }
+
+    private static bool IsPossessionOnlyAction(GameAction action) => action is
+        GameAction.ShortPass or GameAction.ThroughBall or GameAction.Cross or GameAction.Shoot
+        or GameAction.LobShot or GameAction.CurledShot or GameAction.LoftedThroughBall
+        or GameAction.GroundCross or GameAction.FarPostCross
+        or GameAction.Header or GameAction.BicycleKick or GameAction.Volley;
+
+    private static bool IsDefenseOnlyAction(GameAction action) => action is
+        GameAction.StandTackle or GameAction.SlideTackle;
 
     /// <summary>
     /// اسم بديل متوافق مع عقد المشروع لـ PollCurrentActions
