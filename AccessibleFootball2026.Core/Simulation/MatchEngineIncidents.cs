@@ -8,6 +8,7 @@ public partial class MatchEngine
     {
         ObserveTacticalPossession();
         Vector2 ball2D = new(Ball.Position.X, Ball.Position.Y);
+        var diff = MatchSettings.Current.Difficulty;
 
         // تحديث التمريرة النشطة واعتراض المستلم أولاً قبل أي شيء
         if (ActivePassTransit != null && ActivePassTransit.IsActive)
@@ -54,12 +55,13 @@ public partial class MatchEngine
                         Publish(new MatchEvent(MatchEventType.BallKicked, $"حارس مرمى {AwayTeam.Name} يوزع الكرة عالية للأمام.", CurrentZone, spatialPan: CalculateBallPan(),subjectPlayer:opponent),("action.kind","pass"),("pass.height","high"));
                     }
                 }
-                else if (!_isShotInProgress && LastKicker != opponent && Vector2.Distance(opponent.Position2D, ball2D) < 2.0f && Ball.Position.Z < Pitch.GoalHeight)
+                else if (!_isShotInProgress && LastKicker != opponent && Vector2.Distance(opponent.Position2D, ball2D) < 2.0f && Ball.Position.Z < Pitch.GoalHeight
+                    && (Ball.Owner == null || AwayTeam.Players.Contains(Ball.Owner)))
                 {
                     // التقاط الكرات العادية فقط: التسديدات تُحسم بمواجهة حارس واحدة مبنية
                     // على المهارات، لا بالتقاط تلقائي مؤكد 100%
                     _gkHoldTimer = 0.0f;
-                    bool takenFromOpponent=Ball.Owner!=null&&HomeTeam.Players.Contains(Ball.Owner);
+                    bool takenFromOpponent=false;
                     bool keeperRushed=Math.Abs(opponent.Position2D.X-(UserAttackingRight?Pitch.Length:0))>6;
                     Ball.CatchOrTackle(opponent);
                     RecordBallTouch(opponent);
@@ -71,6 +73,45 @@ public partial class MatchEngine
                     Publish(new MatchEvent(MatchEventType.BallTrapped,"حارس الخصم يمسك بالكرة",CurrentZone,subjectPlayer:opponent),
                         ("keeper.rushedOut",keeperRushed),("control.fromOpponent",takenFromOpponent),("save.held",true));
                 }
+                else if (!_isShotInProgress && Ball.Owner != null && HomeTeam.Players.Contains(Ball.Owner)
+                    && Vector2.Distance(opponent.Position2D, ball2D) < 2.0f
+                    && _possessionGraceTimer <= 0.0f && _aiTackleCooldownTimer <= 0.0f)
+                {
+                    // حارس الخصم يواجه حامل الكرة المتجاوز بمواجهة الاستخلاص القائمة على المهارات بدل خطف مضمون 100%
+                    var carrier = Ball.Owner;
+                    var duel = EvaluateTackleDuel(
+                        tackler: opponent,
+                        carrier: carrier,
+                        ballPos2D: ball2D,
+                        tacklerTeam: AwayTeam,
+                        carrierTeam: HomeTeam,
+                        diff: diff,
+                        counterTransitionActive: IsCounterTransition(HomeTeam)
+                    );
+                    _aiTackleCooldownTimer = 1.5f;
+                    if (duel.TacklerWon)
+                    {
+                        Ball.CatchOrTackle(opponent);
+                        RecordBallTouch(opponent);
+                        _aiTackleCooldownTimer = 2.0f;
+                        if (ActivePassTransit != null)
+                        {
+                            ActivePassTransit.IsActive = false;
+                            ActivePassTransit = null;
+                        }
+                        string desc = $"حارس الخصم {opponent.Name} يبعد الكرة من قدم {carrier.Name}! ({duel.TacticalReason})";
+                        Publish(new MatchEvent(MatchEventType.OpponentTackleSuccessful, desc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: opponent));
+                    }
+                    else if (duel.IsFoul)
+                    {
+                        _aiTackleCooldownTimer = 2.5f;
+                        Ball.CatchOrTackle(carrier);
+                        Ball.Velocity = Vector3.Zero;
+                        string foulDesc = $"خطأ لصالح {carrier.Name} بعد تدخل حارس الخصم {opponent.Name}!";
+                        Publish(new MatchEvent(MatchEventType.FoulCommitted, foulDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: opponent), ("foul.intentional", false));
+                        HandleFoulSanction(opponent, carrier, isSlideTackle: duel.SlidingCommitment, isFromBehind: duel.FromBehind);
+                    }
+                }
                 continue;
             }
 
@@ -81,7 +122,6 @@ public partial class MatchEngine
             }
 
             float distToBall = Vector2.Distance(opponent.Position2D, ball2D);
-            var diff = MatchSettings.Current.Difficulty;
             float speedMult = diff switch
             {
                 DifficultyLevel.Easy => 0.045f,
@@ -234,10 +274,10 @@ public partial class MatchEngine
                         Publish(new MatchEvent(MatchEventType.BallKicked, $"حارسك {teammate.Name} يوزع الكرة عالية للأمام.", CurrentZone, spatialPan: CalculateBallPan(),subjectPlayer:teammate),("action.kind","pass"),("pass.height","high"));
                     }
                 }
-                else if (!_isShotInProgress && LastKicker != teammate && Vector2.Distance(teammate.Position2D, ball2D) < 2.5f && Ball.Position.Z < Pitch.GoalHeight && (Ball.Owner == null || AwayTeam.Players.Contains(Ball.Owner)))
+                else if (!_isShotInProgress && LastKicker != teammate && Vector2.Distance(teammate.Position2D, ball2D) < 2.5f && Ball.Position.Z < Pitch.GoalHeight && (Ball.Owner == null || HomeTeam.Players.Contains(Ball.Owner)))
                 {
                     _gkHoldTimer = 0.0f;
-                    bool takenFromOpponent=Ball.Owner!=null&&AwayTeam.Players.Contains(Ball.Owner);
+                    bool takenFromOpponent=false;
                     bool keeperRushed=Math.Abs(teammate.Position2D.X-(UserAttackingRight?0:Pitch.Length))>6;
                     Ball.CatchOrTackle(teammate);
                     RecordBallTouch(teammate);
@@ -249,6 +289,46 @@ public partial class MatchEngine
                     }
                     Publish(new MatchEvent(MatchEventType.BallTrapped, $"حارس مرماك {teammate.Name} يمسك بالكرة بأمان.", CurrentZone, spatialPan: CalculateBallPan(),subjectPlayer:teammate),
                         ("keeper.rushedOut",keeperRushed),("control.fromOpponent",takenFromOpponent),("save.held",true));
+                }
+                else if (!_isShotInProgress && Ball.Owner != null && AwayTeam.Players.Contains(Ball.Owner)
+                    && Vector2.Distance(teammate.Position2D, ball2D) < 2.5f
+                    && _possessionGraceTimer <= 0.0f && _aiTackleCooldownTimer <= 0.0f)
+                {
+                    // حارس المستخدم يواجه المهاجم المتجاوز بنفس نموذج المواجهة — لا خطف تلقائي مضمون
+                    var carrier = Ball.Owner;
+                    var duel = EvaluateTackleDuel(
+                        tackler: teammate,
+                        carrier: carrier,
+                        ballPos2D: ball2D,
+                        tacklerTeam: HomeTeam,
+                        carrierTeam: AwayTeam,
+                        diff: diff,
+                        counterTransitionActive: IsCounterTransition(AwayTeam)
+                    );
+                    _aiTackleCooldownTimer = 1.5f;
+                    if (duel.TacklerWon)
+                    {
+                        Ball.CatchOrTackle(teammate);
+                        RecordBallTouch(teammate);
+                        _aiTackleCooldownTimer = 2.0f;
+                        if (ActivePassTransit != null)
+                        {
+                            ActivePassTransit.IsActive = false;
+                            ActivePassTransit = null;
+                        }
+                        string desc = $"حارسك {teammate.Name} يبعد الكرة من قدم {carrier.Name}! ({duel.TacticalReason})";
+                        Publish(new MatchEvent(MatchEventType.BallTrapped, desc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: teammate),
+                            ("keeper.rushedOut",false),("control.fromOpponent",true),("save.held",true));
+                    }
+                    else if (duel.IsFoul)
+                    {
+                        _aiTackleCooldownTimer = 2.5f;
+                        Ball.CatchOrTackle(carrier);
+                        Ball.Velocity = Vector3.Zero;
+                        string foulDesc = $"خطأ ضد حارسك {teammate.Name} على {carrier.Name}!";
+                        Publish(new MatchEvent(MatchEventType.FoulCommitted, foulDesc, CurrentZone, spatialPan: CalculateBallPan(), subjectPlayer: teammate), ("foul.intentional", false));
+                        HandleFoulSanction(teammate, carrier, isSlideTackle: duel.SlidingCommitment, isFromBehind: duel.FromBehind);
+                    }
                 }
                 continue;
             }
