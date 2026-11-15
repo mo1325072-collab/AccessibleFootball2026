@@ -96,7 +96,7 @@ public class AccessibleFootballWindow : Form
 
         _titleLabel = new Label
         {
-            Text = "Accessible Football 2026/2027",
+            Text = "Accessible Football",
             Dock = DockStyle.Top,
             Height = 55,
             Font = new Font("Segoe UI", 18F, FontStyle.Bold),
@@ -383,7 +383,7 @@ public class AccessibleFootballWindow : Form
             ? "Accessible Football - Audio Football for the Blind"
             : "Accessible Football - كرة القدم الصوتية للمكفوفين";
 
-        _titleLabel.Text = "Accessible Football 2026/2027";
+        _titleLabel.Text = "Accessible Football";
 
         _hintLabel.Text = MatchSettings.Current.Language == UiLanguage.English
             ? "Controls: Arrows navigate | Enter confirms | Esc returns | Space tactical radar"
