@@ -61,6 +61,52 @@ public class KeyboardInputHandler : IInputHandler
     private readonly object _stateLock = new();
     private volatile bool _hasReceivedEvents = false;
 
+    // Hold-to-charge kick power: possession S/W/D charge while held and fire once on release.
+    private const double ChargeTapSeconds = 0.25;   // a tap up to this stays normal power (current feel)
+    private const double ChargeFullSeconds = 1.5;   // holding to here reaches full power
+    private readonly Dictionary<int, (GameAction action, double startSeconds)> _activeCharges = new();
+    private readonly Queue<(GameAction action, float charge)> _pendingChargedActions = new();
+    private readonly Dictionary<GameAction, float> _releasedChargesThisPoll = new();
+    private readonly Dictionary<int, double> _win32ChargeStart = new();
+    private readonly Func<double> _nowSeconds;
+
+    public KeyboardInputHandler(Func<double>? nowSecondsProvider = null)
+    {
+        _nowSeconds = nowSecondsProvider
+            ?? (() => System.Diagnostics.Stopwatch.GetElapsedTime(System.Diagnostics.Stopwatch.GetTimestamp()).TotalSeconds);
+    }
+
+    internal static float ChargeFraction(double holdSeconds)
+    {
+        if (holdSeconds <= ChargeTapSeconds) return 0f;
+        if (holdSeconds >= ChargeFullSeconds) return 1f;
+        return (float)((holdSeconds - ChargeTapSeconds) / (ChargeFullSeconds - ChargeTapSeconds));
+    }
+
+    private static bool IsChargeableAction(GameAction action) =>
+        action is GameAction.ShortPass or GameAction.Cross or GameAction.Shoot;
+
+    public float ActiveCharge01(GameAction action)
+    {
+        lock (_stateLock)
+        {
+            foreach (var kv in _activeCharges)
+            {
+                if (kv.Value.action == action)
+                    return ChargeFraction(_nowSeconds() - kv.Value.startSeconds);
+            }
+            return -1f;
+        }
+    }
+
+    public float ConsumeReleasedCharge01(GameAction action)
+    {
+        lock (_stateLock)
+        {
+            return _releasedChargesThisPoll.Remove(action, out float charge) ? charge : 0f;
+        }
+    }
+
     private static bool IsKeyDown(int vKey)
     {
         try
@@ -108,7 +154,12 @@ public class KeyboardInputHandler : IInputHandler
                 MarkDiscreteKeyHeld(keyCode, true);
 
                 GameAction action = ResolveDiscreteAction(keyCode, isPossession);
-                if (action != GameAction.None)
+                if (IsChargeableAction(action))
+                {
+                    // الشحن بالضغط المطوّل: لا إطلاق عند الضغط، تُحسب القوة من مدة الضغط وتُطلق عند رفع اليد
+                    _activeCharges[keyCode] = (action, _nowSeconds());
+                }
+                else if (action != GameAction.None)
                 {
                     _pendingDiscreteActions.Enqueue(action);
                 }
@@ -124,6 +175,11 @@ public class KeyboardInputHandler : IInputHandler
         lock (_stateLock)
         {
             _heldContinuousKeys.Remove(keyCode);
+
+            if (_activeCharges.Remove(keyCode, out (GameAction action, double startSeconds) charge))
+            {
+                _pendingChargedActions.Enqueue((charge.action, ChargeFraction(_nowSeconds() - charge.startSeconds)));
+            }
 
             MarkDiscreteKeyHeld(keyCode, false);
         }
@@ -150,6 +206,10 @@ public class KeyboardInputHandler : IInputHandler
             _heldDiscreteKeys.Clear();
             _pendingDiscreteActions.Clear();
             _win32LastHeld.Clear();
+            _activeCharges.Clear();
+            _pendingChargedActions.Clear();
+            _releasedChargesThisPoll.Clear();
+            _win32ChargeStart.Clear();
         }
     }
 
@@ -163,12 +223,20 @@ public class KeyboardInputHandler : IInputHandler
 
         lock (_stateLock)
         {
+            _releasedChargesThisPoll.Clear();
+
             if (_hasReceivedEvents)
             {
                 // 1. استهلاك الأوامر الفردية المقيدة بالطابور اللحظي
                 while (_pendingDiscreteActions.Count > 0)
                 {
                     actions.Add(_pendingDiscreteActions.Dequeue());
+                }
+                while (_pendingChargedActions.Count > 0)
+                {
+                    (GameAction chargedAction, float charge) = _pendingChargedActions.Dequeue();
+                    actions.Add(chargedAction);
+                    _releasedChargesThisPoll[chargedAction] = charge;
                 }
 
                 // 2. تقييم مفاتيح الحركة المستمرة
@@ -254,9 +322,9 @@ public class KeyboardInputHandler : IInputHandler
 
         if (isPossession)
         {
-            CheckWin32DiscreteKey(VK_KEY_S, GameAction.ShortPass, actions);
-            CheckWin32DiscreteKey(VK_KEY_D, GameAction.Cross, actions);
-            CheckWin32DiscreteKey(VK_KEY_W, GameAction.Shoot, actions);
+            CheckWin32ChargeableKey(VK_KEY_S, GameAction.ShortPass, actions);
+            CheckWin32ChargeableKey(VK_KEY_D, GameAction.Cross, actions);
+            CheckWin32ChargeableKey(VK_KEY_W, GameAction.Shoot, actions);
             CheckWin32DiscreteKey(VK_KEY_A, GameAction.ThroughBall, actions);
         }
         else
@@ -272,6 +340,22 @@ public class KeyboardInputHandler : IInputHandler
             UpdateWin32Key(VK_KEY_W);
             UpdateWin32Key(VK_KEY_D);
             UpdateWin32Key(VK_KEY_A);
+        }
+    }
+
+    private void CheckWin32ChargeableKey(int vKey, GameAction action, HashSet<GameAction> actions)
+    {
+        bool isDown = IsKeyDown(vKey);
+        if (isDown && !_win32ChargeStart.ContainsKey(vKey))
+        {
+            _win32ChargeStart[vKey] = _nowSeconds();
+            _activeCharges[vKey] = (action, _win32ChargeStart[vKey]);
+        }
+        else if (!isDown && _win32ChargeStart.Remove(vKey, out double start))
+        {
+            _activeCharges.Remove(vKey);
+            actions.Add(action);
+            _releasedChargesThisPoll[action] = ChargeFraction(_nowSeconds() - start);
         }
     }
 
@@ -362,4 +446,3 @@ public class KeyboardInputHandler : IInputHandler
         return GameAction.None;
     }
 }
-
