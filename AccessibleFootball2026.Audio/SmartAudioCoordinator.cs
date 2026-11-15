@@ -75,6 +75,7 @@ public class SmartAudioCoordinator
 
     public void HandleMatchEvent(MatchEvent matchEvent)
     {
+        if (matchEvent.Type is MatchEventType.ShotInterrupted or MatchEventType.ShotAnnulled) return;
         if(matchEvent.Type is MatchEventType.VideoReviewStarted or MatchEventType.VideoReviewDecision)
         {
             // Explicit referee information is never hidden by live-speech silence or recorded commentary.
