@@ -94,6 +94,8 @@ public partial class MatchEngine
     /// <summary>Snapshot before synchronous listeners run; no parsing of display descriptions.</summary>
     private void Publish(MatchEvent e, params (string Key, object? Value)[] facts)
     {
+        e.Context = e.Context.With(facts);
+        if (!RegisterAttemptEvent(e)) return;
         if (e.Type == MatchEventType.ShotTaken)
         {
             if (e.SubjectPlayer != null)
@@ -109,7 +111,7 @@ public partial class MatchEngine
             var shootingTeam = TeamOf(e.SubjectPlayer);
             if (shootingTeam != null) _teamShots[shootingTeam.Id] = _teamShots.GetValueOrDefault(shootingTeam.Id) + 1;
         }
-        if (e.Type == MatchEventType.GoalkeeperSave)
+        if (e.Type == MatchEventType.GoalkeeperSave && e.Context.TryGet("attempt.outcome", out var saveOutcome) && saveOutcome == "Saved")
         {
             Count("stats.saves");
             var savingTeam = TeamOf(e.SubjectPlayer);
@@ -126,6 +128,7 @@ public partial class MatchEngine
         UpdateConfidence(e);
         if (e.Type == MatchEventType.ShotTaken && MatchTimeMinutes < 45) Count("stats.firstHalfShots");
         RecordReactionsFor(e);
+        SyncAttemptTotals();
         var snapshot = Snapshot();
         var c = new CommentaryContext(snapshot.Facts.Concat(PlayFacts(e).Facts).GroupBy(p => p.Key).Select(g => g.Last()));
         if (e.Type is MatchEventType.ShotTaken or MatchEventType.GoalScored or MatchEventType.HatTrickAchieved or MatchEventType.DramaticComeback or
