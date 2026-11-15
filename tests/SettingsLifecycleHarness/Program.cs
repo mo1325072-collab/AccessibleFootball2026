@@ -382,6 +382,34 @@ Check(reducedRoster.Players.Count==9,"red cards and substitutions shrink the eli
 var reducedFirst=reducedRoster.Players[4];
 Check(reducedRoster.OrderTakers(new List<Player>{reducedFirst,reducedRoster.Players[0],reducedRoster.Players[8],reducedRoster.Players[2],reducedRoster.Players[5]}),"five picks are accepted from the reduced eligible pool");
 Check(reducedRoster.Taker(9)==reducedFirst,"with nine eligible players the first taker repeats on the tenth kick only");
+// IFAB 2026/27: only a clearly incorrect second caution with clear-error evidence is reviewable.
+Defaults();s.AiVarEnabled=true;Persist();
+var secondCardMatch=Match();secondCardMatch.Update(.1f);
+var secondCardPlayer=secondCardMatch.AwayTeam.Players[5];secondCardPlayer.YellowCards=1;
+Check(!secondCardMatch.ReviewCardDecision(secondCardPlayer,secondCardPlayer,false,false,false)&&!secondCardMatch.VideoReviewPending,"second caution without clear-error evidence never triggers VAR");
+Check(secondCardMatch.ReviewCardDecision(secondCardPlayer,secondCardPlayer,false,false,true)&&secondCardMatch.VideoReviewPending,"clearly incorrect second caution remains reviewable under IFAB 2026/27");
+var cleanGoalMatch=Match();cleanGoalMatch.Update(.1f);
+cleanGoalMatch.Ball.Position=new Vector3(Pitch.Length+.5f,Pitch.Width/2,0);
+Call(cleanGoalMatch,"CheckRefereeRules");
+Check(!cleanGoalMatch.VideoReviewPending&&cleanGoalMatch.HomeTeam.Score+cleanGoalMatch.AwayTeam.Score==1,"clean goal counts without a routine VAR review hold");
+// Keyboard event contract: held modifiers remain continuous; discrete actions debounce per physical press.
+var kb=new AccessibleFootball2026.Input.KeyboardInputHandler();
+kb.HandleKeyDown(0x10,false);kb.HandleKeyDown(0x27,false);kb.HandleKeyDown(0x11,false);kb.HandleKeyDown(0x53,false);
+var keys=kb.PollCurrentActions(false);
+Check(keys.Contains(GameAction.Sprint)&&keys.Contains(GameAction.MoveRight)&&keys.Contains(GameAction.SwitchPlayer)&&keys.Contains(GameAction.StandTackle),"Shift+Right, Ctrl and S coexist in one poll");
+kb.HandleKeyDown(0x11,false);kb.HandleKeyDown(0x53,false);
+keys=kb.PollCurrentActions(false);
+Check(keys.Contains(GameAction.Sprint)&&keys.Contains(GameAction.MoveRight)&&!keys.Contains(GameAction.SwitchPlayer)&&!keys.Contains(GameAction.StandTackle),"physical holds retain movement but never repeat Ctrl/S actions");
+for(int tap=0;tap<5;tap++){
+ kb.HandleKeyUp(0x53);kb.HandleKeyDown(0x53,false);keys=kb.PollCurrentActions(false);
+ Check(keys.Contains(GameAction.StandTackle)&&keys.Contains(GameAction.Sprint)&&keys.Contains(GameAction.MoveRight),$"distinct S tap {tap+1} registers while Shift+Right stay held");
+}
+kb.HandleKeyUp(0x53);kb.HandleKeyDown(0x44,false);keys=kb.PollCurrentActions(false);
+Check(keys.Contains(GameAction.SlideTackle)&&keys.Contains(GameAction.MoveRight)&&keys.Contains(GameAction.Sprint),"D slide tackle coexists with held Shift+Right");
+kb.HandleKeyUp(0x11);kb.HandleKeyDown(0x11,false);keys=kb.PollCurrentActions(false);
+Check(keys.Contains(GameAction.SwitchPlayer),"fresh Ctrl after release switches once again");
+kb.Reset();keys=kb.PollCurrentActions(false);
+Check(keys.Count==0,"focus/pause Reset clears pending and held actions without a stale burst");
 MciPlayback.TestCommand=null;Console.WriteLine($"RESULT {passed} passed, {failed} failed. Native MCI/Windows sound was not executed.");return failed==0?0:1;
 sealed class Reader:IScreenReader{public List<string> Spoken=new();public bool IsAvailable=>true;public void Speak(string text,bool interrupt=true)=>Spoken.Add(text);public void CancelSpeech(){}public Task SpeakUntilFinishedAsync(string text,bool interrupt=true){Speak(text,interrupt);return Task.CompletedTask;}}
 sealed class Input:IInputHandler{public HashSet<GameAction> PollCurrentActions(bool hasPossession)=>new();public bool IsActionTriggered(GameAction action,bool possession)=>false;}
