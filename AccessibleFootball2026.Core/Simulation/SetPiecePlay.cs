@@ -92,8 +92,6 @@ public partial class MatchEngine
         if (restart.Team == HomeTeam && restart.Kind is RestartKind.ThrowIn or RestartKind.GoalKick)
         { Restart = null; return false; }
         var actions = _inputHandler.PollCurrentActions(restart.Team == HomeTeam);
-        if (actions.Contains(GameAction.TacticalRadar)) ReportRequestedRadar();
-        if (actions.Contains(GameAction.RequestLineup)) RequestLineup();
         if (actions.Contains(GameAction.Pause)) { PauseMatch(); return true; }
         if (restart.Kind is RestartKind.ThrowIn or RestartKind.GoalKick)
         {
@@ -118,14 +116,11 @@ public partial class MatchEngine
             if(restart.Kind==RestartKind.Corner)
             {
                 if(actions.Contains(GameAction.Cross)){Restart=null;ExecuteCross();}
-                else if(actions.Contains(GameAction.GroundCross)){Restart=null;ExecuteCross(CrossStyle.Ground);}
-                else if(actions.Contains(GameAction.FarPostCross)){Restart=null;ExecuteCross(actions.Contains(GameAction.Sprint)?CrossStyle.GroundFarPost:CrossStyle.FarPost);}
                 else if(actions.Contains(GameAction.ShortPass)){Restart=null;ExecutePass(restart.Taker.FacingDirection);_attackOrigin="corner";}
                 else if(actions.Contains(GameAction.Shoot)){Restart=null;TryExecuteTechnique(ShotTechnique.Driven);}
                 return true;
             }
-            if (actions.Contains(GameAction.SlowRunUp)) BeginSlowRunUp();
-            else if (actions.Contains(GameAction.Shoot)) TakeRestartShot();
+            if (actions.Contains(GameAction.Shoot)) TakeRestartShot();
             else if (restart.Kind != RestartKind.Penalty && actions.Contains(GameAction.ShortPass))
             {
                 Restart = null;
